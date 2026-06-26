@@ -14,6 +14,7 @@ apps/
   admin/
 packages/
   core/
+  agoe/
   brain/
   capability-kernel/
   capability-graph/
@@ -55,3 +56,9 @@ Create Resource
 ## Implementation Tracker
 
 Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living checklist for building Atlas AIOS.
+
+## Architecture Docs
+
+- [Twelve Pillars](docs/architecture/twelve-pillars.md)
+- [MVP Roadmap](docs/roadmap/mvp.md)
+- [Foundation Implementation Notes](docs/implementation/foundation.md)

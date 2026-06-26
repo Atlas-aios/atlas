@@ -12,4 +12,3 @@
 10. Self Model
 11. Learning & Governance System
 12. Cognitive Loop
-

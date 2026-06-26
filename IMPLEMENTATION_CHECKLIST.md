@@ -10,16 +10,16 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 0. Foundation
 
-- [ ] Confirm MVP scope: learn an unknown generic business system and execute `Create Resource`.
-- [ ] Confirm public/private repo policy for all Atlas repos.
-- [ ] Define contribution model and branch policy.
-- [ ] Choose initial stack for API, workers, packages, and frontend.
-- [ ] Create root package manager/workspace setup.
-- [ ] Add formatting, linting, type-checking, and test commands.
-- [ ] Add CI for lint, test, type-check, and build.
-- [ ] Add base logging and configuration conventions.
-- [ ] Add environment variable and secrets conventions.
-- [ ] Add architecture docs links to repo README.
+- [x] Confirm MVP scope: learn an unknown generic business system and execute `Create Resource`.
+- [x] Confirm public/private repo policy for all Atlas repos.
+- [x] Define contribution model and branch policy.
+- [x] Choose initial stack for API, workers, packages, and frontend.
+- [x] Create root package manager/workspace setup.
+- [x] Add formatting, linting, type-checking, and test commands.
+- [x] Add CI for lint, test, type-check, and build.
+- [x] Add base logging and configuration conventions.
+- [x] Add environment variable and secrets conventions.
+- [x] Add architecture docs links to repo README.
 
 ---
 
@@ -493,4 +493,3 @@ An item is complete only when:
 - [ ] Docs are updated.
 - [ ] Relevant architecture decision is linked.
 - [ ] Governance impact is considered.
-

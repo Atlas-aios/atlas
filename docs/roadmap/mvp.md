@@ -14,4 +14,3 @@ Build the smallest useful version of Atlas that can learn an unknown business sy
 6. SWM, Memory, and Experience
 7. Governance gates
 8. Unknown business system demo
-

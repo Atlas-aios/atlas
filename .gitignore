@@ -1,12 +1,7 @@
 node_modules/
 dist/
-build/
+coverage/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
-coverage/
-.turbo/
-.next/
-__pycache__/
-*.pyc
-

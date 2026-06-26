@@ -1,0 +1,24 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/agoe" },
+    { "path": "./packages/brain" },
+    { "path": "./packages/capability-graph" },
+    { "path": "./packages/capability-kernel" },
+    { "path": "./packages/cognitive-loop" },
+    { "path": "./packages/experience" },
+    { "path": "./packages/governance" },
+    { "path": "./packages/identity" },
+    { "path": "./packages/interface-drivers" },
+    { "path": "./packages/learning" },
+    { "path": "./packages/memory" },
+    { "path": "./packages/observability" },
+    { "path": "./packages/providers-sdk" },
+    { "path": "./packages/self-model" },
+    { "path": "./packages/swm" },
+    { "path": "./packages/workflow-dsl" },
+    { "path": "./packages/world-state" }
+  ]
+}
