@@ -52,3 +52,6 @@ Initial universal capability:
 Create Resource
 ```
 
+## Implementation Tracker
+
+Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living checklist for building Atlas AIOS.
