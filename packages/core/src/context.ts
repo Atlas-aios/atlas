@@ -81,6 +81,16 @@ export interface BuildContextPacketInput {
   results: RetrievedContextItem[];
 }
 
+export interface ContextRetriever {
+  source: RetrievalSource;
+  retrieve(informationNeed: InformationNeed): Promise<RetrievedContextItem[]>;
+}
+
+export interface BuildContextPacketFromRetrieversInput {
+  informationNeed: InformationNeed;
+  retrievers: ContextRetriever[];
+}
+
 export function buildContextPacket(input: BuildContextPacketInput): ContextPacket {
   const allowedResults = input.results
     .filter((result) => result.confidence >= input.informationNeed.minConfidence)
@@ -141,6 +151,26 @@ export function buildContextPacket(input: BuildContextPacketInput): ContextPacke
     missingSources,
     droppedResultIds: Array.from(droppedResultIds)
   };
+}
+
+export async function buildContextPacketFromRetrievers(
+  input: BuildContextPacketFromRetrieversInput
+): Promise<ContextPacket> {
+  const retrieversBySource = new Map(
+    input.retrievers.map((retriever) => [retriever.source, retriever])
+  );
+  const selectedRetrievers = input.informationNeed.requiredSources
+    .map((source) => retrieversBySource.get(source))
+    .filter((retriever): retriever is ContextRetriever => retriever !== undefined);
+
+  const resultGroups = await Promise.all(
+    selectedRetrievers.map((retriever) => retriever.retrieve(input.informationNeed))
+  );
+
+  return buildContextPacket({
+    informationNeed: input.informationNeed,
+    results: resultGroups.flat()
+  });
 }
 
 function compareRetrievedContextItems(

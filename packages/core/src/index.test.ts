@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PILLAR_BOUNDARIES,
   buildContextPacket,
+  buildContextPacketFromRetrievers,
   createAtlasEventEnvelope,
   fail,
   getPillarBoundary,
@@ -168,5 +169,97 @@ describe("context builder", () => {
         }
       ]
     });
+  });
+
+  it("queries required retrieval adapters and assembles the packet", async () => {
+    const calls: string[] = [];
+    const packet = await buildContextPacketFromRetrievers({
+      informationNeed: {
+        id: "need_permissioned",
+        goalId: "goal_plan_invoice",
+        purpose: "govern",
+        question: "Can Atlas plan this action for the current user?",
+        entities: ["identity:user_1", "goal_plan_invoice"],
+        requiredSources: ["identity", "governance", "world-state"],
+        permissionScope: ["project:atlas"],
+        maxContextTokens: 100,
+        minConfidence: 0.5
+      },
+      retrievers: [
+        {
+          source: "identity",
+          retrieve: async (need) => {
+            calls.push(`identity:${need.permissionScope.join(",")}`);
+            return [
+              {
+                id: "identity_user",
+                source: "identity",
+                summary: "User identity resolved.",
+                content: "user_1 is allowed to act in project:atlas.",
+                confidence: 0.95,
+                relevance: 0.9,
+                estimatedTokens: 20,
+                permissionScope: ["project:atlas"],
+                sourceRefs: ["identity:user_1"]
+              }
+            ];
+          }
+        },
+        {
+          source: "governance",
+          retrieve: async () => {
+            calls.push("governance");
+            return [
+              {
+                id: "policy_action",
+                source: "governance",
+                summary: "Planning is allowed; execution requires approval.",
+                content:
+                  "The user may plan this action, but execution is approval-gated.",
+                confidence: 0.9,
+                relevance: 0.95,
+                estimatedTokens: 30,
+                permissionScope: ["project:atlas"],
+                sourceRefs: ["policy:sensitive_action"]
+              }
+            ];
+          }
+        },
+        {
+          source: "memory",
+          retrieve: async () => {
+            calls.push("memory");
+            return [];
+          }
+        },
+        {
+          source: "world-state",
+          retrieve: async () => {
+            calls.push("world-state");
+            return [
+              {
+                id: "world_state_current",
+                source: "world-state",
+                summary: "No active blocker for this project.",
+                content: "Project Atlas has no current blocker for planning.",
+                confidence: 0.8,
+                relevance: 0.85,
+                estimatedTokens: 25,
+                permissionScope: ["project:atlas"],
+                sourceRefs: ["world-state:snapshot_1"]
+              }
+            ];
+          }
+        }
+      ]
+    });
+
+    expect(calls).toEqual(["identity:project:atlas", "governance", "world-state"]);
+    expect(packet.items.map((item) => item.source)).toEqual([
+      "governance",
+      "identity",
+      "world-state"
+    ]);
+    expect(packet.missingSources).toEqual([]);
   });
 });

@@ -70,6 +70,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement Thought creation.
 - [ ] Implement Thought scheduling hooks.
 - [x] Implement planning context builder.
+- [x] Define retrieval adapter contract for context lookups.
 - [ ] Add SWM context lookup.
 - [ ] Add World State lookup.
 - [ ] Add Memory lookup.

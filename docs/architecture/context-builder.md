@@ -63,6 +63,45 @@ It includes:
 - missing sources
 - dropped result ids
 
+## Retriever Adapters
+
+Retriever adapters are the source-specific plugins behind the Context Builder. They translate an `InformationNeed` into source-backed `RetrievedContextItem` records.
+
+The core adapter contract is:
+
+```ts
+interface ContextRetriever {
+  source: RetrievalSource;
+  retrieve(informationNeed: InformationNeed): Promise<RetrievedContextItem[]>;
+}
+```
+
+The Context Builder calls only the retrievers required by the `InformationNeed`. If a task requires identity, governance, and world state, memory and vector search are not queried.
+
+This keeps retrieval cheap and permissioned:
+
+```text
+InformationNeed.requiredSources
+-> select matching retrievers
+-> pass permission scope to each retriever
+-> collect source-backed results
+-> build ContextPacket
+```
+
+First-class retriever roles:
+
+| Retriever        | Role                                                               |
+| ---------------- | ------------------------------------------------------------------ |
+| Identity         | resolves users, systems, roles, aliases, and permission context    |
+| Governance       | returns applicable policies, approval gates, and denied actions    |
+| World State      | returns active blockers, goals, incidents, deadlines, and workload |
+| SWM Graph        | returns semantic entities and relationships                        |
+| Memory           | returns source-backed episodic records                             |
+| Experience       | returns heuristics, playbooks, and anti-patterns                   |
+| Capability Graph | returns possible capabilities and composition paths                |
+| BM25             | returns exact text matches for decisions, instructions, and docs   |
+| Vector           | returns semantically similar memories, docs, and artifacts         |
+
 ## Store Selection
 
 | Need                          | First Lookup                 | Fallback                           |
