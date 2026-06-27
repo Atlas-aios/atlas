@@ -68,6 +68,12 @@ export interface ExecutionWorkflow {
   edges: ExecutionWorkflowEdge[];
 }
 
+export type ExecutionCheckpointReason =
+  | "step_completed"
+  | "step_failed"
+  | "session_completed"
+  | "session_failed";
+
 export type ExecutionGateRequiredAction =
   | "execute"
   | "execute_with_constraints"
@@ -133,6 +139,28 @@ export interface ExecutionStepResult {
   error?: string;
 }
 
+export interface ExecutionCheckpoint {
+  id: string;
+  executionId: string;
+  workflowId: string;
+  reason: ExecutionCheckpointReason;
+  status: ExecutionSessionStatus;
+  completedNodeIds: string[];
+  failedNodeIds: string[];
+  steps: ExecutionStepResult[];
+  events: ExecutionEvent[];
+  createdAt: string;
+  lastNodeId?: string;
+}
+
+export interface ExecutionCheckpointStore {
+  save(checkpoint: ExecutionCheckpoint): Promise<void> | void;
+}
+
+export interface MemoryCheckpointStore extends ExecutionCheckpointStore {
+  checkpoints: ExecutionCheckpoint[];
+}
+
 export interface ExecuteWorkflowNodeInput {
   session: ExecutionSession;
   node: ExecutionWorkflowNode;
@@ -157,6 +185,8 @@ export interface RunSequentialWorkflowInput {
   workflow: ExecutionWorkflow;
   handlers: WorkflowNodeHandlers;
   scheduleDelay?: (delayMs: number) => Promise<void> | void;
+  checkpointStore?: ExecutionCheckpointStore;
+  checkpointClock?: () => string;
 }
 
 export interface ProviderBackedCapabilityHandlerInput {
@@ -259,6 +289,17 @@ export function createExecutionSession(input: ExecutionSessionInput): ExecutionS
   };
 }
 
+export function createMemoryCheckpointStore(): MemoryCheckpointStore {
+  const checkpoints: ExecutionCheckpoint[] = [];
+
+  return {
+    checkpoints,
+    save: (checkpoint) => {
+      checkpoints.push(checkpoint);
+    }
+  };
+}
+
 export async function runSequentialWorkflow(
   input: RunSequentialWorkflowInput
 ): Promise<ExecutionRunResult> {
@@ -267,16 +308,26 @@ export async function runSequentialWorkflow(
     createExecutionEvent("execution.session.started", input.session.id)
   ];
   const steps: ExecutionStepResult[] = [];
+  let checkpointSequence = 0;
 
   if (!validation.valid) {
+    const failedEvents = [
+      ...events,
+      createExecutionEvent("execution.session.failed", input.session.id)
+    ];
+    checkpointSequence += 1;
+    await saveExecutionCheckpoint(input, checkpointSequence, {
+      reason: "session_failed",
+      status: "failed",
+      steps,
+      events: failedEvents
+    });
+
     return {
       session: { ...input.session, status: "failed" },
       status: "failed",
       steps,
-      events: [
-        ...events,
-        createExecutionEvent("execution.session.failed", input.session.id)
-      ]
+      events: failedEvents
     };
   }
 
@@ -300,6 +351,14 @@ export async function runSequentialWorkflow(
         createExecutionEvent("execution.step.failed", input.session.id, node.id),
         createExecutionEvent("execution.session.failed", input.session.id)
       );
+      checkpointSequence += 1;
+      await saveExecutionCheckpoint(input, checkpointSequence, {
+        reason: "step_failed",
+        status: "failed",
+        steps,
+        events,
+        lastNodeId: node.id
+      });
 
       return {
         session: { ...input.session, status: "failed" },
@@ -320,6 +379,14 @@ export async function runSequentialWorkflow(
       events.push(
         createExecutionEvent("execution.step.completed", input.session.id, node.id)
       );
+      checkpointSequence += 1;
+      await saveExecutionCheckpoint(input, checkpointSequence, {
+        reason: "step_completed",
+        status: "running",
+        steps,
+        events,
+        lastNodeId: node.id
+      });
     } catch (error) {
       steps.push({
         nodeId: node.id,
@@ -332,6 +399,14 @@ export async function runSequentialWorkflow(
         createExecutionEvent("execution.step.failed", input.session.id, node.id),
         createExecutionEvent("execution.session.failed", input.session.id)
       );
+      checkpointSequence += 1;
+      await saveExecutionCheckpoint(input, checkpointSequence, {
+        reason: "step_failed",
+        status: "failed",
+        steps,
+        events,
+        lastNodeId: node.id
+      });
 
       return {
         session: { ...input.session, status: "failed" },
@@ -343,6 +418,13 @@ export async function runSequentialWorkflow(
   }
 
   events.push(createExecutionEvent("execution.session.completed", input.session.id));
+  checkpointSequence += 1;
+  await saveExecutionCheckpoint(input, checkpointSequence, {
+    reason: "session_completed",
+    status: "completed",
+    steps,
+    events
+  });
 
   return {
     session: { ...input.session, status: "completed" },
@@ -388,6 +470,44 @@ async function executeNodeWithRetry(
   }
 
   throw lastError;
+}
+
+async function saveExecutionCheckpoint(
+  input: RunSequentialWorkflowInput,
+  checkpointSequence: number,
+  checkpoint: {
+    reason: ExecutionCheckpointReason;
+    status: ExecutionSessionStatus;
+    steps: ExecutionStepResult[];
+    events: ExecutionEvent[];
+    lastNodeId?: string;
+  }
+): Promise<void> {
+  if (input.checkpointStore === undefined) {
+    return;
+  }
+
+  const executionCheckpoint = {
+    id: `${input.session.id}:checkpoint:${checkpointSequence}`,
+    executionId: input.session.id,
+    workflowId: input.workflow.id,
+    reason: checkpoint.reason,
+    status: checkpoint.status,
+    completedNodeIds: checkpoint.steps
+      .filter((step) => step.status === "completed")
+      .map((step) => step.nodeId),
+    failedNodeIds: checkpoint.steps
+      .filter((step) => step.status === "failed")
+      .map((step) => step.nodeId),
+    steps: checkpoint.steps.map((step) => ({ ...step })),
+    events: checkpoint.events.map((event) => ({ ...event })),
+    createdAt: (input.checkpointClock ?? (() => new Date().toISOString()))(),
+    ...(checkpoint.lastNodeId === undefined
+      ? {}
+      : { lastNodeId: checkpoint.lastNodeId })
+  };
+
+  await input.checkpointStore.save(executionCheckpoint);
 }
 
 export function createProviderBackedCapabilityHandler(

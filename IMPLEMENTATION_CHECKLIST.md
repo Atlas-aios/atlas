@@ -248,7 +248,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement approval node behavior.
 - [ ] Implement human provider node behavior.
 - [ ] Implement wait node behavior.
-- [ ] Implement checkpointing.
+- [x] Implement checkpointing.
 - [x] Implement retries.
 - [ ] Implement rollback.
 - [ ] Implement compensation.

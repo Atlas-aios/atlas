@@ -9,6 +9,7 @@ import type {
 import { createProviderRegistry, registerProvider } from "@atlas-aios/providers-sdk";
 import {
   createExecutionSession,
+  createMemoryCheckpointStore,
   createProviderBackedCapabilityHandler,
   evaluateExecutionGate,
   runSequentialWorkflow,
@@ -388,5 +389,71 @@ describe("workflow execution", () => {
         executionId: "execution:retrying-node"
       }
     ]);
+  });
+
+  it("saves checkpoints after completed steps and session completion", async () => {
+    const checkpointStore = createMemoryCheckpointStore();
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:checkpointed",
+        workflowId: "workflow:checkpointed",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:checkpointed",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:prepare",
+            type: "capability",
+            inputs: { value: "invoice" }
+          },
+          {
+            id: "node:create",
+            type: "capability",
+            inputs: { from: "node:prepare" }
+          }
+        ],
+        edges: [
+          {
+            fromNodeId: "node:prepare",
+            toNodeId: "node:create"
+          }
+        ]
+      },
+      handlers: {
+        capability: ({ node }) => ({
+          outputs: { nodeId: node.id },
+          evidenceRefs: [`trace:${node.id}`]
+        })
+      },
+      checkpointStore,
+      checkpointClock: () => "2026-06-28T00:00:00.000Z"
+    });
+
+    expect(result.status).toBe("completed");
+    expect(checkpointStore.checkpoints.map((checkpoint) => checkpoint.reason)).toEqual([
+      "step_completed",
+      "step_completed",
+      "session_completed"
+    ]);
+    expect(checkpointStore.checkpoints[0]).toMatchObject({
+      id: "execution:checkpointed:checkpoint:1",
+      executionId: "execution:checkpointed",
+      workflowId: "workflow:checkpointed",
+      reason: "step_completed",
+      status: "running",
+      lastNodeId: "node:prepare",
+      completedNodeIds: ["node:prepare"],
+      failedNodeIds: []
+    });
+    expect(checkpointStore.checkpoints.at(-1)).toMatchObject({
+      id: "execution:checkpointed:checkpoint:3",
+      reason: "session_completed",
+      status: "completed",
+      completedNodeIds: ["node:prepare", "node:create"],
+      failedNodeIds: []
+    });
   });
 });
