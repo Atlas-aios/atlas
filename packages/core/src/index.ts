@@ -1,6 +1,9 @@
 export type ISODateTime = string;
 export type AtlasId = string;
 
+export * from "./events.js";
+export * from "./pillars.js";
+
 export interface AtlasReference {
   id: AtlasId;
   kind: string;

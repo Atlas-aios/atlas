@@ -12,3 +12,8 @@
 10. Self Model
 11. Learning & Governance System
 12. Cognitive Loop
+
+## Implementation Map
+
+- [Service Boundaries](service-boundaries.md)
+- [Cross-Pillar Contracts](cross-pillar-contracts.md)

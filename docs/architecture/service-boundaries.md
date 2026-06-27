@@ -1,0 +1,78 @@
+# Twelve-Pillar Service Boundaries
+
+Atlas is built around capabilities rather than named applications. Each pillar owns a distinct part of the AIOS and communicates through explicit contracts instead of hidden coupling.
+
+## Boundary Rules
+
+- A pillar owns the data it is listed as owning.
+- Other pillars read through published APIs, events, or query contracts.
+- Cross-pillar writes happen through commands or events, not direct storage mutation.
+- Providers and interface drivers are implementation details behind capabilities.
+- Governance rules can block any pillar action that exceeds granted authority.
+
+## Pillar Map
+
+| Pillar                | Package                         | Owns                                                                  | Consumes                                                                                             | Persistence                                       |
+| --------------------- | ------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Brain Engines         | `@atlas-aios/brain`             | reasoning, planning, plan explanation, context assembly               | Capability Kernel, SWM, World State, Memory, Experience, Self Model, Identity, Learning & Governance | PostgreSQL, event log                             |
+| Capability Kernel     | `@atlas-aios/capability-kernel` | capability resolution, provider ranking, approval gate detection      | Capability Graph, Experience, Learning & Governance, Self Model                                      | PostgreSQL, event log                             |
+| AGOE                  | `@atlas-aios/agoe`              | goal lifecycle, decomposition, recovery, waiting states               | Brain Engines, World State, Learning & Governance                                                    | PostgreSQL, event log                             |
+| Semantic World Model  | `@atlas-aios/swm`               | entities, relationships, ontology, semantic provenance                | Identity, Memory, knowledge ingestion outputs                                                        | PostgreSQL, vector store, event log               |
+| World State           | `@atlas-aios/world-state`       | operational snapshots, active goals, blockers, deadlines              | AGOE, Execution Engine, Memory, Observability                                                        | PostgreSQL, event log                             |
+| Memory                | `@atlas-aios/memory`            | immutable events, conversation records, execution records             | Cognitive Loop, Execution Engine, Learning & Governance                                              | PostgreSQL, vector store, object store, event log |
+| Experience Engine     | `@atlas-aios/experience`        | heuristics, playbooks, anti-patterns, decision patterns               | Memory, Learning & Governance, Self Model                                                            | PostgreSQL, vector store, event log               |
+| Capability Graph      | `@atlas-aios/capability-graph`  | capability ontology, composition, confidence                          | knowledge ingestion outputs, Learning & Governance                                                   | PostgreSQL, vector store, event log               |
+| Identity Engine       | `@atlas-aios/identity`          | identity resolution, aliases, roles, delegation context               | SWM, Memory, Learning & Governance                                                                   | PostgreSQL, event log                             |
+| Self Model            | `@atlas-aios/self-model`        | capability confidence, known limitations, granted authority           | Memory, Experience, Learning & Governance                                                            | PostgreSQL, event log                             |
+| Learning & Governance | `@atlas-aios/governance`        | policy decisions, critic reports, defender reports, judge validation  | Memory, Experience, Execution Engine, Self Model                                                     | PostgreSQL, object store, event log               |
+| Cognitive Loop        | `@atlas-aios/cognitive-loop`    | loop phases, attention allocation, curiosity triggers, bounded cycles | Brain Engines, AGOE, World State, Memory, Experience, Self Model                                     | PostgreSQL, event log                             |
+
+## Ownership Principles
+
+### Brain Engines
+
+Brain Engines decide how Atlas reasons about a goal. They do not execute provider calls directly. They produce plans, explanations, clarification requests, and approval requests.
+
+### Capability Kernel
+
+The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.
+
+### AGOE
+
+The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
+
+### Semantic World Model
+
+The SWM owns the semantic understanding of entities and relationships. It stores meaning, provenance, confidence, and temporal validity.
+
+### World State
+
+World State owns the current operational reality: active work, blockers, deadlines, incidents, waiting states, and workload.
+
+### Memory
+
+Memory records what happened. It is append-first, provenance-first, and used as evidence for learning and experience.
+
+### Experience Engine
+
+The Experience Engine distills raw memory into reusable heuristics, playbooks, anti-patterns, decision patterns, and risk patterns.
+
+### Capability Graph
+
+The Capability Graph represents what Atlas can do and how capabilities compose. It carries confidence and maturity state from draft to production.
+
+### Identity Engine
+
+Identity resolves humans, organizations, systems, providers, aliases, roles, and delegation context without unsafe assumptions.
+
+### Self Model
+
+The Self Model tracks what Atlas believes about its own abilities, limitations, confidence, authority, and failure modes.
+
+### Learning & Governance
+
+Learning & Governance validates evolution. It owns policy decisions, human approval rules, critic/defender/judge outputs, audit impact, and promotion gates.
+
+### Cognitive Loop
+
+The Cognitive Loop orchestrates observe, update, remember, distill, plan, simulate, execute, evaluate, learn, and rest cycles. It coordinates pillars without replacing their ownership.

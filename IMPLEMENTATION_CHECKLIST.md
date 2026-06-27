@@ -25,21 +25,21 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 1. Twelve-Pillar Implementation Map
 
-- [ ] Define service boundary for Brain Engines.
-- [ ] Define service boundary for Capability Kernel.
-- [ ] Define service boundary for AGOE.
-- [ ] Define service boundary for Semantic World Model.
-- [ ] Define service boundary for World State.
-- [ ] Define service boundary for Memory.
-- [ ] Define service boundary for Experience Engine.
-- [ ] Define service boundary for Capability Graph.
-- [ ] Define service boundary for Identity Engine.
-- [ ] Define service boundary for Self Model.
-- [ ] Define service boundary for Learning & Governance System.
-- [ ] Define service boundary for Cognitive Loop.
-- [ ] Define cross-pillar event contracts.
-- [ ] Define cross-pillar persistence ownership.
-- [ ] Define cross-pillar observability requirements.
+- [x] Define service boundary for Brain Engines.
+- [x] Define service boundary for Capability Kernel.
+- [x] Define service boundary for AGOE.
+- [x] Define service boundary for Semantic World Model.
+- [x] Define service boundary for World State.
+- [x] Define service boundary for Memory.
+- [x] Define service boundary for Experience Engine.
+- [x] Define service boundary for Capability Graph.
+- [x] Define service boundary for Identity Engine.
+- [x] Define service boundary for Self Model.
+- [x] Define service boundary for Learning & Governance System.
+- [x] Define service boundary for Cognitive Loop.
+- [x] Define cross-pillar event contracts.
+- [x] Define cross-pillar persistence ownership.
+- [x] Define cross-pillar observability requirements.
 
 ---
 
