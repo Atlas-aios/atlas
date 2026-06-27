@@ -67,6 +67,7 @@ Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living che
 - [Context Builder](docs/architecture/context-builder.md)
 - [Decision Engine](docs/architecture/decision-engine.md)
 - [Decision Memory Loop](docs/architecture/decision-memory-loop.md)
+- [Experience Distillation](docs/architecture/experience-distillation.md)
 - [Execution Gate](docs/architecture/execution-gate.md)
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)

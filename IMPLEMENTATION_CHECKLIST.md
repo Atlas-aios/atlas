@@ -106,7 +106,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Feed Decision Engine outcomes into Execution Engine.
 - [x] Record decisions into Memory.
 - [x] Feed Memory rejection reasons back into Decision Engine.
-- [ ] Feed repeated decision patterns into Experience Engine.
+- [x] Feed repeated decision patterns into Experience Engine.
 - [x] Add tests for approve, discuss, simulate, and reject outcomes.
 
 ---
@@ -277,21 +277,21 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 13. Experience Engine
 
-- [ ] Define Experience artifact schema.
+- [x] Define Experience artifact schema.
 - [ ] Define heuristic artifact type.
 - [ ] Define playbook artifact type.
 - [ ] Define anti-pattern artifact type.
-- [ ] Define decision pattern artifact type.
+- [x] Define decision pattern artifact type.
 - [ ] Define risk pattern artifact type.
-- [ ] Implement Memory-to-Experience distillation pipeline.
-- [ ] Implement evidence linking.
-- [ ] Implement confidence scoring.
-- [ ] Implement scope/applicability conditions.
+- [x] Implement decision Memory-to-Experience distillation pipeline.
+- [x] Implement evidence linking for decision patterns.
+- [x] Implement confidence scoring for decision patterns.
+- [x] Implement scope/applicability conditions for decision patterns.
 - [ ] Implement staleness/review policy.
 - [ ] Implement Experience lookup API for Brain.
 - [ ] Implement Experience lookup API for Kernel.
 - [ ] Add governance review for high-impact artifacts.
-- [ ] Add tests for avoiding overgeneralization.
+- [x] Add tests for avoiding overgeneralization.
 
 ---
 
