@@ -246,7 +246,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement sequential node execution.
 - [ ] Implement parallel node execution.
 - [x] Implement approval node behavior.
-- [ ] Implement human provider node behavior.
+- [x] Implement human provider node behavior.
 - [x] Implement wait node behavior.
 - [x] Implement checkpointing.
 - [x] Implement retries.

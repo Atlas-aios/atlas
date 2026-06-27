@@ -568,6 +568,10 @@ function resolveWorkflowNodeHandler(
     return createApprovalNodeHandler();
   }
 
+  if (node.type === "human_provider") {
+    return createHumanProviderNodeHandler();
+  }
+
   return undefined;
 }
 
@@ -595,6 +599,24 @@ function createApprovalNodeHandler(): WorkflowNodeHandler {
         reason
       },
       evidenceRefs: [`execution.approval:${approvalRequestId}`]
+    };
+  };
+}
+
+function createHumanProviderNodeHandler(): WorkflowNodeHandler {
+  return ({ node }) => {
+    const humanProviderId = requiredStringInput(node, "humanProviderId");
+    const task = requiredStringInput(node, "task");
+    const instructions = requiredStringInput(node, "instructions");
+
+    return {
+      status: "waiting",
+      outputs: {
+        humanProviderId,
+        task,
+        instructions
+      },
+      evidenceRefs: [`execution.human_provider:${humanProviderId}`]
     };
   };
 }

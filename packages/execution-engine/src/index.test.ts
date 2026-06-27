@@ -599,4 +599,45 @@ describe("workflow execution", () => {
       "execution.session.waiting"
     ]);
   });
+
+  it("pauses workflow execution on human provider nodes", async () => {
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:human-provider-node",
+        workflowId: "workflow:human-provider-node",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:human-provider-node",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:human-review",
+            type: "human_provider",
+            inputs: {
+              humanProviderId: "human:moksh",
+              task: "Review generated production deployment plan.",
+              instructions: "Approve only if rollback evidence is attached."
+            }
+          }
+        ],
+        edges: []
+      },
+      handlers: {}
+    });
+
+    expect(result.status).toBe("waiting");
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:human-review",
+        status: "waiting",
+        outputs: {
+          humanProviderId: "human:moksh",
+          task: "Review generated production deployment plan.",
+          instructions: "Approve only if rollback evidence is attached."
+        },
+        evidenceRefs: ["execution.human_provider:human:moksh"]
+      }
+    ]);
+  });
 });
