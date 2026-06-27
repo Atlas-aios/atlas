@@ -215,8 +215,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 8. Interface Drivers
 
-- [ ] Define Interface Driver contract.
-- [ ] Implement REST driver.
+- [x] Define Interface Driver contract.
+- [x] Implement REST driver.
 - [ ] Implement OpenAPI parser/driver.
 - [ ] Implement Browser UI driver.
 - [ ] Implement Filesystem driver.
@@ -225,9 +225,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Add CLI driver placeholder.
 - [ ] Add MCP driver placeholder.
 - [ ] Add driver test harness.
-- [ ] Add driver simulation mode.
-- [ ] Add driver permission model.
-- [ ] Add driver observability events.
+- [x] Add driver simulation mode.
+- [x] Add driver permission model.
+- [x] Add driver observability events.
 
 ---
 
