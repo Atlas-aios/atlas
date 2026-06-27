@@ -74,10 +74,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define AtlasIR versioning and checksum strategy.
 - [x] Define decision request schema.
 - [x] Define decision outcome schema.
-- [ ] Define audit event schema.
-- [ ] Define approval event schema.
-- [ ] Define execution event schema.
-- [ ] Define memory event schema.
+- [x] Define audit event schema.
+- [x] Define approval event schema.
+- [x] Define execution event schema.
+- [x] Define memory event schema.
 - [ ] Define SWM entity and relationship schema.
 - [ ] Define Capability Graph schema.
 - [ ] Define Experience artifact schema.
@@ -292,7 +292,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 12. Memory
 
-- [ ] Define Memory event schema.
+- [x] Define Memory event schema.
 - [ ] Implement raw event recording.
 - [x] Implement decision outcome memory records.
 - [x] Implement memory rejection reconsideration request.
