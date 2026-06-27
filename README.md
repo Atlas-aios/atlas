@@ -19,6 +19,7 @@ packages/
   capability-kernel/
   capability-graph/
   decision-engine/
+  execution-engine/
   providers-sdk/
   interface-drivers/
   workflow-dsl/
@@ -65,6 +66,7 @@ Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living che
 - [Cross-Pillar Contracts](docs/architecture/cross-pillar-contracts.md)
 - [Context Builder](docs/architecture/context-builder.md)
 - [Decision Engine](docs/architecture/decision-engine.md)
+- [Execution Gate](docs/architecture/execution-gate.md)
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)
 - [Pillar Implementation And Model Strategy Research](docs/research/pillar-implementation-and-model-strategy.md)

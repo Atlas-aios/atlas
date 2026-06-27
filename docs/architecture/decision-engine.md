@@ -37,6 +37,7 @@ Goal
 -> Brain plans
 -> Capability Kernel resolves capability/provider
 -> Decision Engine reviews intent, action, risks, alternatives, and authority
+-> Execution Gate maps the decision into execution readiness
 -> Execution Engine acts
 -> Memory records result
 -> Experience Engine learns decision patterns
@@ -91,6 +92,22 @@ It implements deterministic baseline outcomes:
 - `delegate_to_human` for human-only decisions
 
 This engine is intentionally simple. It provides a safe, auditable baseline while later versions can incorporate user preferences, Memory, Experience, Self Model confidence, and richer simulations.
+
+## Execution Gate Integration
+
+The initial execution integration lives in `@atlas-aios/execution-engine`.
+
+The execution package does not re-decide the action. It accepts a `DecisionOutcome` and maps it to an execution gate result:
+
+- `approve` -> ready to execute
+- `approve_with_constraints` -> ready to execute with constraints attached
+- `discuss` -> waiting for discussion
+- `suggest_alternative` -> waiting for plan revision
+- `simulate_first` -> waiting for simulation
+- `reject` -> blocked by decision
+- `delegate_to_human` -> waiting for human delegation
+
+This keeps judgment in the Decision Engine while giving the Execution Engine a deterministic state transition before any provider call is allowed.
 
 ## Risk Model
 

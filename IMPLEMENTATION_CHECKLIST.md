@@ -103,7 +103,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement discuss-for-better-way outcome.
 - [x] Implement simulate-first outcome.
 - [x] Implement reject outcome.
-- [ ] Feed Decision Engine outcomes into Execution Engine.
+- [x] Feed Decision Engine outcomes into Execution Engine.
 - [ ] Record decisions into Memory.
 - [ ] Feed repeated decision patterns into Experience Engine.
 - [x] Add tests for approve, discuss, simulate, and reject outcomes.
@@ -201,6 +201,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 9. Execution Engine And AtlasFlow
 
+- [x] Define execution gate contract.
 - [ ] Define AtlasFlow workflow schema.
 - [ ] Define node types.
 - [ ] Define edge types.

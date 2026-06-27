@@ -43,6 +43,12 @@ importers:
 
   packages/decision-engine: {}
 
+  packages/execution-engine:
+    dependencies:
+      "@atlas-aios/decision-engine":
+        specifier: workspace:*
+        version: link:../decision-engine
+
   packages/experience: {}
 
   packages/governance: {}
