@@ -33,6 +33,7 @@ export const ACR_EVENT_TYPES = [
   "relationship.added",
   "relationship.removed",
   "evidence.attached",
+  "evidence.detached",
   "policy.attached"
 ] as const;
 
@@ -129,6 +130,8 @@ export interface AtlasCognitiveTransaction {
   createdBy: string;
   intent: string;
   reason: string;
+  compensatesActId?: string;
+  compensationReason?: string;
   preconditions: string[];
   policyRefs: string[];
   evidenceRefs: ACREvidenceRef[];

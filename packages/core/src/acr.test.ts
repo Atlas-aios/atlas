@@ -286,6 +286,130 @@ describe("ACT projection", () => {
       }
     ]);
   });
+
+  it("applies compensating ACTs as append-only reversal events", () => {
+    const transactions: AtlasCognitiveTransaction[] = [
+      {
+        id: "act:release:graph",
+        schemaVersion: "0.1",
+        status: "committed",
+        goalId: "acr:goal:release",
+        traceId: "trace:release",
+        createdAt: "2026-06-28T00:00:00.000Z",
+        createdBy: "actor:brain",
+        intent: "Connect release goal to capability and evidence",
+        reason: "The goal needs graph and evidence projections.",
+        preconditions: [],
+        policyRefs: [],
+        evidenceRefs: [{ sourceId: "blob:release-notes", sourceType: "document" }],
+        validation: {
+          passed: true,
+          errors: [],
+          warnings: []
+        },
+        events: [
+          {
+            id: "acr:event:relationship",
+            actId: "act:release:graph",
+            type: "relationship.added",
+            occurredAt: "2026-06-28T00:01:00.000Z",
+            actorId: "actor:brain",
+            objectId: "acr:goal:release",
+            objectVersion: 2,
+            traceId: "trace:release",
+            payload: {
+              relationship: {
+                type: "uses",
+                targetId: "acr:capability:create-resource",
+                confidence: 0.88
+              }
+            }
+          },
+          {
+            id: "acr:event:evidence",
+            actId: "act:release:graph",
+            type: "evidence.attached",
+            occurredAt: "2026-06-28T00:01:01.000Z",
+            actorId: "actor:brain",
+            objectId: "acr:goal:release",
+            objectVersion: 2,
+            traceId: "trace:release",
+            payload: {
+              evidence: {
+                sourceId: "blob:release-notes",
+                sourceType: "document",
+                hash: "sha256:release-notes"
+              }
+            }
+          }
+        ],
+        committedAt: "2026-06-28T00:01:02.000Z"
+      },
+      {
+        id: "act:release:compensate",
+        schemaVersion: "0.1",
+        status: "compensated",
+        goalId: "acr:goal:release",
+        traceId: "trace:release",
+        compensatesActId: "act:release:graph",
+        compensationReason: "Capability evidence was attached to the wrong goal.",
+        createdAt: "2026-06-28T00:02:00.000Z",
+        createdBy: "actor:brain",
+        intent: "Reverse release graph attachment",
+        reason: "Wrong target was detected before downstream execution.",
+        preconditions: ["act:release:graph committed"],
+        policyRefs: [],
+        evidenceRefs: [{ sourceId: "audit:operator-review", sourceType: "decision" }],
+        validation: {
+          passed: true,
+          errors: [],
+          warnings: []
+        },
+        events: [
+          {
+            id: "acr:event:relationship:remove",
+            actId: "act:release:compensate",
+            type: "relationship.removed",
+            occurredAt: "2026-06-28T00:02:01.000Z",
+            actorId: "actor:brain",
+            objectId: "acr:goal:release",
+            objectVersion: 3,
+            traceId: "trace:release",
+            causalityId: "acr:event:relationship",
+            payload: {
+              relationship: {
+                type: "uses",
+                targetId: "acr:capability:create-resource"
+              }
+            }
+          },
+          {
+            id: "acr:event:evidence:detach",
+            actId: "act:release:compensate",
+            type: "evidence.detached",
+            occurredAt: "2026-06-28T00:02:02.000Z",
+            actorId: "actor:brain",
+            objectId: "acr:goal:release",
+            objectVersion: 3,
+            traceId: "trace:release",
+            causalityId: "acr:event:evidence",
+            payload: {
+              evidence: {
+                sourceId: "blob:release-notes",
+                sourceType: "document"
+              }
+            }
+          }
+        ],
+        committedAt: "2026-06-28T00:02:03.000Z"
+      }
+    ];
+
+    const projection = projectCommittedACTs(transactions);
+
+    expect(projection.relationships).toEqual([]);
+    expect(projection.evidenceRefs).toEqual([]);
+  });
 });
 
 describe("ACB publication", () => {

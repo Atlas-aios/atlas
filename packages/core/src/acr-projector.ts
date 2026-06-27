@@ -28,7 +28,11 @@ export function projectCommittedACTs(
   const evidenceRefs: ACRProjectedEvidenceRef[] = [];
 
   for (const transaction of transactions) {
-    if (transaction.status !== "committed" && transaction.status !== "published") {
+    if (
+      transaction.status !== "committed" &&
+      transaction.status !== "published" &&
+      transaction.status !== "compensated"
+    ) {
       continue;
     }
 
@@ -65,6 +69,18 @@ function applyEvent(projection: ACRProjection, event: ACREvent): void {
     });
   }
 
+  if (event.type === "relationship.removed") {
+    const payload = event.payload as { relationship: ACRRelationship };
+    projection.relationships.splice(
+      0,
+      projection.relationships.length,
+      ...projection.relationships.filter(
+        (relationship) =>
+          !matchesRelationship(relationship, event.objectId, payload.relationship)
+      )
+    );
+  }
+
   if (event.type === "evidence.attached") {
     const payload = event.payload as { evidence: ACREvidenceRef };
     projection.evidenceRefs.push({
@@ -72,4 +88,39 @@ function applyEvent(projection: ACRProjection, event: ACREvent): void {
       ...payload.evidence
     });
   }
+
+  if (event.type === "evidence.detached") {
+    const payload = event.payload as { evidence: ACREvidenceRef };
+    projection.evidenceRefs.splice(
+      0,
+      projection.evidenceRefs.length,
+      ...projection.evidenceRefs.filter(
+        (evidence) => !matchesEvidenceRef(evidence, event.objectId, payload.evidence)
+      )
+    );
+  }
+}
+
+function matchesRelationship(
+  current: ACRProjectedRelationship,
+  sourceId: string,
+  target: ACRRelationship
+): boolean {
+  return (
+    current.sourceId === sourceId &&
+    current.type === target.type &&
+    current.targetId === target.targetId
+  );
+}
+
+function matchesEvidenceRef(
+  current: ACRProjectedEvidenceRef,
+  objectId: string,
+  target: ACREvidenceRef
+): boolean {
+  return (
+    current.objectId === objectId &&
+    current.sourceId === target.sourceId &&
+    current.sourceType === target.sourceType
+  );
 }

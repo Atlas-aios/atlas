@@ -54,7 +54,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACT lifecycle states.
 - [x] Define ACT validation and commit rules.
 - [x] Define ACT publication-after-commit rule.
-- [ ] Define ACT compensation event rules.
+- [x] Define ACT compensation event rules.
 - [ ] Define append-only ACR event log schema.
 - [x] Define ACR event vocabulary.
 - [x] Define Atlas Cognitive Representation object envelope.
@@ -510,7 +510,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Test simulation outputs.
 - [ ] Test ACT atomic commit behavior.
 - [x] Test ACT publication-after-commit behavior.
-- [ ] Test ACT compensation replay behavior.
+- [x] Test ACT compensation replay behavior.
 - [ ] Test ACR event replay determinism.
 - [ ] Test ACR temporal queries.
 - [x] Test ACR graph projection rebuilds.
