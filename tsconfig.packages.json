@@ -8,6 +8,7 @@
     { "path": "./packages/capability-graph" },
     { "path": "./packages/capability-kernel" },
     { "path": "./packages/cognitive-loop" },
+    { "path": "./packages/decision-engine" },
     { "path": "./packages/experience" },
     { "path": "./packages/governance" },
     { "path": "./packages/identity" },

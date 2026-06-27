@@ -18,6 +18,7 @@ packages/
   brain/
   capability-kernel/
   capability-graph/
+  decision-engine/
   providers-sdk/
   interface-drivers/
   workflow-dsl/

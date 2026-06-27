@@ -77,6 +77,21 @@ Goal
 - audit severity
 - source evidence refs
 
+## Default Deterministic Engine
+
+The initial implementation lives in `@atlas-aios/decision-engine`.
+
+It implements deterministic baseline outcomes:
+
+- `approve` for low-risk reversible local actions
+- `approve_with_constraints` for communication drafts
+- `discuss` for destructive or irreversible actions
+- `simulate_first` for production or high-impact external actions
+- `reject` for explicitly forbidden or rejection-required risks
+- `delegate_to_human` for human-only decisions
+
+This engine is intentionally simple. It provides a safe, auditable baseline while later versions can incorporate user preferences, Memory, Experience, Self Model confidence, and richer simulations.
+
 ## Risk Model
 
 The Decision Engine should classify risk without assuming Atlas is forbidden from acting.

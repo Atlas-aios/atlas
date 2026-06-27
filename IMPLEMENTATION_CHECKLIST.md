@@ -90,23 +90,23 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 3A. Decision Engine
 
-- [ ] Define Decision Engine service boundary.
-- [ ] Define `DecisionRequest`.
-- [ ] Define `DecisionOutcome`.
-- [ ] Define decision outcome types: approve, approve with constraints, discuss, suggest alternative, simulate first, reject, delegate to human.
-- [ ] Define `DecisionRisk`.
-- [ ] Define `DecisionAlternative`.
-- [ ] Define reversible vs irreversible action classification.
-- [ ] Define external impact classification: money, production, legal, private data, public communication, destructive action.
-- [ ] Implement deterministic default Decision Engine.
-- [ ] Implement approval-with-constraints outcome.
-- [ ] Implement discuss-for-better-way outcome.
-- [ ] Implement simulate-first outcome.
-- [ ] Implement reject outcome.
+- [x] Define Decision Engine service boundary.
+- [x] Define `DecisionRequest`.
+- [x] Define `DecisionOutcome`.
+- [x] Define decision outcome types: approve, approve with constraints, discuss, suggest alternative, simulate first, reject, delegate to human.
+- [x] Define `DecisionRisk`.
+- [x] Define `DecisionAlternative`.
+- [x] Define reversible vs irreversible action classification.
+- [x] Define external impact classification: money, production, legal, private data, public communication, destructive action.
+- [x] Implement deterministic default Decision Engine.
+- [x] Implement approval-with-constraints outcome.
+- [x] Implement discuss-for-better-way outcome.
+- [x] Implement simulate-first outcome.
+- [x] Implement reject outcome.
 - [ ] Feed Decision Engine outcomes into Execution Engine.
 - [ ] Record decisions into Memory.
 - [ ] Feed repeated decision patterns into Experience Engine.
-- [ ] Add tests for approve, discuss, simulate, and reject outcomes.
+- [x] Add tests for approve, discuss, simulate, and reject outcomes.
 
 ---
 

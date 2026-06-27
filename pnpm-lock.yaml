@@ -41,6 +41,8 @@ importers:
 
   packages/core: {}
 
+  packages/decision-engine: {}
+
   packages/experience: {}
 
   packages/governance: {}
