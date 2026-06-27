@@ -49,6 +49,29 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Design migration strategy.
 - [ ] Design event bus topic naming.
 - [ ] Define event envelope schema.
+- [ ] Define ACR event-first source-of-truth model.
+- [ ] Define Atlas Cognitive Transaction schema.
+- [ ] Define ACT lifecycle states.
+- [ ] Define ACT validation and commit rules.
+- [ ] Define ACT publication-after-commit rule.
+- [ ] Define ACT compensation event rules.
+- [ ] Define append-only ACR event log schema.
+- [ ] Define ACR event vocabulary.
+- [ ] Define Atlas Cognitive Representation object envelope.
+- [ ] Define ACR primitive object type registry.
+- [ ] Define ACR relationship model.
+- [ ] Define ACR provenance and evidence model.
+- [ ] Define ACR object version projection.
+- [ ] Define ACR relationship projection.
+- [ ] Define ACR evidence reference projection.
+- [ ] Define ACR raw evidence object-storage boundary.
+- [ ] Define ACR search/vector projection boundary.
+- [ ] Define ACT-level replay contract.
+- [ ] Define ACR replay and temporal query contract.
+- [ ] Define Atlas Cognitive Bus message envelope.
+- [ ] Define ACB object reference and payload storage rules.
+- [ ] Define ATL / AtlasDSL source format boundary.
+- [ ] Define AtlasIR versioning and checksum strategy.
 - [ ] Define decision request schema.
 - [ ] Define decision outcome schema.
 - [ ] Define audit event schema.
@@ -68,6 +91,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 3. Brain Engines
 
 - [ ] Define Brain Engine interface.
+- [ ] Define Atlas compiler interface from natural language to ACR drafts.
+- [ ] Define AtlasFlow compiler interface from ACR goals to workflow graphs.
+- [ ] Define AtlasIR compiler interface from AtlasFlow to executable IR.
 - [ ] Define Thought lifecycle model.
 - [ ] Implement Thought creation.
 - [ ] Implement Thought scheduling hooks.
@@ -209,6 +235,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [x] Define execution gate contract.
 - [ ] Define AtlasFlow workflow schema.
+- [ ] Define AtlasFlow node and edge schemas.
+- [ ] Define AtlasIR instruction schema.
+- [ ] Define AtlasIR replay contract.
 - [ ] Define node types.
 - [ ] Define edge types.
 - [ ] Define execution state machine.
@@ -479,6 +508,12 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Test workflow state machine.
 - [ ] Test governance gates.
 - [ ] Test simulation outputs.
+- [ ] Test ACT atomic commit behavior.
+- [ ] Test ACT publication-after-commit behavior.
+- [ ] Test ACT compensation replay behavior.
+- [ ] Test ACR event replay determinism.
+- [ ] Test ACR temporal queries.
+- [ ] Test ACR graph projection rebuilds.
 - [ ] Test Experience distillation.
 - [ ] Test unknown business system learning.
 - [ ] Benchmark `Create Resource`.
