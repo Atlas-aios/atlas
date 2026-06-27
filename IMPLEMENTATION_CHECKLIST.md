@@ -64,8 +64,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACR object version projection.
 - [x] Define ACR relationship projection.
 - [x] Define ACR evidence reference projection.
-- [ ] Define ACR raw evidence object-storage boundary.
-- [ ] Define ACR search/vector projection boundary.
+- [x] Define ACR raw evidence object-storage boundary.
+- [x] Define ACR search/vector projection boundary.
 - [x] Define ACT-level replay contract.
 - [x] Define ACR replay and temporal query contract.
 - [x] Define Atlas Cognitive Bus message envelope.

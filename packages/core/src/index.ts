@@ -1,6 +1,7 @@
 export type ISODateTime = string;
 export type AtlasId = string;
 
+export * from "./acr-boundaries.js";
 export * from "./acr-bus.js";
 export * from "./acr-event-log.js";
 export * from "./acr.js";
