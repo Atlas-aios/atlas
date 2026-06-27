@@ -249,7 +249,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement human provider node behavior.
 - [ ] Implement wait node behavior.
 - [ ] Implement checkpointing.
-- [ ] Implement retries.
+- [x] Implement retries.
 - [ ] Implement rollback.
 - [ ] Implement compensation.
 - [ ] Implement streaming execution events.

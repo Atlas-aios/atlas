@@ -297,4 +297,96 @@ describe("workflow execution", () => {
       }
     ]);
   });
+
+  it("retries failed workflow nodes before marking execution failed", async () => {
+    const scheduledDelays: number[] = [];
+    let attempts = 0;
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:retrying-node",
+        workflowId: "workflow:retrying-node",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:retrying-node",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:unstable",
+            type: "capability",
+            retryPolicy: {
+              maxAttempts: 3,
+              initialDelayMs: 100,
+              backoffMultiplier: 2
+            },
+            inputs: { value: "eventual-success" }
+          }
+        ],
+        edges: []
+      },
+      handlers: {
+        capability: () => {
+          attempts += 1;
+
+          if (attempts < 3) {
+            throw new Error(`Transient failure ${attempts}`);
+          }
+
+          return {
+            outputs: { attempts },
+            evidenceRefs: ["trace:node:unstable"]
+          };
+        }
+      },
+      scheduleDelay: (delayMs) => {
+        scheduledDelays.push(delayMs);
+      }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:unstable",
+        status: "completed",
+        outputs: { attempts: 3 },
+        evidenceRefs: ["trace:node:unstable"]
+      }
+    ]);
+    expect(scheduledDelays).toEqual([100, 200]);
+    expect(result.events).toEqual([
+      {
+        type: "execution.session.started",
+        executionId: "execution:retrying-node"
+      },
+      {
+        type: "execution.step.started",
+        executionId: "execution:retrying-node",
+        nodeId: "node:unstable"
+      },
+      {
+        type: "execution.step.retrying",
+        executionId: "execution:retrying-node",
+        nodeId: "node:unstable",
+        attempt: 1,
+        delayMs: 100
+      },
+      {
+        type: "execution.step.retrying",
+        executionId: "execution:retrying-node",
+        nodeId: "node:unstable",
+        attempt: 2,
+        delayMs: 200
+      },
+      {
+        type: "execution.step.completed",
+        executionId: "execution:retrying-node",
+        nodeId: "node:unstable"
+      },
+      {
+        type: "execution.session.completed",
+        executionId: "execution:retrying-node"
+      }
+    ]);
+  });
 });

@@ -30,6 +30,7 @@ export type ExecutionEventType =
   | "execution.session.completed"
   | "execution.session.failed"
   | "execution.step.started"
+  | "execution.step.retrying"
   | "execution.step.completed"
   | "execution.step.failed";
 
@@ -44,7 +45,14 @@ export type ExecutionWorkflowNodeType =
 export interface ExecutionWorkflowNode {
   id: string;
   type: ExecutionWorkflowNodeType;
+  retryPolicy?: ExecutionRetryPolicy;
   inputs: Record<string, unknown>;
+}
+
+export interface ExecutionRetryPolicy {
+  maxAttempts: number;
+  initialDelayMs?: number;
+  backoffMultiplier?: number;
 }
 
 export interface ExecutionWorkflowEdge {
@@ -113,6 +121,8 @@ export interface ExecutionEvent {
   type: ExecutionEventType;
   executionId: string;
   nodeId?: string;
+  attempt?: number;
+  delayMs?: number;
 }
 
 export interface ExecutionStepResult {
@@ -146,6 +156,7 @@ export interface RunSequentialWorkflowInput {
   session: ExecutionSession;
   workflow: ExecutionWorkflow;
   handlers: WorkflowNodeHandlers;
+  scheduleDelay?: (delayMs: number) => Promise<void> | void;
 }
 
 export interface ProviderBackedCapabilityHandlerInput {
@@ -299,11 +310,7 @@ export async function runSequentialWorkflow(
     }
 
     try {
-      const result = await handler({
-        session: input.session,
-        node,
-        previousOutputs: steps
-      });
+      const result = await executeNodeWithRetry(input, node, handler, steps, events);
       steps.push({
         nodeId: node.id,
         status: "completed",
@@ -343,6 +350,44 @@ export async function runSequentialWorkflow(
     steps,
     events
   };
+}
+
+async function executeNodeWithRetry(
+  input: RunSequentialWorkflowInput,
+  node: ExecutionWorkflowNode,
+  handler: WorkflowNodeHandler,
+  steps: ExecutionStepResult[],
+  events: ExecutionEvent[]
+): Promise<ExecuteWorkflowNodeResult> {
+  const maxAttempts = Math.max(1, node.retryPolicy?.maxAttempts ?? 1);
+  const initialDelayMs = node.retryPolicy?.initialDelayMs ?? 0;
+  const backoffMultiplier = node.retryPolicy?.backoffMultiplier ?? 1;
+  let lastError: unknown = new Error("Workflow node failed");
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await handler({
+        session: input.session,
+        node,
+        previousOutputs: steps
+      });
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < maxAttempts) {
+        const delayMs = retryDelayMs(initialDelayMs, backoffMultiplier, attempt);
+        events.push(
+          createExecutionEvent("execution.step.retrying", input.session.id, node.id, {
+            attempt,
+            delayMs
+          })
+        );
+        await scheduleRetryDelay(input, delayMs);
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 export function createProviderBackedCapabilityHandler(
@@ -408,9 +453,40 @@ function orderedWorkflowNodes(workflow: ExecutionWorkflow): ExecutionWorkflowNod
 function createExecutionEvent(
   type: ExecutionEventType,
   executionId: string,
-  nodeId?: string
+  nodeId?: string,
+  metadata: Pick<ExecutionEvent, "attempt" | "delayMs"> = {}
 ): ExecutionEvent {
-  return nodeId === undefined ? { type, executionId } : { type, executionId, nodeId };
+  return nodeId === undefined
+    ? { type, executionId, ...metadata }
+    : { type, executionId, nodeId, ...metadata };
+}
+
+async function scheduleRetryDelay(
+  input: RunSequentialWorkflowInput,
+  delayMs: number
+): Promise<void> {
+  if (delayMs <= 0) {
+    return;
+  }
+
+  if (input.scheduleDelay !== undefined) {
+    await input.scheduleDelay(delayMs);
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+function retryDelayMs(
+  initialDelayMs: number,
+  backoffMultiplier: number,
+  failedAttempt: number
+): number {
+  return Math.round(
+    initialDelayMs * Math.max(1, backoffMultiplier) ** (failedAttempt - 1)
+  );
 }
 
 function requiredStringInput(node: ExecutionWorkflowNode, key: string): string {
