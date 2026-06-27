@@ -1,6 +1,7 @@
 export type ISODateTime = string;
 export type AtlasId = string;
 
+export * from "./context.js";
 export * from "./events.js";
 export * from "./pillars.js";
 

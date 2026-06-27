@@ -69,7 +69,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define Thought lifecycle model.
 - [ ] Implement Thought creation.
 - [ ] Implement Thought scheduling hooks.
-- [ ] Implement planning context builder.
+- [x] Implement planning context builder.
 - [ ] Add SWM context lookup.
 - [ ] Add World State lookup.
 - [ ] Add Memory lookup.
@@ -81,7 +81,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement plan explanation output.
 - [ ] Implement clarification-needed output.
 - [ ] Implement approval-needed output.
-- [ ] Add tests for planning context assembly.
+- [x] Add tests for planning context assembly.
 
 ---
 
