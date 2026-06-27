@@ -50,18 +50,18 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Design event bus topic naming.
 - [ ] Define event envelope schema.
 - [ ] Define ACR event-first source-of-truth model.
-- [ ] Define Atlas Cognitive Transaction schema.
-- [ ] Define ACT lifecycle states.
-- [ ] Define ACT validation and commit rules.
+- [x] Define Atlas Cognitive Transaction schema.
+- [x] Define ACT lifecycle states.
+- [x] Define ACT validation and commit rules.
 - [ ] Define ACT publication-after-commit rule.
 - [ ] Define ACT compensation event rules.
 - [ ] Define append-only ACR event log schema.
-- [ ] Define ACR event vocabulary.
-- [ ] Define Atlas Cognitive Representation object envelope.
-- [ ] Define ACR primitive object type registry.
-- [ ] Define ACR relationship model.
-- [ ] Define ACR provenance and evidence model.
-- [ ] Define ACR object version projection.
+- [x] Define ACR event vocabulary.
+- [x] Define Atlas Cognitive Representation object envelope.
+- [x] Define ACR primitive object type registry.
+- [x] Define ACR relationship model.
+- [x] Define ACR provenance and evidence model.
+- [x] Define ACR object version projection.
 - [ ] Define ACR relationship projection.
 - [ ] Define ACR evidence reference projection.
 - [ ] Define ACR raw evidence object-storage boundary.

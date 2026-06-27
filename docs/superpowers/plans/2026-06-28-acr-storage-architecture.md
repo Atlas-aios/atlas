@@ -26,7 +26,7 @@
 - Test: `packages/core/src/acr.test.ts`
 - Modify: `packages/core/src/index.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -90,13 +90,13 @@ describe("ACR and ACT contracts", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `corepack pnpm test -- packages/core/src/acr.test.ts`
 
 Expected: FAIL because `./acr.js` does not exist.
 
-- [ ] **Step 3: Write minimal contracts**
+- [x] **Step 3: Write minimal contracts**
 
 ```ts
 export type ACRObjectType =
@@ -228,19 +228,19 @@ export interface AtlasCognitiveTransaction {
 }
 ```
 
-- [ ] **Step 4: Export contracts**
+- [x] **Step 4: Export contracts**
 
 ```ts
 export * from "./acr.js";
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `corepack pnpm test -- packages/core/src/acr.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/src/acr.ts packages/core/src/acr.test.ts packages/core/src/index.ts
@@ -255,7 +255,7 @@ git commit -m "Add ACR and ACT contracts"
 - Test: `packages/core/src/acr.test.ts`
 - Modify: `packages/core/src/index.ts`
 
-- [ ] **Step 1: Write the failing replay test**
+- [x] **Step 1: Write the failing replay test**
 
 ```ts
 import { projectCommittedACTs } from "./acr-projector.js";
@@ -333,7 +333,7 @@ it("replays the same committed ACT stream into identical object state", () => {
 });
 ```
 
-- [ ] **Step 2: Add failing atomicity test**
+- [x] **Step 2: Add failing atomicity test**
 
 ```ts
 it("does not project aborted ACTs", () => {
@@ -391,13 +391,13 @@ it("does not project aborted ACTs", () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `corepack pnpm test -- packages/core/src/acr.test.ts`
 
 Expected: FAIL because `projectCommittedACTs` does not exist.
 
-- [ ] **Step 4: Implement minimal projector**
+- [x] **Step 4: Implement minimal projector**
 
 ```ts
 import type { ACREvent, ACRObject, AtlasCognitiveTransaction } from "./acr.js";
@@ -443,19 +443,19 @@ function applyEvent(objects: Map<string, ACRObject>, event: ACREvent): void {
 }
 ```
 
-- [ ] **Step 5: Export projector**
+- [x] **Step 5: Export projector**
 
 ```ts
 export * from "./acr-projector.js";
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `corepack pnpm test -- packages/core/src/acr.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/core/src/acr-projector.ts packages/core/src/acr.test.ts packages/core/src/index.ts
