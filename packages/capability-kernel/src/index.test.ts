@@ -311,4 +311,46 @@ describe("rankProviderCandidates", () => {
       rankingScore: 0.26
     });
   });
+
+  it("penalizes low provider reputation", () => {
+    const ranked = rankProviderCandidates({
+      artifacts: [],
+      request: {
+        goalId: "goal:unknown-system",
+        capabilityId: "capability:create-resource",
+        inputs: {},
+        governanceContextId: "governance:default"
+      },
+      candidates: [
+        {
+          providerId: "provider:low-reputation-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.9,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 500,
+          reputationScore: 0.1
+        },
+        {
+          providerId: "provider:trusted-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.75,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 500,
+          reputationScore: 1
+        }
+      ]
+    });
+
+    expect(ranked.map((candidate) => candidate.providerId)).toEqual([
+      "provider:trusted-api",
+      "provider:low-reputation-api"
+    ]);
+    expect(ranked[1]).toMatchObject({
+      providerId: "provider:low-reputation-api",
+      reputationPenalty: 0.27,
+      rankingScore: 0.45
+    });
+  });
 });

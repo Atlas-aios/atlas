@@ -118,10 +118,11 @@ The initial ranking output includes:
 - latency penalty
 - permission penalty
 - policy penalty
+- reputation penalty
 - ranking score
 - Experience artifact ids used as evidence
 
-Cost, latency, permission fit, and policy risk are now included as explicit penalties in the ranking score. Provider reputation remains a separate future ranking input.
+Cost, latency, permission fit, policy risk, and provider reputation are now included as explicit penalties in the ranking score. The Reputation Engine remains responsible for producing the provider reputation score as a later subsystem slice.
 
 ## Artifact Shape
 
@@ -144,5 +145,5 @@ Future slices should add:
 
 - staleness and review policy
 - risk pattern artifacts
-- provider reputation scoring
+- Reputation Engine score generation
 - governance review for high-impact artifacts

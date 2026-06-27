@@ -20,6 +20,7 @@ export interface ProviderCandidate {
   estimatedLatencyMs: number;
   permissionFit?: number;
   policyRiskScore?: number;
+  reputationScore?: number;
 }
 
 export interface CapabilityResolution {
@@ -61,6 +62,7 @@ export interface RankedProviderCandidate extends ProviderCandidate {
   latencyPenalty: number;
   permissionPenalty: number;
   policyPenalty: number;
+  reputationPenalty: number;
   rankingScore: number;
   experienceArtifactIds: string[];
 }
@@ -118,6 +120,7 @@ export function rankProviderCandidates(
       const latencyPenalty = latencyPenaltyFromCandidate(candidate);
       const permissionPenalty = permissionPenaltyFromCandidate(candidate);
       const policyPenalty = policyPenaltyFromCandidate(candidate);
+      const reputationPenalty = reputationPenaltyFromCandidate(candidate);
 
       return {
         ...candidate,
@@ -128,13 +131,15 @@ export function rankProviderCandidates(
         latencyPenalty,
         permissionPenalty,
         policyPenalty,
+        reputationPenalty,
         rankingScore: roundScore(
           adjustedConfidence -
             adjustedRiskScore -
             costPenalty -
             latencyPenalty -
             permissionPenalty -
-            policyPenalty
+            policyPenalty -
+            reputationPenalty
         ),
         experienceArtifactIds: artifacts.map((artifact) => artifact.id)
       };
@@ -212,6 +217,12 @@ function policyPenaltyFromCandidate(candidate: ProviderCandidate): number {
   const policyRiskScore = clampRawScore(candidate.policyRiskScore ?? 0);
 
   return roundScore(policyRiskScore * 0.4);
+}
+
+function reputationPenaltyFromCandidate(candidate: ProviderCandidate): number {
+  const reputationScore = clampRawScore(candidate.reputationScore ?? 1);
+
+  return roundScore((1 - reputationScore) * 0.3);
 }
 
 function clampScore(value: number): number {
