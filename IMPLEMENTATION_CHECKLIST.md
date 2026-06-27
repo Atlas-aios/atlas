@@ -70,8 +70,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACR replay and temporal query contract.
 - [x] Define Atlas Cognitive Bus message envelope.
 - [x] Define ACB object reference and payload storage rules.
-- [ ] Define ATL / AtlasDSL source format boundary.
-- [ ] Define AtlasIR versioning and checksum strategy.
+- [x] Define ATL / AtlasDSL source format boundary.
+- [x] Define AtlasIR versioning and checksum strategy.
 - [ ] Define decision request schema.
 - [ ] Define decision outcome schema.
 - [ ] Define audit event schema.
