@@ -38,7 +38,8 @@ describe("lookupProviderExperience", () => {
           capabilityId: "capability:create-resource",
           confidence: 0.9,
           riskScore: 0.2,
-          estimatedCost: 1
+          estimatedCost: 1,
+          estimatedLatencyMs: 800
         }
       ],
       minimumConfidence: 0.6
@@ -62,14 +63,16 @@ describe("rankProviderCandidates", () => {
         capabilityId: "capability:create-resource",
         confidence: 0.9,
         riskScore: 0.1,
-        estimatedCost: 1
+        estimatedCost: 1,
+        estimatedLatencyMs: 800
       },
       {
         providerId: "provider:browser-ui",
         capabilityId: "capability:create-resource",
         confidence: 0.7,
         riskScore: 0.2,
-        estimatedCost: 1
+        estimatedCost: 1,
+        estimatedLatencyMs: 1200
       }
     ];
 
@@ -139,14 +142,16 @@ describe("rankProviderCandidates", () => {
           capabilityId: "capability:create-resource",
           confidence: 0.7,
           riskScore: 0.2,
-          estimatedCost: 1
+          estimatedCost: 1,
+          estimatedLatencyMs: 800
         },
         {
           providerId: "provider:browser-ui",
           capabilityId: "capability:create-resource",
           confidence: 0.72,
           riskScore: 0.2,
-          estimatedCost: 1
+          estimatedCost: 1,
+          estimatedLatencyMs: 1200
         }
       ],
       minimumExperienceConfidence: 0.6
@@ -168,5 +173,97 @@ describe("rankProviderCandidates", () => {
       adjustedRiskScore: 0.55,
       experienceAdjustment: -0.28
     });
+  });
+
+  it("uses cost and latency penalties in the ranking score", () => {
+    const ranked = rankProviderCandidates({
+      artifacts: [],
+      request: {
+        goalId: "goal:unknown-system",
+        capabilityId: "capability:create-resource",
+        inputs: {},
+        governanceContextId: "governance:default"
+      },
+      candidates: [
+        {
+          providerId: "provider:a-slow-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.8,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 2000
+        },
+        {
+          providerId: "provider:z-fast-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.8,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 200
+        }
+      ]
+    });
+
+    expect(ranked.map((candidate) => candidate.providerId)).toEqual([
+      "provider:z-fast-api",
+      "provider:a-slow-api"
+    ]);
+    expect(ranked[0]).toMatchObject({
+      providerId: "provider:z-fast-api",
+      costPenalty: 0.05,
+      latencyPenalty: 0.01,
+      rankingScore: 0.64
+    });
+    expect(ranked[1]).toMatchObject({
+      providerId: "provider:a-slow-api",
+      costPenalty: 0.05,
+      latencyPenalty: 0.1,
+      rankingScore: 0.55
+    });
+  });
+
+  it("lets severe negative Experience outweigh cheap fast execution", () => {
+    const ranked = rankProviderCandidates({
+      artifacts: [
+        {
+          id: "experience:anti-pattern:cheap-provider",
+          type: "anti_pattern",
+          summary: "Cheap provider corrupted outputs for this capability.",
+          evidenceMemoryEventIds: ["memory:event:7", "memory:event:8"],
+          applicability: ["capability:create-resource", "provider:cheap-fast-api"],
+          confidence: 0.8
+        }
+      ],
+      request: {
+        goalId: "goal:unknown-system",
+        capabilityId: "capability:create-resource",
+        inputs: {},
+        governanceContextId: "governance:default"
+      },
+      candidates: [
+        {
+          providerId: "provider:cheap-fast-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.9,
+          riskScore: 0.1,
+          estimatedCost: 0.1,
+          estimatedLatencyMs: 100
+        },
+        {
+          providerId: "provider:stable-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.75,
+          riskScore: 0.15,
+          estimatedCost: 2,
+          estimatedLatencyMs: 1200
+        }
+      ],
+      minimumExperienceConfidence: 0.6
+    });
+
+    expect(ranked.map((candidate) => candidate.providerId)).toEqual([
+      "provider:stable-api",
+      "provider:cheap-fast-api"
+    ]);
   });
 });

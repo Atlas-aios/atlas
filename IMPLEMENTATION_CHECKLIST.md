@@ -151,17 +151,18 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define Capability Kernel API.
 - [ ] Implement capability resolution.
 - [ ] Implement provider lookup.
-- [ ] Implement provider ranking.
+- [x] Implement provider ranking.
 - [ ] Include permission fit in ranking.
 - [ ] Include policy risk in ranking.
 - [ ] Include provider reputation in ranking.
 - [x] Define provider Experience lookup contract.
 - [x] Include Experience artifacts in ranking.
-- [ ] Include cost and latency in ranking.
+- [x] Include cost and latency in ranking.
 - [ ] Implement fallback provider selection.
 - [ ] Implement approval gate detection.
 - [ ] Implement simulation requirement detection.
 - [x] Add tests for Experience-aware provider ranking.
+- [x] Add tests for cost and latency-aware provider ranking.
 - [ ] Add tests for provider selection.
 
 ---

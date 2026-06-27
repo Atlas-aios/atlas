@@ -17,6 +17,7 @@ export interface ProviderCandidate {
   confidence: number;
   riskScore: number;
   estimatedCost: number;
+  estimatedLatencyMs: number;
 }
 
 export interface CapabilityResolution {
@@ -54,6 +55,8 @@ export interface RankedProviderCandidate extends ProviderCandidate {
   adjustedConfidence: number;
   adjustedRiskScore: number;
   experienceAdjustment: number;
+  costPenalty: number;
+  latencyPenalty: number;
   rankingScore: number;
   experienceArtifactIds: string[];
 }
@@ -107,13 +110,19 @@ export function rankProviderCandidates(
       const adjustedRiskScore = clampScore(
         candidate.riskScore + riskDeltaFromArtifacts(artifacts)
       );
+      const costPenalty = costPenaltyFromCandidate(candidate);
+      const latencyPenalty = latencyPenaltyFromCandidate(candidate);
 
       return {
         ...candidate,
         adjustedConfidence,
         adjustedRiskScore,
         experienceAdjustment,
-        rankingScore: roundScore(adjustedConfidence - adjustedRiskScore),
+        costPenalty,
+        latencyPenalty,
+        rankingScore: roundScore(
+          adjustedConfidence - adjustedRiskScore - costPenalty - latencyPenalty
+        ),
         experienceArtifactIds: artifacts.map((artifact) => artifact.id)
       };
     })
@@ -170,6 +179,14 @@ function riskDeltaFromArtifacts(artifacts: ExperienceArtifact[]): number {
         return total - 0.05 * artifact.confidence;
     }
   }, 0);
+}
+
+function costPenaltyFromCandidate(candidate: ProviderCandidate): number {
+  return roundScore(Math.min(0.2, candidate.estimatedCost * 0.05));
+}
+
+function latencyPenaltyFromCandidate(candidate: ProviderCandidate): number {
+  return roundScore(Math.min(0.2, candidate.estimatedLatencyMs / 20_000));
 }
 
 function clampScore(value: number): number {
