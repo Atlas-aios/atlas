@@ -205,8 +205,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement provider output validation.
 - [x] Implement provider execution wrapper.
 - [x] Implement provider event emissions.
-- [ ] Implement provider retry policy.
-- [ ] Implement rollback/compensation hooks.
+- [x] Implement provider retry policy.
+- [x] Implement rollback/compensation hooks.
 - [ ] Implement Human Provider contract.
 - [ ] Implement provider health monitoring.
 - [ ] Add provider contract tests.

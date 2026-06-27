@@ -137,4 +137,92 @@ describe("Capability Provider Runtime", () => {
       ]
     });
   });
+
+  it("retries transient provider failures according to the manifest retry policy", async () => {
+    const registry = createProviderRegistry();
+    let attempts = 0;
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "resourceId", type: "string", required: true }],
+        retryPolicy: { maxAttempts: 2 }
+      },
+      handler: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error("temporary network failure");
+        }
+        return {
+          outputs: { resourceId: "resource:invoice" },
+          evidence: ["trace:retry-success"]
+        };
+      }
+    });
+
+    const result = await executeProvider(registry, {
+      providerId: "provider:rest:create-resource",
+      capabilityId: "capability:create-resource",
+      inputs: { name: "invoice" },
+      executionContextId: "execution:create-resource:4"
+    });
+
+    expect(attempts).toBe(2);
+    expect(result.status).toBe("completed");
+    expect(result.events.map((event) => event.type)).toEqual([
+      "provider.execution.started",
+      "provider.execution.retrying",
+      "provider.execution.completed"
+    ]);
+  });
+
+  it("executes provider compensation hooks", async () => {
+    const registry = createProviderRegistry();
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "resourceId", type: "string", required: true }]
+      },
+      handler: async () => ({
+        outputs: { resourceId: "resource:invoice" },
+        evidence: ["trace:create-resource"],
+        compensationRef: "resource:invoice"
+      }),
+      compensate: async (request) => ({
+        outputs: { compensated: true, ref: request.compensationRef },
+        evidence: ["trace:delete-resource"]
+      })
+    });
+
+    const result = await executeProvider(registry, {
+      providerId: "provider:rest:create-resource",
+      capabilityId: "capability:create-resource",
+      inputs: { name: "invoice" },
+      executionContextId: "execution:create-resource:5",
+      compensationRef: "resource:invoice"
+    });
+
+    expect(result.status).toBe("compensated");
+    expect(result.result).toEqual({
+      outputs: { compensated: true, ref: "resource:invoice" },
+      evidence: ["trace:delete-resource"]
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      "provider.compensation.started",
+      "provider.compensation.completed"
+    ]);
+  });
 });

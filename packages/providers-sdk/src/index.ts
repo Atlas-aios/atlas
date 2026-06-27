@@ -29,6 +29,11 @@ export interface CapabilityProviderManifest {
   requiredPermissions: string[];
   inputSchema: ProviderSchemaField[];
   outputSchema: ProviderSchemaField[];
+  retryPolicy?: ProviderRetryPolicy;
+}
+
+export interface ProviderRetryPolicy {
+  maxAttempts: number;
 }
 
 export interface ProviderExecutionRequest {
@@ -36,6 +41,7 @@ export interface ProviderExecutionRequest {
   capabilityId: string;
   inputs: Record<string, unknown>;
   executionContextId: string;
+  compensationRef?: string;
 }
 
 export interface ProviderExecutionResult {
@@ -47,7 +53,11 @@ export interface ProviderExecutionResult {
 export type ProviderRuntimeEventType =
   | "provider.execution.started"
   | "provider.execution.completed"
-  | "provider.execution.failed";
+  | "provider.execution.failed"
+  | "provider.execution.retrying"
+  | "provider.compensation.started"
+  | "provider.compensation.completed"
+  | "provider.compensation.failed";
 
 export interface ProviderRuntimeEvent {
   type: ProviderRuntimeEventType;
@@ -56,7 +66,7 @@ export interface ProviderRuntimeEvent {
   executionContextId: string;
 }
 
-export type ProviderExecutionStatus = "completed" | "failed";
+export type ProviderExecutionStatus = "completed" | "failed" | "compensated";
 
 export interface ProviderExecutionReport {
   status: ProviderExecutionStatus;
@@ -69,15 +79,25 @@ export type ProviderHandler = (
   request: ProviderExecutionRequest
 ) => Promise<ProviderExecutionResult> | ProviderExecutionResult;
 
+export interface ProviderCompensationRequest extends ProviderExecutionRequest {
+  compensationRef: string;
+}
+
+export type ProviderCompensationHandler = (
+  request: ProviderCompensationRequest
+) => Promise<ProviderExecutionResult> | ProviderExecutionResult;
+
 export interface RegisterProviderInput {
   manifest: CapabilityProviderManifest;
   handler: ProviderHandler;
+  compensate?: ProviderCompensationHandler;
   registeredAt?: string;
 }
 
 export interface RegisteredCapabilityProvider {
   manifest: CapabilityProviderManifest;
   handler: ProviderHandler;
+  compensate?: ProviderCompensationHandler;
   registeredAt: string;
 }
 
@@ -102,6 +122,7 @@ export function registerProvider(
   const provider = {
     manifest: input.manifest,
     handler: input.handler,
+    ...(input.compensate === undefined ? {} : { compensate: input.compensate }),
     registeredAt: input.registeredAt ?? new Date().toISOString()
   };
 
@@ -143,37 +164,104 @@ export async function executeProvider(
     );
   }
 
+  if (request.compensationRef !== undefined) {
+    return executeCompensation(provider, request);
+  }
+
   const inputError = validateFields(provider.manifest.inputSchema, request.inputs);
   if (inputError !== null) {
     return failedExecution(request, startedEvent, inputError);
   }
 
-  try {
-    const result = await provider.handler(request);
-    const outputError = validateFields(provider.manifest.outputSchema, result.outputs);
+  const events = [startedEvent];
+  const maxAttempts = Math.max(1, provider.manifest.retryPolicy?.maxAttempts ?? 1);
+  let lastError = "Provider execution failed";
 
-    if (outputError !== null) {
-      return failedExecution(
-        request,
-        startedEvent,
-        outputError.replace("input", "output")
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const result = await provider.handler(request);
+      const outputError = validateFields(
+        provider.manifest.outputSchema,
+        result.outputs
       );
-    }
 
+      if (outputError !== null) {
+        return failedExecution(
+          request,
+          startedEvent,
+          outputError.replace("input", "output")
+        );
+      }
+
+      return {
+        status: "completed",
+        result,
+        events: [
+          ...events,
+          createProviderRuntimeEvent("provider.execution.completed", request)
+        ]
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Provider execution failed";
+
+      if (attempt < maxAttempts) {
+        events.push(createProviderRuntimeEvent("provider.execution.retrying", request));
+      }
+    }
+  }
+
+  return {
+    status: "failed",
+    error: lastError,
+    events: [
+      ...events,
+      createProviderRuntimeEvent("provider.execution.failed", request)
+    ]
+  };
+}
+
+async function executeCompensation(
+  provider: RegisteredCapabilityProvider,
+  request: ProviderExecutionRequest
+): Promise<ProviderExecutionReport> {
+  const compensationRequest = {
+    ...request,
+    compensationRef: request.compensationRef!
+  };
+  const startedEvent = createProviderRuntimeEvent(
+    "provider.compensation.started",
+    request
+  );
+
+  if (provider.compensate === undefined) {
     return {
-      status: "completed",
-      result,
+      status: "failed",
+      error: `Provider has no compensation hook: ${request.providerId}`,
       events: [
         startedEvent,
-        createProviderRuntimeEvent("provider.execution.completed", request)
+        createProviderRuntimeEvent("provider.compensation.failed", request)
+      ]
+    };
+  }
+
+  try {
+    return {
+      status: "compensated",
+      result: await provider.compensate(compensationRequest),
+      events: [
+        startedEvent,
+        createProviderRuntimeEvent("provider.compensation.completed", request)
       ]
     };
   } catch (error) {
-    return failedExecution(
-      request,
-      startedEvent,
-      error instanceof Error ? error.message : "Provider execution failed"
-    );
+    return {
+      status: "failed",
+      error: error instanceof Error ? error.message : "Provider compensation failed",
+      events: [
+        startedEvent,
+        createProviderRuntimeEvent("provider.compensation.failed", request)
+      ]
+    };
   }
 }
 
