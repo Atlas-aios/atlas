@@ -23,16 +23,18 @@ export type ExecutionStatus =
   | "waiting_for_human"
   | "blocked_by_decision";
 
-export type ExecutionSessionStatus = "running" | "completed" | "failed";
-export type ExecutionStepStatus = "completed" | "failed" | "skipped";
+export type ExecutionSessionStatus = "running" | "completed" | "failed" | "waiting";
+export type ExecutionStepStatus = "completed" | "failed" | "skipped" | "waiting";
 export type ExecutionEventType =
   | "execution.session.started"
   | "execution.session.completed"
   | "execution.session.failed"
+  | "execution.session.waiting"
   | "execution.step.started"
   | "execution.step.retrying"
   | "execution.step.completed"
-  | "execution.step.failed";
+  | "execution.step.failed"
+  | "execution.step.waiting";
 
 export type ExecutionWorkflowNodeType =
   | "capability"
@@ -71,6 +73,7 @@ export interface ExecutionWorkflow {
 export type ExecutionCheckpointReason =
   | "step_completed"
   | "step_failed"
+  | "step_waiting"
   | "session_completed"
   | "session_failed";
 
@@ -170,6 +173,7 @@ export interface ExecuteWorkflowNodeInput {
 }
 
 export interface ExecuteWorkflowNodeResult {
+  status?: Extract<ExecutionStepStatus, "completed" | "waiting">;
   outputs: Record<string, unknown>;
   evidenceRefs: string[];
 }
@@ -385,6 +389,42 @@ export async function runSequentialWorkflow(
 
     try {
       const result = await executeNodeWithRetry(input, node, handler, steps, events);
+      const stepStatus = result.status ?? "completed";
+
+      if (stepStatus === "waiting") {
+        steps.push({
+          nodeId: node.id,
+          status: "waiting",
+          outputs: result.outputs,
+          evidenceRefs: result.evidenceRefs
+        });
+        await emitExecutionEvent(
+          input,
+          events,
+          createExecutionEvent("execution.step.waiting", input.session.id, node.id)
+        );
+        await emitExecutionEvent(
+          input,
+          events,
+          createExecutionEvent("execution.session.waiting", input.session.id)
+        );
+        checkpointSequence += 1;
+        await saveExecutionCheckpoint(input, checkpointSequence, {
+          reason: "step_waiting",
+          status: "waiting",
+          steps,
+          events,
+          lastNodeId: node.id
+        });
+
+        return {
+          session: { ...input.session, status: "waiting" },
+          status: "waiting",
+          steps,
+          events
+        };
+      }
+
       steps.push({
         nodeId: node.id,
         status: "completed",
@@ -524,6 +564,10 @@ function resolveWorkflowNodeHandler(
     return createWaitNodeHandler(input);
   }
 
+  if (node.type === "approval") {
+    return createApprovalNodeHandler();
+  }
+
   return undefined;
 }
 
@@ -535,6 +579,22 @@ function createWaitNodeHandler(input: RunSequentialWorkflowInput): WorkflowNodeH
     return {
       outputs: { waitedMs: delayMs },
       evidenceRefs: [`execution.wait:${node.id}`]
+    };
+  };
+}
+
+function createApprovalNodeHandler(): WorkflowNodeHandler {
+  return ({ node }) => {
+    const approvalRequestId = requiredStringInput(node, "approvalRequestId");
+    const reason = requiredStringInput(node, "reason");
+
+    return {
+      status: "waiting",
+      outputs: {
+        approvalRequestId,
+        reason
+      },
+      evidenceRefs: [`execution.approval:${approvalRequestId}`]
     };
   };
 }

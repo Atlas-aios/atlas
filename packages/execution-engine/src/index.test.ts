@@ -538,4 +538,65 @@ describe("workflow execution", () => {
       }
     ]);
   });
+
+  it("pauses workflow execution on approval nodes", async () => {
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:approval-node",
+        workflowId: "workflow:approval-node",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:approval-node",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:approval",
+            type: "approval",
+            inputs: {
+              approvalRequestId: "approval:deploy-production",
+              reason: "Production deployment requires owner approval."
+            }
+          },
+          {
+            id: "node:deploy",
+            type: "capability",
+            inputs: { value: "deploy" }
+          }
+        ],
+        edges: [
+          {
+            fromNodeId: "node:approval",
+            toNodeId: "node:deploy"
+          }
+        ]
+      },
+      handlers: {
+        capability: () => ({
+          outputs: { deployed: true },
+          evidenceRefs: ["trace:deploy"]
+        })
+      }
+    });
+
+    expect(result.status).toBe("waiting");
+    expect(result.session.status).toBe("waiting");
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:approval",
+        status: "waiting",
+        outputs: {
+          approvalRequestId: "approval:deploy-production",
+          reason: "Production deployment requires owner approval."
+        },
+        evidenceRefs: ["execution.approval:approval:deploy-production"]
+      }
+    ]);
+    expect(result.events.map((event) => event.type)).toEqual([
+      "execution.session.started",
+      "execution.step.started",
+      "execution.step.waiting",
+      "execution.session.waiting"
+    ]);
+  });
 });
