@@ -18,6 +18,8 @@ export interface ProviderCandidate {
   riskScore: number;
   estimatedCost: number;
   estimatedLatencyMs: number;
+  permissionFit?: number;
+  policyRiskScore?: number;
 }
 
 export interface CapabilityResolution {
@@ -57,6 +59,8 @@ export interface RankedProviderCandidate extends ProviderCandidate {
   experienceAdjustment: number;
   costPenalty: number;
   latencyPenalty: number;
+  permissionPenalty: number;
+  policyPenalty: number;
   rankingScore: number;
   experienceArtifactIds: string[];
 }
@@ -112,6 +116,8 @@ export function rankProviderCandidates(
       );
       const costPenalty = costPenaltyFromCandidate(candidate);
       const latencyPenalty = latencyPenaltyFromCandidate(candidate);
+      const permissionPenalty = permissionPenaltyFromCandidate(candidate);
+      const policyPenalty = policyPenaltyFromCandidate(candidate);
 
       return {
         ...candidate,
@@ -120,8 +126,15 @@ export function rankProviderCandidates(
         experienceAdjustment,
         costPenalty,
         latencyPenalty,
+        permissionPenalty,
+        policyPenalty,
         rankingScore: roundScore(
-          adjustedConfidence - adjustedRiskScore - costPenalty - latencyPenalty
+          adjustedConfidence -
+            adjustedRiskScore -
+            costPenalty -
+            latencyPenalty -
+            permissionPenalty -
+            policyPenalty
         ),
         experienceArtifactIds: artifacts.map((artifact) => artifact.id)
       };
@@ -189,8 +202,24 @@ function latencyPenaltyFromCandidate(candidate: ProviderCandidate): number {
   return roundScore(Math.min(0.2, candidate.estimatedLatencyMs / 20_000));
 }
 
+function permissionPenaltyFromCandidate(candidate: ProviderCandidate): number {
+  const permissionFit = clampRawScore(candidate.permissionFit ?? 1);
+
+  return roundScore((1 - permissionFit) * 0.4);
+}
+
+function policyPenaltyFromCandidate(candidate: ProviderCandidate): number {
+  const policyRiskScore = clampRawScore(candidate.policyRiskScore ?? 0);
+
+  return roundScore(policyRiskScore * 0.4);
+}
+
 function clampScore(value: number): number {
   return roundScore(Math.min(1, Math.max(0, value)));
+}
+
+function clampRawScore(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function roundScore(value: number): number {

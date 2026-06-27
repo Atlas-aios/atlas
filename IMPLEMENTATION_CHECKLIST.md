@@ -152,8 +152,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement capability resolution.
 - [ ] Implement provider lookup.
 - [x] Implement provider ranking.
-- [ ] Include permission fit in ranking.
-- [ ] Include policy risk in ranking.
+- [x] Include permission fit in ranking.
+- [x] Include policy risk in ranking.
 - [ ] Include provider reputation in ranking.
 - [x] Define provider Experience lookup contract.
 - [x] Include Experience artifacts in ranking.
@@ -163,6 +163,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement simulation requirement detection.
 - [x] Add tests for Experience-aware provider ranking.
 - [x] Add tests for cost and latency-aware provider ranking.
+- [x] Add tests for permission and policy-aware provider ranking.
 - [ ] Add tests for provider selection.
 
 ---

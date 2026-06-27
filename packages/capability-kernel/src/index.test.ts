@@ -266,4 +266,49 @@ describe("rankProviderCandidates", () => {
       "provider:cheap-fast-api"
     ]);
   });
+
+  it("penalizes low permission fit and high policy risk", () => {
+    const ranked = rankProviderCandidates({
+      artifacts: [],
+      request: {
+        goalId: "goal:unknown-system",
+        capabilityId: "capability:create-resource",
+        inputs: {},
+        governanceContextId: "governance:default"
+      },
+      candidates: [
+        {
+          providerId: "provider:restricted-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.95,
+          riskScore: 0.05,
+          estimatedCost: 1,
+          estimatedLatencyMs: 500,
+          permissionFit: 0.2,
+          policyRiskScore: 0.6
+        },
+        {
+          providerId: "provider:allowed-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.75,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 500,
+          permissionFit: 1,
+          policyRiskScore: 0
+        }
+      ]
+    });
+
+    expect(ranked.map((candidate) => candidate.providerId)).toEqual([
+      "provider:allowed-api",
+      "provider:restricted-api"
+    ]);
+    expect(ranked[1]).toMatchObject({
+      providerId: "provider:restricted-api",
+      permissionPenalty: 0.32,
+      policyPenalty: 0.24,
+      rankingScore: 0.26
+    });
+  });
 });

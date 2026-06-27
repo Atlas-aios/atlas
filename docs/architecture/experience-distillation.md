@@ -116,10 +116,12 @@ The initial ranking output includes:
 - Experience adjustment
 - cost penalty
 - latency penalty
+- permission penalty
+- policy penalty
 - ranking score
 - Experience artifact ids used as evidence
 
-Cost and latency are now included as explicit penalties in the ranking score. Permission fit, policy fit, and provider reputation remain separate future ranking inputs.
+Cost, latency, permission fit, and policy risk are now included as explicit penalties in the ranking score. Provider reputation remains a separate future ranking input.
 
 ## Artifact Shape
 
@@ -142,5 +144,5 @@ Future slices should add:
 
 - staleness and review policy
 - risk pattern artifacts
-- permission, policy, and reputation scoring
+- provider reputation scoring
 - governance review for high-impact artifacts
