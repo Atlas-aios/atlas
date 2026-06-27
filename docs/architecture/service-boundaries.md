@@ -8,7 +8,7 @@ Atlas is built around capabilities rather than named applications. Each pillar o
 - Other pillars read through published APIs, events, or query contracts.
 - Cross-pillar writes happen through commands or events, not direct storage mutation.
 - Providers and interface drivers are implementation details behind capabilities.
-- Governance rules can block any pillar action that exceeds granted authority.
+- The Decision Engine reviews proposed actions and can approve, constrain, discuss, improve, simulate, reject, or delegate before execution.
 
 ## Pillar Map
 
@@ -26,6 +26,12 @@ Atlas is built around capabilities rather than named applications. Each pillar o
 | Self Model            | `@atlas-aios/self-model`        | capability confidence, known limitations, granted authority           | Memory, Experience, Learning & Governance                                                            | PostgreSQL, event log                             |
 | Learning & Governance | `@atlas-aios/governance`        | policy decisions, critic reports, defender reports, judge validation  | Memory, Experience, Execution Engine, Self Model                                                     | PostgreSQL, object store, event log               |
 | Cognitive Loop        | `@atlas-aios/cognitive-loop`    | loop phases, attention allocation, curiosity triggers, bounded cycles | Brain Engines, AGOE, World State, Memory, Experience, Self Model                                     | PostgreSQL, event log                             |
+
+## Decision Engine Overlay
+
+The Decision Engine sits between planning and execution. It is not a separate restriction-first pillar in the twelve-pillar core; it is the active decision layer that uses Learning & Governance, Memory, Experience, Identity, World State, and Self Model to decide how Atlas should proceed.
+
+It receives intent and action proposals, then returns one of: approve, approve with constraints, discuss, suggest alternative, simulate first, reject, or delegate to human.
 
 ## Ownership Principles
 

@@ -43,6 +43,7 @@ Source types:
 - `experience`
 - `capability-graph`
 - `governance`
+- `decision`
 - `bm25`
 - `vector`
 
@@ -90,17 +91,18 @@ InformationNeed.requiredSources
 
 First-class retriever roles:
 
-| Retriever        | Role                                                               |
-| ---------------- | ------------------------------------------------------------------ |
-| Identity         | resolves users, systems, roles, aliases, and permission context    |
-| Governance       | returns applicable policies, approval gates, and denied actions    |
-| World State      | returns active blockers, goals, incidents, deadlines, and workload |
-| SWM Graph        | returns semantic entities and relationships                        |
-| Memory           | returns source-backed episodic records                             |
-| Experience       | returns heuristics, playbooks, and anti-patterns                   |
-| Capability Graph | returns possible capabilities and composition paths                |
-| BM25             | returns exact text matches for decisions, instructions, and docs   |
-| Vector           | returns semantically similar memories, docs, and artifacts         |
+| Retriever        | Role                                                                        |
+| ---------------- | --------------------------------------------------------------------------- |
+| Identity         | resolves users, systems, roles, aliases, and permission context             |
+| Governance       | returns applicable policies and audit constraints                           |
+| Decision Engine  | returns decision outcomes, constraints, discussion points, and alternatives |
+| World State      | returns active blockers, goals, incidents, deadlines, and workload          |
+| SWM Graph        | returns semantic entities and relationships                                 |
+| Memory           | returns source-backed episodic records                                      |
+| Experience       | returns heuristics, playbooks, and anti-patterns                            |
+| Capability Graph | returns possible capabilities and composition paths                         |
+| BM25             | returns exact text matches for decisions, instructions, and docs            |
+| Vector           | returns semantically similar memories, docs, and artifacts                  |
 
 ## Store Selection
 
@@ -111,7 +113,7 @@ First-class retriever roles:
 | previous similar task         | Experience artifacts         | episodic vector search             |
 | exact instruction or decision | keyword/BM25 search          | document/meeting vector search     |
 | current blockers              | World State projection       | recent execution memory            |
-| allowed authority             | Governance policy lookup     | human approval                     |
+| allowed authority             | Decision Engine              | Governance policy lookup           |
 | available action              | Capability Graph             | capability discovery               |
 
 ## Cost Control

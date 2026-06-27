@@ -12,5 +12,5 @@ Build the smallest useful version of Atlas that can learn an unknown business sy
 4. Capability Provider runtime and SDK
 5. Execution Engine and AtlasFlow
 6. SWM, Memory, and Experience
-7. Governance gates
+7. Decision Engine and governance gates
 8. Unknown business system demo

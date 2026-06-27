@@ -16,6 +16,7 @@ export type RetrievalSource =
   | "experience"
   | "capability-graph"
   | "governance"
+  | "decision"
   | "bm25"
   | "vector";
 

@@ -63,6 +63,7 @@ Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living che
 - [Twelve-Pillar Service Boundaries](docs/architecture/service-boundaries.md)
 - [Cross-Pillar Contracts](docs/architecture/cross-pillar-contracts.md)
 - [Context Builder](docs/architecture/context-builder.md)
+- [Decision Engine](docs/architecture/decision-engine.md)
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)
 - [Pillar Implementation And Model Strategy Research](docs/research/pillar-implementation-and-model-strategy.md)

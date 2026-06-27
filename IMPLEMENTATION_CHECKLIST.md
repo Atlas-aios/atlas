@@ -49,6 +49,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Design migration strategy.
 - [ ] Design event bus topic naming.
 - [ ] Define event envelope schema.
+- [ ] Define decision request schema.
+- [ ] Define decision outcome schema.
 - [ ] Define audit event schema.
 - [ ] Define approval event schema.
 - [ ] Define execution event schema.
@@ -83,6 +85,28 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement clarification-needed output.
 - [ ] Implement approval-needed output.
 - [x] Add tests for planning context assembly.
+
+---
+
+## 3A. Decision Engine
+
+- [ ] Define Decision Engine service boundary.
+- [ ] Define `DecisionRequest`.
+- [ ] Define `DecisionOutcome`.
+- [ ] Define decision outcome types: approve, approve with constraints, discuss, suggest alternative, simulate first, reject, delegate to human.
+- [ ] Define `DecisionRisk`.
+- [ ] Define `DecisionAlternative`.
+- [ ] Define reversible vs irreversible action classification.
+- [ ] Define external impact classification: money, production, legal, private data, public communication, destructive action.
+- [ ] Implement deterministic default Decision Engine.
+- [ ] Implement approval-with-constraints outcome.
+- [ ] Implement discuss-for-better-way outcome.
+- [ ] Implement simulate-first outcome.
+- [ ] Implement reject outcome.
+- [ ] Feed Decision Engine outcomes into Execution Engine.
+- [ ] Record decisions into Memory.
+- [ ] Feed repeated decision patterns into Experience Engine.
+- [ ] Add tests for approve, discuss, simulate, and reject outcomes.
 
 ---
 
