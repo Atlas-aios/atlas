@@ -6,7 +6,12 @@ import type {
   DecisionOutcome,
   DecisionOutcomeType
 } from "@atlas-aios/decision-engine";
-import { evaluateExecutionGate } from "./index.js";
+import {
+  createExecutionSession,
+  evaluateExecutionGate,
+  runSequentialWorkflow,
+  validateWorkflow
+} from "./index.js";
 
 function outcome(
   type: DecisionOutcomeType,
@@ -133,5 +138,103 @@ describe("evaluateExecutionGate", () => {
     expect(gate.status).toBe("waiting");
     expect(gate.executionStatus).toBe("waiting_for_human");
     expect(gate.requiredAction).toBe("delegate");
+  });
+});
+
+describe("workflow execution", () => {
+  it("validates workflows before execution", () => {
+    expect(
+      validateWorkflow({
+        id: "workflow:create-resource",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:create-resource",
+            type: "capability",
+            inputs: { capabilityId: "capability:create-resource" }
+          }
+        ],
+        edges: []
+      })
+    ).toEqual({ valid: true, errors: [] });
+
+    expect(
+      validateWorkflow({
+        id: "workflow:invalid",
+        version: "0.1",
+        nodes: [],
+        edges: [
+          {
+            fromNodeId: "missing:start",
+            toNodeId: "missing:end"
+          }
+        ]
+      })
+    ).toEqual({
+      valid: false,
+      errors: [
+        "Workflow must include at least one node.",
+        "Edge source node not found: missing:start",
+        "Edge target node not found: missing:end"
+      ]
+    });
+  });
+
+  it("creates execution sessions and runs workflow nodes sequentially", async () => {
+    const session = createExecutionSession({
+      id: "execution:create-resource:1",
+      workflowId: "workflow:create-resource",
+      startedAt: "2026-06-28T00:00:00.000Z"
+    });
+
+    const result = await runSequentialWorkflow({
+      session,
+      workflow: {
+        id: "workflow:create-resource",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:prepare",
+            type: "capability",
+            inputs: { value: "invoice" }
+          },
+          {
+            id: "node:create",
+            type: "capability",
+            inputs: { from: "node:prepare" }
+          }
+        ],
+        edges: [
+          {
+            fromNodeId: "node:prepare",
+            toNodeId: "node:create"
+          }
+        ]
+      },
+      handlers: {
+        capability: async ({ node, previousOutputs }) => ({
+          outputs: {
+            nodeId: node.id,
+            previousCount: previousOutputs.length
+          },
+          evidenceRefs: [`trace:${node.id}`]
+        })
+      }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.steps.map((step) => step.status)).toEqual(["completed", "completed"]);
+    expect(result.steps[1]?.outputs).toEqual({
+      nodeId: "node:create",
+      previousCount: 1
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      "execution.session.started",
+      "execution.step.started",
+      "execution.step.completed",
+      "execution.step.started",
+      "execution.step.completed",
+      "execution.session.completed"
+    ]);
   });
 });

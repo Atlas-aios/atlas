@@ -240,10 +240,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define AtlasIR replay contract.
 - [ ] Define node types.
 - [ ] Define edge types.
-- [ ] Define execution state machine.
-- [ ] Implement workflow validation.
-- [ ] Implement execution session creation.
-- [ ] Implement sequential node execution.
+- [x] Define execution state machine.
+- [x] Implement workflow validation.
+- [x] Implement execution session creation.
+- [x] Implement sequential node execution.
 - [ ] Implement parallel node execution.
 - [ ] Implement approval node behavior.
 - [ ] Implement human provider node behavior.
@@ -253,7 +253,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement rollback.
 - [ ] Implement compensation.
 - [ ] Implement streaming execution events.
-- [ ] Add tests for state transitions.
+- [x] Add tests for state transitions.
 
 ---
 
