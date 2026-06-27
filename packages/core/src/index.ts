@@ -2,6 +2,7 @@ export type ISODateTime = string;
 export type AtlasId = string;
 
 export * from "./acr-bus.js";
+export * from "./acr-event-log.js";
 export * from "./acr.js";
 export * from "./acr-projector.js";
 export * from "./context.js";

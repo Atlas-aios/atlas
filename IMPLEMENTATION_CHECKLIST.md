@@ -55,7 +55,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACT validation and commit rules.
 - [x] Define ACT publication-after-commit rule.
 - [x] Define ACT compensation event rules.
-- [ ] Define append-only ACR event log schema.
+- [x] Define append-only ACR event log schema.
 - [x] Define ACR event vocabulary.
 - [x] Define Atlas Cognitive Representation object envelope.
 - [x] Define ACR primitive object type registry.
@@ -66,8 +66,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACR evidence reference projection.
 - [ ] Define ACR raw evidence object-storage boundary.
 - [ ] Define ACR search/vector projection boundary.
-- [ ] Define ACT-level replay contract.
-- [ ] Define ACR replay and temporal query contract.
+- [x] Define ACT-level replay contract.
+- [x] Define ACR replay and temporal query contract.
 - [x] Define Atlas Cognitive Bus message envelope.
 - [x] Define ACB object reference and payload storage rules.
 - [ ] Define ATL / AtlasDSL source format boundary.
@@ -511,8 +511,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Test ACT atomic commit behavior.
 - [x] Test ACT publication-after-commit behavior.
 - [x] Test ACT compensation replay behavior.
-- [ ] Test ACR event replay determinism.
-- [ ] Test ACR temporal queries.
+- [x] Test ACR event replay determinism.
+- [x] Test ACR temporal queries.
 - [x] Test ACR graph projection rebuilds.
 - [ ] Test Experience distillation.
 - [ ] Test unknown business system learning.
