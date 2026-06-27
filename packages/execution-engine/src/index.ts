@@ -131,6 +131,8 @@ export interface ExecutionEvent {
   delayMs?: number;
 }
 
+export type ExecutionEventSink = (event: ExecutionEvent) => Promise<void> | void;
+
 export interface ExecutionStepResult {
   nodeId: string;
   status: ExecutionStepStatus;
@@ -187,6 +189,7 @@ export interface RunSequentialWorkflowInput {
   scheduleDelay?: (delayMs: number) => Promise<void> | void;
   checkpointStore?: ExecutionCheckpointStore;
   checkpointClock?: () => string;
+  onEvent?: ExecutionEventSink;
 }
 
 export interface ProviderBackedCapabilityHandlerInput {
@@ -304,35 +307,41 @@ export async function runSequentialWorkflow(
   input: RunSequentialWorkflowInput
 ): Promise<ExecutionRunResult> {
   const validation = validateWorkflow(input.workflow);
-  const events: ExecutionEvent[] = [
-    createExecutionEvent("execution.session.started", input.session.id)
-  ];
+  const events: ExecutionEvent[] = [];
   const steps: ExecutionStepResult[] = [];
   let checkpointSequence = 0;
+  await emitExecutionEvent(
+    input,
+    events,
+    createExecutionEvent("execution.session.started", input.session.id)
+  );
 
   if (!validation.valid) {
-    const failedEvents = [
-      ...events,
+    await emitExecutionEvent(
+      input,
+      events,
       createExecutionEvent("execution.session.failed", input.session.id)
-    ];
+    );
     checkpointSequence += 1;
     await saveExecutionCheckpoint(input, checkpointSequence, {
       reason: "session_failed",
       status: "failed",
       steps,
-      events: failedEvents
+      events
     });
 
     return {
       session: { ...input.session, status: "failed" },
       status: "failed",
       steps,
-      events: failedEvents
+      events
     };
   }
 
   for (const node of orderedWorkflowNodes(input.workflow)) {
-    events.push(
+    await emitExecutionEvent(
+      input,
+      events,
       createExecutionEvent("execution.step.started", input.session.id, node.id)
     );
 
@@ -347,8 +356,14 @@ export async function runSequentialWorkflow(
       };
 
       steps.push(step);
-      events.push(
-        createExecutionEvent("execution.step.failed", input.session.id, node.id),
+      await emitExecutionEvent(
+        input,
+        events,
+        createExecutionEvent("execution.step.failed", input.session.id, node.id)
+      );
+      await emitExecutionEvent(
+        input,
+        events,
         createExecutionEvent("execution.session.failed", input.session.id)
       );
       checkpointSequence += 1;
@@ -376,7 +391,9 @@ export async function runSequentialWorkflow(
         outputs: result.outputs,
         evidenceRefs: result.evidenceRefs
       });
-      events.push(
+      await emitExecutionEvent(
+        input,
+        events,
         createExecutionEvent("execution.step.completed", input.session.id, node.id)
       );
       checkpointSequence += 1;
@@ -395,8 +412,14 @@ export async function runSequentialWorkflow(
         evidenceRefs: [],
         error: error instanceof Error ? error.message : "Workflow node failed"
       });
-      events.push(
-        createExecutionEvent("execution.step.failed", input.session.id, node.id),
+      await emitExecutionEvent(
+        input,
+        events,
+        createExecutionEvent("execution.step.failed", input.session.id, node.id)
+      );
+      await emitExecutionEvent(
+        input,
+        events,
         createExecutionEvent("execution.session.failed", input.session.id)
       );
       checkpointSequence += 1;
@@ -417,7 +440,11 @@ export async function runSequentialWorkflow(
     }
   }
 
-  events.push(createExecutionEvent("execution.session.completed", input.session.id));
+  await emitExecutionEvent(
+    input,
+    events,
+    createExecutionEvent("execution.session.completed", input.session.id)
+  );
   checkpointSequence += 1;
   await saveExecutionCheckpoint(input, checkpointSequence, {
     reason: "session_completed",
@@ -458,7 +485,9 @@ async function executeNodeWithRetry(
 
       if (attempt < maxAttempts) {
         const delayMs = retryDelayMs(initialDelayMs, backoffMultiplier, attempt);
-        events.push(
+        await emitExecutionEvent(
+          input,
+          events,
           createExecutionEvent("execution.step.retrying", input.session.id, node.id, {
             attempt,
             delayMs
@@ -470,6 +499,15 @@ async function executeNodeWithRetry(
   }
 
   throw lastError;
+}
+
+async function emitExecutionEvent(
+  input: RunSequentialWorkflowInput,
+  events: ExecutionEvent[],
+  event: ExecutionEvent
+): Promise<void> {
+  events.push(event);
+  await input.onEvent?.(event);
 }
 
 async function saveExecutionCheckpoint(

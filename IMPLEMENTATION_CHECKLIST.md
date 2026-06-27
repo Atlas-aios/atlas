@@ -252,7 +252,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement retries.
 - [ ] Implement rollback.
 - [ ] Implement compensation.
-- [ ] Implement streaming execution events.
+- [x] Implement streaming execution events.
 - [x] Add tests for state transitions.
 
 ---

@@ -456,4 +456,47 @@ describe("workflow execution", () => {
       failedNodeIds: []
     });
   });
+
+  it("streams execution events as the workflow runs", async () => {
+    const streamedEvents: string[] = [];
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:streamed",
+        workflowId: "workflow:streamed",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:streamed",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:streamed",
+            type: "capability",
+            inputs: { value: "event-stream" }
+          }
+        ],
+        edges: []
+      },
+      handlers: {
+        capability: ({ node }) => ({
+          outputs: { nodeId: node.id },
+          evidenceRefs: [`trace:${node.id}`]
+        })
+      },
+      onEvent: (event) => {
+        streamedEvents.push(
+          event.nodeId === undefined ? event.type : `${event.type}:${event.nodeId}`
+        );
+      }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(streamedEvents).toEqual([
+      "execution.session.started",
+      "execution.step.started:node:streamed",
+      "execution.step.completed:node:streamed",
+      "execution.session.completed"
+    ]);
+  });
 });
