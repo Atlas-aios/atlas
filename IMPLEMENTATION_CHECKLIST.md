@@ -247,7 +247,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement parallel node execution.
 - [ ] Implement approval node behavior.
 - [ ] Implement human provider node behavior.
-- [ ] Implement wait node behavior.
+- [x] Implement wait node behavior.
 - [x] Implement checkpointing.
 - [x] Implement retries.
 - [ ] Implement rollback.

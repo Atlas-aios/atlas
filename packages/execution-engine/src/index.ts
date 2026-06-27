@@ -345,7 +345,7 @@ export async function runSequentialWorkflow(
       createExecutionEvent("execution.step.started", input.session.id, node.id)
     );
 
-    const handler = input.handlers[node.type];
+    const handler = resolveWorkflowNodeHandler(input, node);
     if (handler === undefined) {
       const step = {
         nodeId: node.id,
@@ -493,7 +493,7 @@ async function executeNodeWithRetry(
             delayMs
           })
         );
-        await scheduleRetryDelay(input, delayMs);
+        await scheduleExecutionDelay(input, delayMs);
       }
     }
   }
@@ -508,6 +508,35 @@ async function emitExecutionEvent(
 ): Promise<void> {
   events.push(event);
   await input.onEvent?.(event);
+}
+
+function resolveWorkflowNodeHandler(
+  input: RunSequentialWorkflowInput,
+  node: ExecutionWorkflowNode
+): WorkflowNodeHandler | undefined {
+  const handler = input.handlers[node.type];
+
+  if (handler !== undefined) {
+    return handler;
+  }
+
+  if (node.type === "wait") {
+    return createWaitNodeHandler(input);
+  }
+
+  return undefined;
+}
+
+function createWaitNodeHandler(input: RunSequentialWorkflowInput): WorkflowNodeHandler {
+  return async ({ node }) => {
+    const delayMs = requiredNonNegativeNumberInput(node, "delayMs");
+    await scheduleExecutionDelay(input, delayMs);
+
+    return {
+      outputs: { waitedMs: delayMs },
+      evidenceRefs: [`execution.wait:${node.id}`]
+    };
+  };
 }
 
 async function saveExecutionCheckpoint(
@@ -619,7 +648,7 @@ function createExecutionEvent(
     : { type, executionId, nodeId, ...metadata };
 }
 
-async function scheduleRetryDelay(
+async function scheduleExecutionDelay(
   input: RunSequentialWorkflowInput,
   delayMs: number
 ): Promise<void> {
@@ -668,6 +697,19 @@ function requiredRecordInput(
   }
 
   return { ...value };
+}
+
+function requiredNonNegativeNumberInput(
+  node: ExecutionWorkflowNode,
+  key: string
+): number {
+  const value = node.inputs[key];
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Wait node ${node.id} missing non-negative number input: ${key}`);
+  }
+
+  return value;
 }
 
 function createGateOutcome(

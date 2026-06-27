@@ -499,4 +499,43 @@ describe("workflow execution", () => {
       "execution.session.completed"
     ]);
   });
+
+  it("executes wait nodes with the workflow scheduler", async () => {
+    const scheduledDelays: number[] = [];
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:wait-node",
+        workflowId: "workflow:wait-node",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:wait-node",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:wait",
+            type: "wait",
+            inputs: { delayMs: 250 }
+          }
+        ],
+        edges: []
+      },
+      handlers: {},
+      scheduleDelay: (delayMs) => {
+        scheduledDelays.push(delayMs);
+      }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(scheduledDelays).toEqual([250]);
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:wait",
+        status: "completed",
+        outputs: { waitedMs: 250 },
+        evidenceRefs: ["execution.wait:node:wait"]
+      }
+    ]);
+  });
 });
