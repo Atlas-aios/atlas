@@ -64,3 +64,4 @@ Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living che
 - [Cross-Pillar Contracts](docs/architecture/cross-pillar-contracts.md)
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)
+- [Pillar Implementation And Model Strategy Research](docs/research/pillar-implementation-and-model-strategy.md)
