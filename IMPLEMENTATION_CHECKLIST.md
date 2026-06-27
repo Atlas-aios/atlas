@@ -82,7 +82,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define Capability Graph schema.
 - [x] Define Experience artifact schema.
 - [ ] Define Self Model schema.
-- [ ] Define Identity resolution schema.
+- [x] Define Identity resolution schema.
 - [ ] Add local development database setup.
 - [ ] Add seed data for synthetic unknown business system.
 
@@ -332,9 +332,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 14. Identity Engine
 
-- [ ] Define identity entity model.
-- [ ] Define alias model.
-- [ ] Define external account mapping.
+- [x] Define identity entity model.
+- [x] Define alias model.
+- [x] Define external account mapping.
 - [ ] Define role model.
 - [ ] Define permission context model.
 - [ ] Define delegation model.
