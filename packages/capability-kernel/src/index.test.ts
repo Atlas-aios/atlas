@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
-import { lookupProviderExperience, rankProviderCandidates } from "./index.js";
+import {
+  lookupProviderExperience,
+  rankProviderCandidates,
+  selectProviderCandidates
+} from "./index.js";
 
 describe("lookupProviderExperience", () => {
   it("returns provider-scoped Experience for each provider candidate", () => {
@@ -352,5 +356,59 @@ describe("rankProviderCandidates", () => {
       reputationPenalty: 0.27,
       rankingScore: 0.45
     });
+  });
+});
+
+describe("selectProviderCandidates", () => {
+  it("selects the best eligible provider and preserves fallback options", () => {
+    const selection = selectProviderCandidates({
+      artifacts: [],
+      request: {
+        goalId: "goal:unknown-system",
+        capabilityId: "capability:create-resource",
+        inputs: {},
+        governanceContextId: "governance:default"
+      },
+      candidates: [
+        {
+          providerId: "provider:preferred-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.8,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 500
+        },
+        {
+          providerId: "provider:fallback-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.7,
+          riskScore: 0.15,
+          estimatedCost: 1,
+          estimatedLatencyMs: 1000
+        },
+        {
+          providerId: "provider:unsafe-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.6,
+          riskScore: 0.35,
+          estimatedCost: 2,
+          estimatedLatencyMs: 2000,
+          reputationScore: 0.1
+        }
+      ],
+      minimumRankingScore: 0.4,
+      maxFallbacks: 1
+    });
+
+    expect(selection.selectedProvider?.providerId).toBe("provider:preferred-api");
+    expect(selection.fallbackProviders.map((provider) => provider.providerId)).toEqual([
+      "provider:fallback-api"
+    ]);
+    expect(selection.rejectedProviders.map((provider) => provider.providerId)).toEqual([
+      "provider:unsafe-api"
+    ]);
+    expect(selection.rationale).toBe(
+      "Selected provider:preferred-api with 1 fallback provider."
+    );
   });
 });

@@ -54,6 +54,11 @@ export interface ProviderRankingInput {
   minimumExperienceConfidence?: number;
 }
 
+export interface ProviderSelectionInput extends ProviderRankingInput {
+  minimumRankingScore?: number;
+  maxFallbacks?: number;
+}
+
 export interface RankedProviderCandidate extends ProviderCandidate {
   adjustedConfidence: number;
   adjustedRiskScore: number;
@@ -65,6 +70,14 @@ export interface RankedProviderCandidate extends ProviderCandidate {
   reputationPenalty: number;
   rankingScore: number;
   experienceArtifactIds: string[];
+}
+
+export interface ProviderSelection {
+  selectedProvider: RankedProviderCandidate | null;
+  fallbackProviders: RankedProviderCandidate[];
+  rejectedProviders: RankedProviderCandidate[];
+  rankedProviders: RankedProviderCandidate[];
+  rationale: string;
 }
 
 export function lookupProviderExperience(
@@ -151,6 +164,33 @@ export function rankProviderCandidates(
         left.estimatedCost - right.estimatedCost ||
         left.providerId.localeCompare(right.providerId)
     );
+}
+
+export function selectProviderCandidates(
+  input: ProviderSelectionInput
+): ProviderSelection {
+  const rankedProviders = rankProviderCandidates(input);
+  const minimumRankingScore = input.minimumRankingScore ?? Number.NEGATIVE_INFINITY;
+  const maxFallbacks = input.maxFallbacks ?? Math.max(0, rankedProviders.length - 1);
+  const eligibleProviders = rankedProviders.filter(
+    (provider) => provider.rankingScore >= minimumRankingScore
+  );
+  const selectedProvider = eligibleProviders[0] ?? null;
+  const fallbackProviders = eligibleProviders.slice(1, maxFallbacks + 1);
+  const rejectedProviders = rankedProviders.filter(
+    (provider) => provider.rankingScore < minimumRankingScore
+  );
+
+  return {
+    selectedProvider,
+    fallbackProviders,
+    rejectedProviders,
+    rankedProviders,
+    rationale:
+      selectedProvider === null
+        ? "No provider met the minimum ranking score."
+        : `Selected ${selectedProvider.providerId} with ${fallbackProviders.length} fallback provider${fallbackProviders.length === 1 ? "" : "s"}.`
+  };
 }
 
 function createRankingExperienceQuery(

@@ -124,6 +124,23 @@ The initial ranking output includes:
 
 Cost, latency, permission fit, policy risk, and provider reputation are now included as explicit penalties in the ranking score. The Reputation Engine remains responsible for producing the provider reputation score as a later subsystem slice.
 
+## Provider Selection
+
+The Capability Kernel exposes `selectProviderCandidates` as the first provider selection contract.
+
+Selection is intentionally layered on top of ranking:
+
+- rank every candidate
+- select the highest eligible provider
+- preserve fallback providers up to the requested fallback limit
+- separate providers below the minimum ranking score as rejected providers
+
+Approval gates, simulation requirements, and execution policy decisions remain separate Kernel or Decision Engine steps. Selection only answers:
+
+```text
+Given the current ranking evidence, which provider should Atlas try first, and which providers remain viable fallbacks?
+```
+
 ## Artifact Shape
 
 Decision pattern artifacts include:

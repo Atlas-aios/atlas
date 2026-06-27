@@ -158,14 +158,14 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define provider Experience lookup contract.
 - [x] Include Experience artifacts in ranking.
 - [x] Include cost and latency in ranking.
-- [ ] Implement fallback provider selection.
+- [x] Implement fallback provider selection.
 - [ ] Implement approval gate detection.
 - [ ] Implement simulation requirement detection.
 - [x] Add tests for Experience-aware provider ranking.
 - [x] Add tests for cost and latency-aware provider ranking.
 - [x] Add tests for permission and policy-aware provider ranking.
 - [x] Add tests for reputation-aware provider ranking.
-- [ ] Add tests for provider selection.
+- [x] Add tests for provider selection.
 
 ---
 
