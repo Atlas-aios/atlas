@@ -104,7 +104,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement simulate-first outcome.
 - [x] Implement reject outcome.
 - [x] Feed Decision Engine outcomes into Execution Engine.
-- [ ] Record decisions into Memory.
+- [x] Record decisions into Memory.
+- [x] Feed Memory rejection reasons back into Decision Engine.
 - [ ] Feed repeated decision patterns into Experience Engine.
 - [x] Add tests for approve, discuss, simulate, and reject outcomes.
 
@@ -259,6 +260,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [ ] Define Memory event schema.
 - [ ] Implement raw event recording.
+- [x] Implement decision outcome memory records.
+- [x] Implement memory rejection reconsideration request.
 - [ ] Implement conversation memory.
 - [ ] Implement execution memory.
 - [ ] Implement approval/rejection memory.
@@ -267,6 +270,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement failure memory.
 - [ ] Implement source/provenance links.
 - [ ] Implement memory retrieval API.
+- [x] Add tests for decision memory records.
 - [ ] Add tests for immutable memory records.
 
 ---

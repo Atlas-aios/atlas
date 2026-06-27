@@ -59,7 +59,11 @@ importers:
 
   packages/learning: {}
 
-  packages/memory: {}
+  packages/memory:
+    dependencies:
+      "@atlas-aios/decision-engine":
+        specifier: workspace:*
+        version: link:../decision-engine
 
   packages/observability: {}
 

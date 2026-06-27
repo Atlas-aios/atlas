@@ -40,6 +40,8 @@ Goal
 -> Execution Gate maps the decision into execution readiness
 -> Execution Engine acts
 -> Memory records result
+-> Memory can reject a proposed decision from prior evidence
+-> Decision Engine reconsiders with the Memory rejection reason
 -> Experience Engine learns decision patterns
 ```
 
@@ -108,6 +110,19 @@ The execution package does not re-decide the action. It accepts a `DecisionOutco
 - `delegate_to_human` -> waiting for human delegation
 
 This keeps judgment in the Decision Engine while giving the Execution Engine a deterministic state transition before any provider call is allowed.
+
+## Memory Feedback Loop
+
+The Memory package records `DecisionOutcome` values as immutable Memory events. These records provide evidence for future decisions.
+
+If Memory rejects a proposed decision because prior evidence shows the action is unsafe, duplicate, stale, or contradicted by past execution, Atlas does not execute directly from Memory. Memory creates a reconsideration request that goes back through the Decision Engine with:
+
+- the original action and rationale
+- the Memory rejection reason
+- Memory evidence refs
+- a `memory_rejection` risk
+
+The default Decision Engine treats a blocking `memory_rejection` risk as a rejection and preserves the Memory reason in the outcome rationale. This keeps Memory as evidence and Decision Engine as the judgment layer.
 
 ## Risk Model
 

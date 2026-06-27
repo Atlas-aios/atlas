@@ -66,6 +66,7 @@ Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living che
 - [Cross-Pillar Contracts](docs/architecture/cross-pillar-contracts.md)
 - [Context Builder](docs/architecture/context-builder.md)
 - [Decision Engine](docs/architecture/decision-engine.md)
+- [Decision Memory Loop](docs/architecture/decision-memory-loop.md)
 - [Execution Gate](docs/architecture/execution-gate.md)
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)

@@ -146,6 +146,43 @@ describe("default decision engine", () => {
     expect(outcome.auditSeverity).toBe("critical");
   });
 
+  it("rejects blocking Memory rejection risks with the Memory reason", () => {
+    const outcome = engine.decide({
+      id: "decision_req_memory_reconsideration",
+      goalId: "goal_unknown_system",
+      action: "Create a billing resource",
+      actionType: "capability_execution",
+      rationale:
+        "The user asked Atlas to create the resource. Memory rejected the prior decision.",
+      reversibility: "reversible",
+      externalImpacts: [],
+      risks: [
+        {
+          kind: "memory_rejection",
+          severity: "high",
+          description:
+            "A previous execution created duplicate billing resources for this provider.",
+          requiresRejection: true
+        }
+      ],
+      alternatives: [],
+      evidenceRefs: [
+        "knowledge:openapi:create-resource",
+        "memory:event:failure:duplicate-billing-resource"
+      ],
+      requesterIdentityId: "identity:user",
+      authorityMode: "broad"
+    });
+
+    expect(outcome.type).toBe("reject");
+    expect(outcome.rationale).toBe(
+      "Memory rejected this action: A previous execution created duplicate billing resources for this provider."
+    );
+    expect(outcome.evidenceRefs).toContain(
+      "memory:event:failure:duplicate-billing-resource"
+    );
+  });
+
   it("delegates human-only actions", () => {
     const outcome = engine.decide({
       id: "decision_req_human",

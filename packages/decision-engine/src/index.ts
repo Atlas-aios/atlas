@@ -85,6 +85,19 @@ export function createDefaultDecisionEngine(): DecisionEngine {
 }
 
 function decideWithDefaultRules(request: DecisionRequest): DecisionOutcome {
+  const memoryRejectionRisk = request.risks.find(
+    (risk) => risk.kind === "memory_rejection" && risk.requiresRejection === true
+  );
+
+  if (memoryRejectionRisk !== undefined) {
+    return createOutcome(request, {
+      type: "reject",
+      rationale: `Memory rejected this action: ${memoryRejectionRisk.description}`,
+      auditSeverity: "critical",
+      approvalRequired: true
+    });
+  }
+
   if (request.risks.some((risk) => risk.requiresRejection === true)) {
     return createOutcome(request, {
       type: "reject",
