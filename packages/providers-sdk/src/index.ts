@@ -34,6 +34,8 @@ export interface CapabilityProviderManifest {
 
 export interface ProviderRetryPolicy {
   maxAttempts: number;
+  initialDelayMs?: number;
+  backoffMultiplier?: number;
 }
 
 export interface ProviderExecutionRequest {
@@ -64,6 +66,8 @@ export interface ProviderRuntimeEvent {
   providerId: string;
   capabilityId: string;
   executionContextId: string;
+  attempt?: number;
+  delayMs?: number;
 }
 
 export type ProviderExecutionStatus = "completed" | "failed" | "compensated";
@@ -105,6 +109,10 @@ export interface ProviderRegistry {
   providers: Map<string, RegisteredCapabilityProvider>;
 }
 
+export interface ExecuteProviderOptions {
+  scheduleDelay?: (delayMs: number) => Promise<void> | void;
+}
+
 export function createProviderRegistry(): ProviderRegistry {
   return {
     providers: new Map()
@@ -132,7 +140,8 @@ export function registerProvider(
 
 export async function executeProvider(
   registry: ProviderRegistry,
-  request: ProviderExecutionRequest
+  request: ProviderExecutionRequest,
+  options: ExecuteProviderOptions = {}
 ): Promise<ProviderExecutionReport> {
   const startedEvent = createProviderRuntimeEvent(
     "provider.execution.started",
@@ -175,6 +184,8 @@ export async function executeProvider(
 
   const events = [startedEvent];
   const maxAttempts = Math.max(1, provider.manifest.retryPolicy?.maxAttempts ?? 1);
+  const initialDelayMs = provider.manifest.retryPolicy?.initialDelayMs ?? 0;
+  const backoffMultiplier = provider.manifest.retryPolicy?.backoffMultiplier ?? 1;
   let lastError = "Provider execution failed";
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -205,7 +216,14 @@ export async function executeProvider(
       lastError = error instanceof Error ? error.message : "Provider execution failed";
 
       if (attempt < maxAttempts) {
-        events.push(createProviderRuntimeEvent("provider.execution.retrying", request));
+        const delayMs = retryDelayMs(initialDelayMs, backoffMultiplier, attempt);
+        events.push(
+          createProviderRuntimeEvent("provider.execution.retrying", request, {
+            attempt,
+            delayMs
+          })
+        );
+        await scheduleRetryDelay(options, delayMs);
       }
     }
   }
@@ -312,12 +330,42 @@ function failedExecution(
 
 function createProviderRuntimeEvent(
   type: ProviderRuntimeEventType,
-  request: ProviderExecutionRequest
+  request: ProviderExecutionRequest,
+  metadata: Pick<ProviderRuntimeEvent, "attempt" | "delayMs"> = {}
 ): ProviderRuntimeEvent {
   return {
     type,
     providerId: request.providerId,
     capabilityId: request.capabilityId,
-    executionContextId: request.executionContextId
+    executionContextId: request.executionContextId,
+    ...metadata
   };
+}
+
+async function scheduleRetryDelay(
+  options: ExecuteProviderOptions,
+  delayMs: number
+): Promise<void> {
+  if (delayMs <= 0) {
+    return;
+  }
+
+  if (options.scheduleDelay !== undefined) {
+    await options.scheduleDelay(delayMs);
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+function retryDelayMs(
+  initialDelayMs: number,
+  backoffMultiplier: number,
+  failedAttempt: number
+): number {
+  return Math.round(
+    initialDelayMs * Math.max(1, backoffMultiplier) ** (failedAttempt - 1)
+  );
 }

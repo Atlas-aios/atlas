@@ -182,6 +182,64 @@ describe("Capability Provider Runtime", () => {
     ]);
   });
 
+  it("schedules exponential backoff delays between retry attempts", async () => {
+    const registry = createProviderRegistry();
+    const scheduledDelays: number[] = [];
+    let attempts = 0;
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "resourceId", type: "string", required: true }],
+        retryPolicy: {
+          maxAttempts: 3,
+          initialDelayMs: 100,
+          backoffMultiplier: 2
+        }
+      },
+      handler: async () => {
+        attempts += 1;
+        if (attempts < 3) {
+          throw new Error(`temporary failure ${attempts}`);
+        }
+        return {
+          outputs: { resourceId: "resource:invoice" },
+          evidence: ["trace:retry-success"]
+        };
+      }
+    });
+
+    const result = await executeProvider(
+      registry,
+      {
+        providerId: "provider:rest:create-resource",
+        capabilityId: "capability:create-resource",
+        inputs: { name: "invoice" },
+        executionContextId: "execution:create-resource:scheduled-retry"
+      },
+      {
+        scheduleDelay: async (delayMs) => {
+          scheduledDelays.push(delayMs);
+        }
+      }
+    );
+
+    expect(attempts).toBe(3);
+    expect(scheduledDelays).toEqual([100, 200]);
+    expect(result.events).toMatchObject([
+      { type: "provider.execution.started" },
+      { type: "provider.execution.retrying", attempt: 1, delayMs: 100 },
+      { type: "provider.execution.retrying", attempt: 2, delayMs: 200 },
+      { type: "provider.execution.completed" }
+    ]);
+  });
+
   it("executes provider compensation hooks", async () => {
     const registry = createProviderRegistry();
     registerProvider(registry, {
