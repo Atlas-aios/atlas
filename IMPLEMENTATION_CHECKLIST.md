@@ -72,8 +72,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACB object reference and payload storage rules.
 - [x] Define ATL / AtlasDSL source format boundary.
 - [x] Define AtlasIR versioning and checksum strategy.
-- [ ] Define decision request schema.
-- [ ] Define decision outcome schema.
+- [x] Define decision request schema.
+- [x] Define decision outcome schema.
 - [ ] Define audit event schema.
 - [ ] Define approval event schema.
 - [ ] Define execution event schema.
