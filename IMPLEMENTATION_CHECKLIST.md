@@ -197,14 +197,14 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 7. Capability Provider Runtime
 
-- [ ] Define Provider Manifest v0.
-- [ ] Define provider lifecycle states.
-- [ ] Implement provider registration.
+- [x] Define Provider Manifest v0.
+- [x] Define provider lifecycle states.
+- [x] Implement provider registration.
 - [ ] Implement provider versioning.
-- [ ] Implement provider input validation.
-- [ ] Implement provider output validation.
-- [ ] Implement provider execution wrapper.
-- [ ] Implement provider event emissions.
+- [x] Implement provider input validation.
+- [x] Implement provider output validation.
+- [x] Implement provider execution wrapper.
+- [x] Implement provider event emissions.
 - [ ] Implement provider retry policy.
 - [ ] Implement rollback/compensation hooks.
 - [ ] Implement Human Provider contract.
