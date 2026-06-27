@@ -78,7 +78,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define approval event schema.
 - [x] Define execution event schema.
 - [x] Define memory event schema.
-- [ ] Define SWM entity and relationship schema.
+- [x] Define SWM entity and relationship schema.
 - [ ] Define Capability Graph schema.
 - [ ] Define Experience artifact schema.
 - [ ] Define Self Model schema.
