@@ -76,6 +76,12 @@ export interface ExecutionWorkflow {
   edges: ExecutionWorkflowEdge[];
 }
 
+export interface ExecutionParallelBranch {
+  id: string;
+  nodes: ExecutionWorkflowNode[];
+  edges: ExecutionWorkflowEdge[];
+}
+
 export type ExecutionCheckpointReason =
   | "step_completed"
   | "step_failed"
@@ -767,6 +773,10 @@ function resolveWorkflowNodeHandler(
     return createHumanProviderNodeHandler();
   }
 
+  if (node.type === "parallel") {
+    return createParallelNodeHandler(input);
+  }
+
   return undefined;
 }
 
@@ -813,6 +823,81 @@ function createHumanProviderNodeHandler(): WorkflowNodeHandler {
       },
       evidenceRefs: [`execution.human_provider:${humanProviderId}`]
     };
+  };
+}
+
+function createParallelNodeHandler(
+  input: RunSequentialWorkflowInput
+): WorkflowNodeHandler {
+  return async ({ session, node }) => {
+    const branches = requiredParallelBranchesInput(node);
+    const branchRuns = await Promise.all(
+      branches.map(async (branch) => ({
+        branchId: branch.id,
+        result: await runSequentialWorkflow(
+          branchRunInput(input, session, node, branch)
+        )
+      }))
+    );
+    const failedBranch = branchRuns.find((branch) => branch.result.status === "failed");
+
+    if (failedBranch !== undefined) {
+      throw new Error(`Parallel branch failed: ${failedBranch.branchId}`);
+    }
+
+    const waitingBranch = branchRuns.find(
+      (branch) => branch.result.status === "waiting"
+    );
+
+    return {
+      status: waitingBranch === undefined ? "completed" : "waiting",
+      outputs: {
+        branches: branchRuns.map((branch) => ({
+          branchId: branch.branchId,
+          status: branch.result.status,
+          steps: branch.result.steps
+        }))
+      },
+      evidenceRefs: [`execution.parallel:${node.id}`]
+    };
+  };
+}
+
+function branchRunInput(
+  input: RunSequentialWorkflowInput,
+  session: ExecutionSession,
+  node: ExecutionWorkflowNode,
+  branch: ExecutionParallelBranch
+): RunSequentialWorkflowInput {
+  return {
+    session: createExecutionSession({
+      id: `${session.id}:${node.id}:${branch.id}`,
+      workflowId: `${input.workflow.id}:${node.id}:${branch.id}`,
+      startedAt: session.startedAt
+    }),
+    workflow: {
+      id: `${input.workflow.id}:${node.id}:${branch.id}`,
+      version: input.workflow.version,
+      nodes: branch.nodes,
+      edges: branch.edges
+    },
+    handlers: input.handlers,
+    ...(input.scheduleDelay === undefined
+      ? {}
+      : { scheduleDelay: input.scheduleDelay }),
+    ...(input.checkpointStore === undefined
+      ? {}
+      : { checkpointStore: input.checkpointStore }),
+    ...(input.checkpointClock === undefined
+      ? {}
+      : { checkpointClock: input.checkpointClock }),
+    ...(input.onEvent === undefined ? {} : { onEvent: input.onEvent }),
+    ...(input.providerRegistry === undefined
+      ? {}
+      : { providerRegistry: input.providerRegistry }),
+    ...(input.providerExecuteOptions === undefined
+      ? {}
+      : { providerExecuteOptions: input.providerExecuteOptions })
   };
 }
 
@@ -987,6 +1072,132 @@ function requiredRecordInput(
   }
 
   return { ...value };
+}
+
+function requiredParallelBranchesInput(
+  node: ExecutionWorkflowNode
+): ExecutionParallelBranch[] {
+  const value = node.inputs.branches;
+
+  if (!Array.isArray(value)) {
+    throw new Error(`Parallel node ${node.id} missing branches array`);
+  }
+
+  return value.map((branch, index) => {
+    if (typeof branch !== "object" || branch === null || Array.isArray(branch)) {
+      throw new Error(`Parallel node ${node.id} has invalid branch at index ${index}`);
+    }
+
+    const branchRecord = branch as Record<string, unknown>;
+    const id = branchRecord.id;
+    const nodes = branchRecord.nodes;
+    const edges = branchRecord.edges;
+
+    if (typeof id !== "string") {
+      throw new Error(`Parallel node ${node.id} branch missing string id`);
+    }
+
+    if (!Array.isArray(nodes)) {
+      throw new Error(`Parallel node ${node.id} branch ${id} missing nodes array`);
+    }
+
+    if (!Array.isArray(edges)) {
+      throw new Error(`Parallel node ${node.id} branch ${id} missing edges array`);
+    }
+
+    return {
+      id,
+      nodes: nodes.map((branchNode) =>
+        assertExecutionWorkflowNode(node.id, id, branchNode)
+      ),
+      edges: edges.map((edge) => assertExecutionWorkflowEdge(node.id, id, edge))
+    };
+  });
+}
+
+function assertExecutionWorkflowNode(
+  parallelNodeId: string,
+  branchId: string,
+  value: unknown
+): ExecutionWorkflowNode {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Parallel node ${parallelNodeId} branch ${branchId} has invalid node`
+    );
+  }
+
+  const nodeRecord = value as Record<string, unknown>;
+
+  if (typeof nodeRecord.id !== "string") {
+    throw new Error(
+      `Parallel node ${parallelNodeId} branch ${branchId} node missing id`
+    );
+  }
+
+  if (typeof nodeRecord.type !== "string") {
+    throw new Error(
+      `Parallel node ${parallelNodeId} branch ${branchId} node missing type`
+    );
+  }
+
+  if (
+    typeof nodeRecord["inputs"] !== "object" ||
+    nodeRecord["inputs"] === null ||
+    Array.isArray(nodeRecord["inputs"])
+  ) {
+    throw new Error(
+      `Parallel node ${parallelNodeId} branch ${branchId} node missing inputs`
+    );
+  }
+
+  return {
+    id: nodeRecord.id,
+    type: nodeRecord.type as ExecutionWorkflowNodeType,
+    inputs: { ...(nodeRecord["inputs"] as Record<string, unknown>) },
+    ...(isExecutionRetryPolicy(nodeRecord["retryPolicy"])
+      ? { retryPolicy: nodeRecord["retryPolicy"] }
+      : {})
+  };
+}
+
+function assertExecutionWorkflowEdge(
+  parallelNodeId: string,
+  branchId: string,
+  value: unknown
+): ExecutionWorkflowEdge {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      `Parallel node ${parallelNodeId} branch ${branchId} has invalid edge`
+    );
+  }
+
+  const edgeRecord = value as Record<string, unknown>;
+
+  if (
+    typeof edgeRecord.fromNodeId !== "string" ||
+    typeof edgeRecord.toNodeId !== "string"
+  ) {
+    throw new Error(
+      `Parallel node ${parallelNodeId} branch ${branchId} edge missing node ids`
+    );
+  }
+
+  return {
+    fromNodeId: edgeRecord.fromNodeId,
+    toNodeId: edgeRecord.toNodeId,
+    ...(typeof edgeRecord.condition === "string"
+      ? { condition: edgeRecord.condition }
+      : {})
+  };
+}
+
+function isExecutionRetryPolicy(value: unknown): value is ExecutionRetryPolicy {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const retryPolicy = value as Record<string, unknown>;
+  return typeof retryPolicy["maxAttempts"] === "number";
 }
 
 function requiredNonNegativeNumberInput(

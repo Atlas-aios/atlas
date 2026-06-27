@@ -754,4 +754,100 @@ describe("workflow execution", () => {
     expect(streamedEvents).toContain("execution.compensation.completed:node:create");
     expect(streamedEvents).toContain("execution.rollback.completed");
   });
+
+  it("runs parallel node branches and returns grouped branch results", async () => {
+    const completionOrder: string[] = [];
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:parallel-node",
+        workflowId: "workflow:parallel-node",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:parallel-node",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:parallel",
+            type: "parallel",
+            inputs: {
+              branches: [
+                {
+                  id: "branch:a",
+                  nodes: [
+                    {
+                      id: "node:a",
+                      type: "capability",
+                      inputs: { value: "a" }
+                    }
+                  ],
+                  edges: []
+                },
+                {
+                  id: "branch:b",
+                  nodes: [
+                    {
+                      id: "node:b",
+                      type: "capability",
+                      inputs: { value: "b" }
+                    }
+                  ],
+                  edges: []
+                }
+              ]
+            }
+          }
+        ],
+        edges: []
+      },
+      handlers: {
+        capability: async ({ node }) => {
+          completionOrder.push(node.id);
+          return {
+            outputs: { value: node.inputs.value },
+            evidenceRefs: [`trace:${node.id}`]
+          };
+        }
+      }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(completionOrder.sort()).toEqual(["node:a", "node:b"]);
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:parallel",
+        status: "completed",
+        outputs: {
+          branches: [
+            {
+              branchId: "branch:a",
+              status: "completed",
+              steps: [
+                {
+                  nodeId: "node:a",
+                  status: "completed",
+                  outputs: { value: "a" },
+                  evidenceRefs: ["trace:node:a"]
+                }
+              ]
+            },
+            {
+              branchId: "branch:b",
+              status: "completed",
+              steps: [
+                {
+                  nodeId: "node:b",
+                  status: "completed",
+                  outputs: { value: "b" },
+                  evidenceRefs: ["trace:node:b"]
+                }
+              ]
+            }
+          ]
+        },
+        evidenceRefs: ["execution.parallel:node:parallel"]
+      }
+    ]);
+  });
 });
