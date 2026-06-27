@@ -156,11 +156,12 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Include policy risk in ranking.
 - [ ] Include provider reputation in ranking.
 - [x] Define provider Experience lookup contract.
-- [ ] Include Experience artifacts in ranking.
+- [x] Include Experience artifacts in ranking.
 - [ ] Include cost and latency in ranking.
 - [ ] Implement fallback provider selection.
 - [ ] Implement approval gate detection.
 - [ ] Implement simulation requirement detection.
+- [x] Add tests for Experience-aware provider ranking.
 - [ ] Add tests for provider selection.
 
 ---

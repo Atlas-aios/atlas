@@ -103,7 +103,21 @@ The Capability Kernel uses `lookupProviderExperience` to ask:
 What prior Experience exists for this capability/provider candidate?
 ```
 
-The Kernel lookup currently returns provider-scoped guidance. The actual provider ranking algorithm remains a later implementation step.
+The Kernel can also call `rankProviderCandidates` to apply Experience to candidate scoring.
+
+Negative Experience, such as anti-patterns, risk patterns, or decision patterns that repeatedly led to rejection, reduces adjusted confidence and increases adjusted risk. Positive Experience, such as playbooks and heuristics, gives a smaller confidence boost and a small risk reduction.
+
+This asymmetry is intentional. Prior harm should influence provider choice more strongly than prior convenience.
+
+The initial ranking output includes:
+
+- adjusted confidence
+- adjusted risk score
+- Experience adjustment
+- ranking score
+- Experience artifact ids used as evidence
+
+Cost, latency, permission fit, policy fit, and provider reputation remain separate future ranking inputs.
 
 ## Artifact Shape
 
@@ -126,5 +140,5 @@ Future slices should add:
 
 - staleness and review policy
 - risk pattern artifacts
-- ranking logic that consumes Experience artifacts
+- cost, latency, permission, policy, and reputation scoring
 - governance review for high-impact artifacts
