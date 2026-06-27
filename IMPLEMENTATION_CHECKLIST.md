@@ -79,7 +79,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define execution event schema.
 - [x] Define memory event schema.
 - [x] Define SWM entity and relationship schema.
-- [ ] Define Capability Graph schema.
+- [x] Define Capability Graph schema.
 - [ ] Define Experience artifact schema.
 - [ ] Define Self Model schema.
 - [ ] Define Identity resolution schema.
@@ -156,7 +156,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 5. Capability Graph And Registry
 
-- [ ] Define layered capability ontology: L0 through L4.
+- [x] Define layered capability ontology: L0 through L4.
 - [ ] Implement Capability Registry storage.
 - [ ] Implement Capability Graph storage.
 - [ ] Implement capability dependency edges.
