@@ -30,11 +30,17 @@ export type ExecutionEventType =
   | "execution.session.completed"
   | "execution.session.failed"
   | "execution.session.waiting"
+  | "execution.rollback.started"
+  | "execution.rollback.completed"
+  | "execution.rollback.failed"
   | "execution.step.started"
   | "execution.step.retrying"
   | "execution.step.completed"
   | "execution.step.failed"
-  | "execution.step.waiting";
+  | "execution.step.waiting"
+  | "execution.compensation.started"
+  | "execution.compensation.completed"
+  | "execution.compensation.failed";
 
 export type ExecutionWorkflowNodeType =
   | "capability"
@@ -74,6 +80,8 @@ export type ExecutionCheckpointReason =
   | "step_completed"
   | "step_failed"
   | "step_waiting"
+  | "rollback_completed"
+  | "rollback_failed"
   | "session_completed"
   | "session_failed";
 
@@ -141,7 +149,34 @@ export interface ExecutionStepResult {
   status: ExecutionStepStatus;
   outputs: Record<string, unknown>;
   evidenceRefs: string[];
+  compensation?: ExecutionCompensationPlan;
   error?: string;
+}
+
+export type ExecutionCompensationPlan = ProviderExecutionCompensationPlan;
+
+export interface ProviderExecutionCompensationPlan {
+  type: "provider";
+  providerId: string;
+  capabilityId: string;
+  inputs: Record<string, unknown>;
+  compensationRef: string;
+}
+
+export type ExecutionCompensationStatus = "compensated" | "failed";
+export type ExecutionRollbackStatus = "completed" | "failed";
+
+export interface ExecutionCompensationResult {
+  nodeId: string;
+  status: ExecutionCompensationStatus;
+  outputs: Record<string, unknown>;
+  evidenceRefs: string[];
+  error?: string;
+}
+
+export interface ExecutionRollbackResult {
+  status: ExecutionRollbackStatus;
+  compensations: ExecutionCompensationResult[];
 }
 
 export interface ExecutionCheckpoint {
@@ -154,6 +189,7 @@ export interface ExecutionCheckpoint {
   failedNodeIds: string[];
   steps: ExecutionStepResult[];
   events: ExecutionEvent[];
+  rollback?: ExecutionRollbackResult;
   createdAt: string;
   lastNodeId?: string;
 }
@@ -176,6 +212,7 @@ export interface ExecuteWorkflowNodeResult {
   status?: Extract<ExecutionStepStatus, "completed" | "waiting">;
   outputs: Record<string, unknown>;
   evidenceRefs: string[];
+  compensation?: ExecutionCompensationPlan;
 }
 
 export type WorkflowNodeHandler = (
@@ -194,6 +231,8 @@ export interface RunSequentialWorkflowInput {
   checkpointStore?: ExecutionCheckpointStore;
   checkpointClock?: () => string;
   onEvent?: ExecutionEventSink;
+  providerRegistry?: ProviderRegistry;
+  providerExecuteOptions?: ExecuteProviderOptions;
 }
 
 export interface ProviderBackedCapabilityHandlerInput {
@@ -206,6 +245,7 @@ export interface ExecutionRunResult {
   status: ExecutionSessionStatus;
   steps: ExecutionStepResult[];
   events: ExecutionEvent[];
+  rollback?: ExecutionRollbackResult;
 }
 
 export function evaluateExecutionGate(
@@ -370,12 +410,14 @@ export async function runSequentialWorkflow(
         events,
         createExecutionEvent("execution.session.failed", input.session.id)
       );
+      const rollback = await rollbackCompletedSteps(input, steps, events);
       checkpointSequence += 1;
       await saveExecutionCheckpoint(input, checkpointSequence, {
-        reason: "step_failed",
+        reason: rollbackCheckpointReason(rollback),
         status: "failed",
         steps,
         events,
+        ...(rollback === undefined ? {} : { rollback }),
         lastNodeId: node.id
       });
 
@@ -383,7 +425,8 @@ export async function runSequentialWorkflow(
         session: { ...input.session, status: "failed" },
         status: "failed",
         steps,
-        events
+        events,
+        ...(rollback === undefined ? {} : { rollback })
       };
     }
 
@@ -429,7 +472,10 @@ export async function runSequentialWorkflow(
         nodeId: node.id,
         status: "completed",
         outputs: result.outputs,
-        evidenceRefs: result.evidenceRefs
+        evidenceRefs: result.evidenceRefs,
+        ...(result.compensation === undefined
+          ? {}
+          : { compensation: result.compensation })
       });
       await emitExecutionEvent(
         input,
@@ -445,12 +491,15 @@ export async function runSequentialWorkflow(
         lastNodeId: node.id
       });
     } catch (error) {
-      steps.push({
+      const failedStep = {
         nodeId: node.id,
-        status: "failed",
+        status: "failed" as const,
         outputs: {},
         evidenceRefs: [],
         error: error instanceof Error ? error.message : "Workflow node failed"
+      };
+      steps.push({
+        ...failedStep
       });
       await emitExecutionEvent(
         input,
@@ -462,12 +511,14 @@ export async function runSequentialWorkflow(
         events,
         createExecutionEvent("execution.session.failed", input.session.id)
       );
+      const rollback = await rollbackCompletedSteps(input, steps, events);
       checkpointSequence += 1;
       await saveExecutionCheckpoint(input, checkpointSequence, {
-        reason: "step_failed",
+        reason: rollbackCheckpointReason(rollback),
         status: "failed",
         steps,
         events,
+        ...(rollback === undefined ? {} : { rollback }),
         lastNodeId: node.id
       });
 
@@ -475,7 +526,8 @@ export async function runSequentialWorkflow(
         session: { ...input.session, status: "failed" },
         status: "failed",
         steps,
-        events
+        events,
+        ...(rollback === undefined ? {} : { rollback })
       };
     }
   }
@@ -548,6 +600,149 @@ async function emitExecutionEvent(
 ): Promise<void> {
   events.push(event);
   await input.onEvent?.(event);
+}
+
+function rollbackCheckpointReason(
+  rollback: ExecutionRollbackResult | undefined
+): ExecutionCheckpointReason {
+  if (rollback === undefined) {
+    return "step_failed";
+  }
+
+  return rollback.status === "failed" ? "rollback_failed" : "rollback_completed";
+}
+
+async function rollbackCompletedSteps(
+  input: RunSequentialWorkflowInput,
+  steps: ExecutionStepResult[],
+  events: ExecutionEvent[]
+): Promise<ExecutionRollbackResult | undefined> {
+  const compensatableSteps = steps
+    .filter((step) => step.status === "completed" && step.compensation !== undefined)
+    .reverse();
+
+  if (compensatableSteps.length === 0) {
+    return undefined;
+  }
+
+  await emitExecutionEvent(
+    input,
+    events,
+    createExecutionEvent("execution.rollback.started", input.session.id)
+  );
+
+  const compensations: ExecutionCompensationResult[] = [];
+
+  for (const step of compensatableSteps) {
+    await emitExecutionEvent(
+      input,
+      events,
+      createExecutionEvent(
+        "execution.compensation.started",
+        input.session.id,
+        step.nodeId
+      )
+    );
+
+    const compensation = await executeStepCompensation(input, step);
+    compensations.push(compensation);
+
+    await emitExecutionEvent(
+      input,
+      events,
+      createExecutionEvent(
+        compensation.status === "compensated"
+          ? "execution.compensation.completed"
+          : "execution.compensation.failed",
+        input.session.id,
+        step.nodeId
+      )
+    );
+
+    if (compensation.status === "failed") {
+      await emitExecutionEvent(
+        input,
+        events,
+        createExecutionEvent("execution.rollback.failed", input.session.id)
+      );
+
+      return {
+        status: "failed",
+        compensations
+      };
+    }
+  }
+
+  await emitExecutionEvent(
+    input,
+    events,
+    createExecutionEvent("execution.rollback.completed", input.session.id)
+  );
+
+  return {
+    status: "completed",
+    compensations
+  };
+}
+
+async function executeStepCompensation(
+  input: RunSequentialWorkflowInput,
+  step: ExecutionStepResult
+): Promise<ExecutionCompensationResult> {
+  const plan = step.compensation;
+
+  if (plan === undefined) {
+    return {
+      nodeId: step.nodeId,
+      status: "failed",
+      outputs: {},
+      evidenceRefs: [],
+      error: "Step has no compensation plan"
+    };
+  }
+
+  switch (plan.type) {
+    case "provider": {
+      if (input.providerRegistry === undefined) {
+        return {
+          nodeId: step.nodeId,
+          status: "failed",
+          outputs: {},
+          evidenceRefs: [],
+          error: "Provider registry is required for provider compensation"
+        };
+      }
+
+      const result = await executeProvider(
+        input.providerRegistry,
+        {
+          providerId: plan.providerId,
+          capabilityId: plan.capabilityId,
+          inputs: plan.inputs,
+          executionContextId: input.session.id,
+          compensationRef: plan.compensationRef
+        },
+        input.providerExecuteOptions
+      );
+
+      if (result.status === "compensated" && result.result !== undefined) {
+        return {
+          nodeId: step.nodeId,
+          status: "compensated",
+          outputs: result.result.outputs,
+          evidenceRefs: result.result.evidence
+        };
+      }
+
+      return {
+        nodeId: step.nodeId,
+        status: "failed",
+        outputs: {},
+        evidenceRefs: [],
+        error: result.error ?? `Compensation failed for ${step.nodeId}`
+      };
+    }
+  }
 }
 
 function resolveWorkflowNodeHandler(
@@ -629,6 +824,7 @@ async function saveExecutionCheckpoint(
     status: ExecutionSessionStatus;
     steps: ExecutionStepResult[];
     events: ExecutionEvent[];
+    rollback?: ExecutionRollbackResult;
     lastNodeId?: string;
   }
 ): Promise<void> {
@@ -650,6 +846,7 @@ async function saveExecutionCheckpoint(
       .map((step) => step.nodeId),
     steps: checkpoint.steps.map((step) => ({ ...step })),
     events: checkpoint.events.map((event) => ({ ...event })),
+    ...(checkpoint.rollback === undefined ? {} : { rollback: checkpoint.rollback }),
     createdAt: (input.checkpointClock ?? (() => new Date().toISOString()))(),
     ...(checkpoint.lastNodeId === undefined
       ? {}
@@ -685,7 +882,18 @@ export function createProviderBackedCapabilityHandler(
 
     return {
       outputs: providerResult.result.outputs,
-      evidenceRefs: providerResult.result.evidence
+      evidenceRefs: providerResult.result.evidence,
+      ...(providerResult.result.compensationRef === undefined
+        ? {}
+        : {
+            compensation: {
+              type: "provider",
+              providerId,
+              capabilityId,
+              inputs: providerInputs,
+              compensationRef: providerResult.result.compensationRef
+            }
+          })
     };
   };
 }

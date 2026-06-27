@@ -250,8 +250,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement wait node behavior.
 - [x] Implement checkpointing.
 - [x] Implement retries.
-- [ ] Implement rollback.
-- [ ] Implement compensation.
+- [x] Implement rollback.
+- [x] Implement compensation.
 - [x] Implement streaming execution events.
 - [x] Add tests for state transitions.
 

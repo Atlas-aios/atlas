@@ -640,4 +640,118 @@ describe("workflow execution", () => {
       }
     ]);
   });
+
+  it("rolls back completed provider-backed steps when a later node fails", async () => {
+    const registry = createProviderRegistry();
+    const compensations: string[] = [];
+    const streamedEvents: string[] = [];
+
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:resource:create",
+        name: "Resource Create Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:resource:create"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "resourceId", type: "string", required: true }]
+      },
+      handler: async (request) => ({
+        outputs: { resourceId: `resource:${request.inputs.name}` },
+        evidence: ["trace:create-resource"],
+        compensationRef: `resource:${request.inputs.name}`
+      }),
+      compensate: async (request) => {
+        compensations.push(request.compensationRef);
+        return {
+          outputs: { deletedResourceId: request.compensationRef },
+          evidence: ["trace:delete-resource"]
+        };
+      }
+    });
+
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:resource:update",
+        name: "Resource Update Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:resource:update"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "resourceId", type: "string", required: true }],
+        outputSchema: [{ name: "updated", type: "boolean", required: true }]
+      },
+      handler: async () => {
+        throw new Error("update failed after create");
+      }
+    });
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:rollback-provider",
+        workflowId: "workflow:rollback-provider",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:rollback-provider",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:create",
+            type: "capability",
+            inputs: {
+              providerId: "provider:resource:create",
+              capabilityId: "capability:resource:create",
+              inputs: { name: "invoice" }
+            }
+          },
+          {
+            id: "node:update",
+            type: "capability",
+            inputs: {
+              providerId: "provider:resource:update",
+              capabilityId: "capability:resource:update",
+              inputs: { resourceId: "resource:invoice" }
+            }
+          }
+        ],
+        edges: [
+          {
+            fromNodeId: "node:create",
+            toNodeId: "node:update"
+          }
+        ]
+      },
+      handlers: {
+        capability: createProviderBackedCapabilityHandler({ registry })
+      },
+      providerRegistry: registry,
+      onEvent: (event) => {
+        streamedEvents.push(
+          event.nodeId === undefined ? event.type : `${event.type}:${event.nodeId}`
+        );
+      }
+    });
+
+    expect(result.status).toBe("failed");
+    expect(compensations).toEqual(["resource:invoice"]);
+    expect(result.rollback).toEqual({
+      status: "completed",
+      compensations: [
+        {
+          nodeId: "node:create",
+          status: "compensated",
+          outputs: { deletedResourceId: "resource:invoice" },
+          evidenceRefs: ["trace:delete-resource"]
+        }
+      ]
+    });
+    expect(streamedEvents).toContain("execution.rollback.started");
+    expect(streamedEvents).toContain("execution.compensation.started:node:create");
+    expect(streamedEvents).toContain("execution.compensation.completed:node:create");
+    expect(streamedEvents).toContain("execution.rollback.completed");
+  });
 });
