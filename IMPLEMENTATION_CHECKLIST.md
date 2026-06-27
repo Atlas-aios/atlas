@@ -53,7 +53,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define Atlas Cognitive Transaction schema.
 - [x] Define ACT lifecycle states.
 - [x] Define ACT validation and commit rules.
-- [ ] Define ACT publication-after-commit rule.
+- [x] Define ACT publication-after-commit rule.
 - [ ] Define ACT compensation event rules.
 - [ ] Define append-only ACR event log schema.
 - [x] Define ACR event vocabulary.
@@ -62,14 +62,14 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define ACR relationship model.
 - [x] Define ACR provenance and evidence model.
 - [x] Define ACR object version projection.
-- [ ] Define ACR relationship projection.
-- [ ] Define ACR evidence reference projection.
+- [x] Define ACR relationship projection.
+- [x] Define ACR evidence reference projection.
 - [ ] Define ACR raw evidence object-storage boundary.
 - [ ] Define ACR search/vector projection boundary.
 - [ ] Define ACT-level replay contract.
 - [ ] Define ACR replay and temporal query contract.
-- [ ] Define Atlas Cognitive Bus message envelope.
-- [ ] Define ACB object reference and payload storage rules.
+- [x] Define Atlas Cognitive Bus message envelope.
+- [x] Define ACB object reference and payload storage rules.
 - [ ] Define ATL / AtlasDSL source format boundary.
 - [ ] Define AtlasIR versioning and checksum strategy.
 - [ ] Define decision request schema.
@@ -509,11 +509,11 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Test governance gates.
 - [ ] Test simulation outputs.
 - [ ] Test ACT atomic commit behavior.
-- [ ] Test ACT publication-after-commit behavior.
+- [x] Test ACT publication-after-commit behavior.
 - [ ] Test ACT compensation replay behavior.
 - [ ] Test ACR event replay determinism.
 - [ ] Test ACR temporal queries.
-- [ ] Test ACR graph projection rebuilds.
+- [x] Test ACR graph projection rebuilds.
 - [ ] Test Experience distillation.
 - [ ] Test unknown business system learning.
 - [ ] Benchmark `Create Resource`.
