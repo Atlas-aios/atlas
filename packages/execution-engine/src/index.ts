@@ -3,6 +3,11 @@ import type {
   DecisionAuditSeverity,
   DecisionOutcome
 } from "@atlas-aios/decision-engine";
+import {
+  executeProvider,
+  type ExecuteProviderOptions,
+  type ProviderRegistry
+} from "@atlas-aios/providers-sdk";
 
 export type ExecutionGateStatus =
   | "allowed"
@@ -141,6 +146,11 @@ export interface RunSequentialWorkflowInput {
   session: ExecutionSession;
   workflow: ExecutionWorkflow;
   handlers: WorkflowNodeHandlers;
+}
+
+export interface ProviderBackedCapabilityHandlerInput {
+  registry: ProviderRegistry;
+  executeOptions?: ExecuteProviderOptions;
 }
 
 export interface ExecutionRunResult {
@@ -335,6 +345,37 @@ export async function runSequentialWorkflow(
   };
 }
 
+export function createProviderBackedCapabilityHandler(
+  input: ProviderBackedCapabilityHandlerInput
+): WorkflowNodeHandler {
+  return async ({ session, node }) => {
+    const providerId = requiredStringInput(node, "providerId");
+    const capabilityId = requiredStringInput(node, "capabilityId");
+    const providerInputs = requiredRecordInput(node, "inputs");
+    const providerResult = await executeProvider(
+      input.registry,
+      {
+        providerId,
+        capabilityId,
+        inputs: providerInputs,
+        executionContextId: session.id
+      },
+      input.executeOptions
+    );
+
+    if (providerResult.status !== "completed" || providerResult.result === undefined) {
+      throw new Error(
+        providerResult.error ?? `Provider execution failed: ${providerId}`
+      );
+    }
+
+    return {
+      outputs: providerResult.result.outputs,
+      evidenceRefs: providerResult.result.evidence
+    };
+  };
+}
+
 function orderedWorkflowNodes(workflow: ExecutionWorkflow): ExecutionWorkflowNode[] {
   if (workflow.edges.length === 0) {
     return workflow.nodes;
@@ -370,6 +411,29 @@ function createExecutionEvent(
   nodeId?: string
 ): ExecutionEvent {
   return nodeId === undefined ? { type, executionId } : { type, executionId, nodeId };
+}
+
+function requiredStringInput(node: ExecutionWorkflowNode, key: string): string {
+  const value = node.inputs[key];
+
+  if (typeof value !== "string") {
+    throw new Error(`Capability node ${node.id} missing string input: ${key}`);
+  }
+
+  return value;
+}
+
+function requiredRecordInput(
+  node: ExecutionWorkflowNode,
+  key: string
+): Record<string, unknown> {
+  const value = node.inputs[key];
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Capability node ${node.id} missing object input: ${key}`);
+  }
+
+  return { ...value };
 }
 
 function createGateOutcome(

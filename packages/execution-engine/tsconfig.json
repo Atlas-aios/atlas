@@ -6,6 +6,6 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "references": [{ "path": "../decision-engine" }],
+  "references": [{ "path": "../decision-engine" }, { "path": "../providers-sdk" }],
   "include": ["src/**/*.ts"]
 }

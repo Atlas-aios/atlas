@@ -6,8 +6,10 @@ import type {
   DecisionOutcome,
   DecisionOutcomeType
 } from "@atlas-aios/decision-engine";
+import { createProviderRegistry, registerProvider } from "@atlas-aios/providers-sdk";
 import {
   createExecutionSession,
+  createProviderBackedCapabilityHandler,
   evaluateExecutionGate,
   runSequentialWorkflow,
   validateWorkflow
@@ -235,6 +237,64 @@ describe("workflow execution", () => {
       "execution.step.started",
       "execution.step.completed",
       "execution.session.completed"
+    ]);
+  });
+
+  it("runs capability nodes through the Provider SDK registry", async () => {
+    const registry = createProviderRegistry();
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "resourceId", type: "string", required: true }]
+      },
+      handler: async (request) => ({
+        outputs: { resourceId: `resource:${request.inputs.name}` },
+        evidence: ["trace:provider:create-resource"]
+      })
+    });
+
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:create-resource:provider",
+        workflowId: "workflow:create-resource",
+        startedAt: "2026-06-28T00:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:create-resource",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:create-resource",
+            type: "capability",
+            inputs: {
+              providerId: "provider:rest:create-resource",
+              capabilityId: "capability:create-resource",
+              inputs: { name: "invoice" }
+            }
+          }
+        ],
+        edges: []
+      },
+      handlers: {
+        capability: createProviderBackedCapabilityHandler({ registry })
+      }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:create-resource",
+        status: "completed",
+        outputs: { resourceId: "resource:invoice" },
+        evidenceRefs: ["trace:provider:create-resource"]
+      }
     ]);
   });
 });

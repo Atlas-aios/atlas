@@ -56,6 +56,9 @@ importers:
       "@atlas-aios/decision-engine":
         specifier: workspace:*
         version: link:../decision-engine
+      "@atlas-aios/providers-sdk":
+        specifier: workspace:*
+        version: link:../providers-sdk
 
   packages/experience: {}
 

@@ -12,7 +12,8 @@
     }
   },
   "dependencies": {
-    "@atlas-aios/decision-engine": "workspace:*"
+    "@atlas-aios/decision-engine": "workspace:*",
+    "@atlas-aios/providers-sdk": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b",
