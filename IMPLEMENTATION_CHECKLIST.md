@@ -155,6 +155,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Include permission fit in ranking.
 - [ ] Include policy risk in ranking.
 - [ ] Include provider reputation in ranking.
+- [x] Define provider Experience lookup contract.
 - [ ] Include Experience artifacts in ranking.
 - [ ] Include cost and latency in ranking.
 - [ ] Implement fallback provider selection.
@@ -288,8 +289,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement confidence scoring for decision patterns.
 - [x] Implement scope/applicability conditions for decision patterns.
 - [ ] Implement staleness/review policy.
-- [ ] Implement Experience lookup API for Brain.
-- [ ] Implement Experience lookup API for Kernel.
+- [x] Implement Experience lookup API.
+- [x] Implement Experience lookup API for Brain.
+- [x] Implement Experience lookup API for Kernel.
 - [ ] Add governance review for high-impact artifacts.
 - [x] Add tests for avoiding overgeneralization.
 

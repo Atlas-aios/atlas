@@ -14,6 +14,7 @@ Initial implemented function:
 
 ```ts
 distillDecisionPatternsFromMemory(input);
+lookupExperienceArtifacts(input);
 ```
 
 ## Decision Pattern Distillation
@@ -61,9 +62,48 @@ flowchart TD
   Memory --> Observation
   Observation --> Distiller
   Distiller --> Pattern
-  Pattern --> Brain
-  Pattern --> Kernel
+Pattern --> Brain
+Pattern --> Kernel
 ```
+
+## Lookup API
+
+The Experience package exposes a scoped lookup API:
+
+```ts
+lookupExperienceArtifacts({
+  artifacts,
+  query: {
+    artifactTypes,
+    applicability,
+    minimumConfidence
+  }
+});
+```
+
+The lookup contract is intentionally scope-first. A result must match every requested applicability scope. This allows Atlas to ask for broad planning guidance, such as `capability:create-resource`, or provider-specific evidence, such as `capability:create-resource` plus `provider:billing-api`.
+
+Results are sorted by confidence, then by id for deterministic ordering.
+
+## Brain Integration
+
+Brain Engines use `lookupPlanningExperience` to ask:
+
+```text
+What prior Experience should shape this plan for these capabilities?
+```
+
+The Brain lookup currently returns guidance grouped by capability id. It does not own or mutate Experience artifacts.
+
+## Capability Kernel Integration
+
+The Capability Kernel uses `lookupProviderExperience` to ask:
+
+```text
+What prior Experience exists for this capability/provider candidate?
+```
+
+The Kernel lookup currently returns provider-scoped guidance. The actual provider ranking algorithm remains a later implementation step.
 
 ## Artifact Shape
 
@@ -80,12 +120,11 @@ Confidence starts conservatively and increases with repeated evidence. It is not
 
 ## Current Boundary
 
-This slice implements decision pattern distillation only.
+This slice implements decision pattern distillation plus lookup contracts for Brain Engines and the Capability Kernel.
 
 Future slices should add:
 
 - staleness and review policy
 - risk pattern artifacts
-- Experience lookup API for Brain Engines
-- Experience lookup API for Capability Kernel
+- ranking logic that consumes Experience artifacts
 - governance review for high-impact artifacts

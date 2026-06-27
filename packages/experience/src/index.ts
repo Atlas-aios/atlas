@@ -14,6 +14,17 @@ export interface ExperienceArtifact {
   confidence: number;
 }
 
+export interface ExperienceLookupQuery {
+  artifactTypes?: ExperienceArtifactType[];
+  applicability: string[];
+  minimumConfidence?: number;
+}
+
+export interface LookupExperienceArtifactsInput {
+  artifacts: ExperienceArtifact[];
+  query: ExperienceLookupQuery;
+}
+
 export type DecisionObservationOutcomeType =
   | "approve"
   | "approve_with_constraints"
@@ -54,6 +65,28 @@ export function distillDecisionPatternsFromMemory(
   return [...groups.values()]
     .filter((group) => group.length >= minimumEvidenceCount)
     .map(createDecisionPatternArtifact);
+}
+
+export function lookupExperienceArtifacts(
+  input: LookupExperienceArtifactsInput
+): ExperienceArtifact[] {
+  const minimumConfidence = input.query.minimumConfidence ?? 0;
+  const artifactTypes = new Set(input.query.artifactTypes);
+
+  return input.artifacts
+    .filter((artifact) => {
+      const typeMatches = artifactTypes.size === 0 || artifactTypes.has(artifact.type);
+      const confidenceMatches = artifact.confidence >= minimumConfidence;
+      const applicabilityMatches = input.query.applicability.every((scope) =>
+        artifact.applicability.includes(scope)
+      );
+
+      return typeMatches && confidenceMatches && applicabilityMatches;
+    })
+    .sort(
+      (left, right) =>
+        right.confidence - left.confidence || left.id.localeCompare(right.id)
+    );
 }
 
 function createDecisionPatternArtifact(

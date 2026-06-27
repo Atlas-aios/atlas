@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   distillDecisionPatternsFromMemory,
+  lookupExperienceArtifacts,
+  type ExperienceArtifact,
   type DecisionMemoryObservation
 } from "./index.js";
 
@@ -68,5 +70,65 @@ describe("distillDecisionPatternsFromMemory", () => {
     });
 
     expect(artifacts).toEqual([]);
+  });
+});
+
+describe("lookupExperienceArtifacts", () => {
+  const artifacts: ExperienceArtifact[] = [
+    {
+      id: "experience:decision-pattern:create-resource:billing",
+      type: "decision_pattern",
+      summary: "Billing provider repeatedly rejected duplicate resources.",
+      evidenceMemoryEventIds: ["memory:event:decision:1", "memory:event:decision:2"],
+      applicability: ["capability:create-resource", "provider:billing-api"],
+      confidence: 0.7
+    },
+    {
+      id: "experience:decision-pattern:create-resource:crm",
+      type: "decision_pattern",
+      summary: "CRM provider has a different scoped pattern.",
+      evidenceMemoryEventIds: ["memory:event:decision:3", "memory:event:decision:4"],
+      applicability: ["capability:create-resource", "provider:crm-api"],
+      confidence: 0.8
+    },
+    {
+      id: "experience:heuristic:create-resource",
+      type: "heuristic",
+      summary: "Create resources with idempotency keys when available.",
+      evidenceMemoryEventIds: ["memory:event:decision:5", "memory:event:decision:6"],
+      applicability: ["capability:create-resource"],
+      confidence: 0.9
+    }
+  ];
+
+  it("returns scoped artifacts that match requested applicability", () => {
+    const matches = lookupExperienceArtifacts({
+      artifacts,
+      query: {
+        artifactTypes: ["decision_pattern"],
+        applicability: ["capability:create-resource", "provider:billing-api"],
+        minimumConfidence: 0.6
+      }
+    });
+
+    expect(matches.map((artifact) => artifact.id)).toEqual([
+      "experience:decision-pattern:create-resource:billing"
+    ]);
+  });
+
+  it("sorts matches by confidence without widening the requested scope", () => {
+    const matches = lookupExperienceArtifacts({
+      artifacts,
+      query: {
+        applicability: ["capability:create-resource"],
+        minimumConfidence: 0.6
+      }
+    });
+
+    expect(matches.map((artifact) => artifact.id)).toEqual([
+      "experience:heuristic:create-resource",
+      "experience:decision-pattern:create-resource:crm",
+      "experience:decision-pattern:create-resource:billing"
+    ]);
   });
 });

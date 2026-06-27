@@ -31,11 +31,19 @@ importers:
 
   packages/agoe: {}
 
-  packages/brain: {}
+  packages/brain:
+    dependencies:
+      "@atlas-aios/experience":
+        specifier: workspace:*
+        version: link:../experience
 
   packages/capability-graph: {}
 
-  packages/capability-kernel: {}
+  packages/capability-kernel:
+    dependencies:
+      "@atlas-aios/experience":
+        specifier: workspace:*
+        version: link:../experience
 
   packages/cognitive-loop: {}
 
