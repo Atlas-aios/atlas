@@ -80,7 +80,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define memory event schema.
 - [x] Define SWM entity and relationship schema.
 - [x] Define Capability Graph schema.
-- [ ] Define Experience artifact schema.
+- [x] Define Experience artifact schema.
 - [ ] Define Self Model schema.
 - [ ] Define Identity resolution schema.
 - [ ] Add local development database setup.
