@@ -34,6 +34,14 @@ export interface CapabilityKernel {
   resolve(request: CapabilityResolutionRequest): Promise<CapabilityResolution>;
 }
 
+export interface CapabilityKernelInput {
+  artifacts: ExperienceArtifact[];
+  providers: ProviderCandidate[];
+  minimumExperienceConfidence?: number;
+  minimumRankingScore?: number;
+  maxFallbacks?: number;
+}
+
 export interface ProviderExperienceLookupInput {
   artifacts: ExperienceArtifact[];
   request: CapabilityResolutionRequest;
@@ -193,6 +201,54 @@ export function selectProviderCandidates(
   };
 }
 
+export function createCapabilityKernel(input: CapabilityKernelInput): CapabilityKernel {
+  return {
+    resolve: async (request) => {
+      const candidates = lookupProviderCandidates({
+        providers: input.providers,
+        capabilityId: request.capabilityId
+      });
+      const selection = selectProviderCandidates({
+        artifacts: input.artifacts,
+        request,
+        candidates,
+        ...(input.minimumExperienceConfidence === undefined
+          ? {}
+          : { minimumExperienceConfidence: input.minimumExperienceConfidence }),
+        ...(input.minimumRankingScore === undefined
+          ? {}
+          : { minimumRankingScore: input.minimumRankingScore }),
+        ...(input.maxFallbacks === undefined
+          ? {}
+          : { maxFallbacks: input.maxFallbacks })
+      });
+
+      if (selection.selectedProvider === null) {
+        throw new Error(`No provider resolved for capability: ${request.capabilityId}`);
+      }
+
+      return {
+        selectedProviderId: selection.selectedProvider.providerId,
+        candidates: [
+          stripRankedProvider(selection.selectedProvider),
+          ...selection.fallbackProviders.map(stripRankedProvider)
+        ],
+        approvalRequired: false,
+        rationale: selection.rationale
+      };
+    }
+  };
+}
+
+export function lookupProviderCandidates(input: {
+  providers: ProviderCandidate[];
+  capabilityId: string;
+}): ProviderCandidate[] {
+  return input.providers
+    .filter((provider) => provider.capabilityId === input.capabilityId)
+    .map((provider) => ({ ...provider }));
+}
+
 function createRankingExperienceQuery(
   input: ProviderRankingInput,
   candidate: ProviderCandidate
@@ -202,6 +258,26 @@ function createRankingExperienceQuery(
     ...(input.minimumExperienceConfidence === undefined
       ? {}
       : { minimumConfidence: input.minimumExperienceConfidence })
+  };
+}
+
+function stripRankedProvider(provider: RankedProviderCandidate): ProviderCandidate {
+  return {
+    providerId: provider.providerId,
+    capabilityId: provider.capabilityId,
+    confidence: provider.confidence,
+    riskScore: provider.riskScore,
+    estimatedCost: provider.estimatedCost,
+    estimatedLatencyMs: provider.estimatedLatencyMs,
+    ...(provider.permissionFit === undefined
+      ? {}
+      : { permissionFit: provider.permissionFit }),
+    ...(provider.policyRiskScore === undefined
+      ? {}
+      : { policyRiskScore: provider.policyRiskScore }),
+    ...(provider.reputationScore === undefined
+      ? {}
+      : { reputationScore: provider.reputationScore })
   };
 }
 

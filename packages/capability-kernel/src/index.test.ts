@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
 import {
+  createCapabilityKernel,
   lookupProviderExperience,
   rankProviderCandidates,
   selectProviderCandidates
@@ -410,5 +411,72 @@ describe("selectProviderCandidates", () => {
     expect(selection.rationale).toBe(
       "Selected provider:preferred-api with 1 fallback provider."
     );
+  });
+});
+
+describe("CapabilityKernel", () => {
+  it("resolves a capability by looking up providers and selecting the best candidate", async () => {
+    const kernel = createCapabilityKernel({
+      artifacts: [],
+      providers: [
+        {
+          providerId: "provider:slow-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.75,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 2_000
+        },
+        {
+          providerId: "provider:fast-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.8,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 300
+        },
+        {
+          providerId: "provider:other-capability",
+          capabilityId: "capability:update-resource",
+          confidence: 1,
+          riskScore: 0,
+          estimatedCost: 0,
+          estimatedLatencyMs: 10
+        }
+      ],
+      minimumRankingScore: 0.4,
+      maxFallbacks: 1
+    });
+
+    const resolution = await kernel.resolve({
+      goalId: "goal:create-resource",
+      capabilityId: "capability:create-resource",
+      inputs: { name: "invoice" },
+      governanceContextId: "governance:default"
+    });
+
+    expect(resolution).toEqual({
+      selectedProviderId: "provider:fast-api",
+      candidates: [
+        {
+          providerId: "provider:fast-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.8,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 300
+        },
+        {
+          providerId: "provider:slow-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.75,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 2000
+        }
+      ],
+      approvalRequired: false,
+      rationale: "Selected provider:fast-api with 1 fallback provider."
+    });
   });
 });

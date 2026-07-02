@@ -174,9 +174,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 6. Capability Kernel
 
-- [ ] Define Capability Kernel API.
-- [ ] Implement capability resolution.
-- [ ] Implement provider lookup.
+- [x] Define Capability Kernel API.
+- [x] Implement capability resolution.
+- [x] Implement provider lookup.
 - [x] Implement provider ranking.
 - [x] Include permission fit in ranking.
 - [x] Include policy risk in ranking.
