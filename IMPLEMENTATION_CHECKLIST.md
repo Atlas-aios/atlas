@@ -234,12 +234,12 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 9. Execution Engine And AtlasFlow
 
 - [x] Define execution gate contract.
-- [ ] Define AtlasFlow workflow schema.
-- [ ] Define AtlasFlow node and edge schemas.
-- [ ] Define AtlasIR instruction schema.
-- [ ] Define AtlasIR replay contract.
-- [ ] Define node types.
-- [ ] Define edge types.
+- [x] Define AtlasFlow workflow schema.
+- [x] Define AtlasFlow node and edge schemas.
+- [x] Define AtlasIR instruction schema.
+- [x] Define AtlasIR replay contract.
+- [x] Define node types.
+- [x] Define edge types.
 - [x] Define execution state machine.
 - [x] Implement workflow validation.
 - [x] Implement execution session creation.
