@@ -59,6 +59,28 @@ Create Resource
 
 Use [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) as the living checklist for building Atlas AIOS.
 
+## Repository Model
+
+Atlas development uses three core repositories together:
+
+- `atlas` - implementation monorepo for runtime packages, services, tests, benchmarks, and implementation-adjacent docs.
+- `atlas-docs` - canonical architecture, ADRs, long-form specs, volume documents, and Notion-ready documentation.
+- `atlas-research` - research backlog, paper reviews, model/provider evaluations, experiments, and benchmark findings before they are promoted into implementation.
+
+Flow:
+
+```text
+Research finding
+-> atlas-research
+-> ADR or spec
+-> atlas-docs
+-> implementation checklist item
+-> atlas package/service
+-> tests and benchmarks
+```
+
+`atlas` can contain short architecture notes that are close to code, but canonical decisions should be promoted into `atlas-docs`.
+
 ## Architecture Docs
 
 - [Twelve Pillars](docs/architecture/twelve-pillars.md)

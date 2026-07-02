@@ -12,6 +12,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [x] Confirm MVP scope: learn an unknown generic business system and execute `Create Resource`.
 - [x] Confirm public/private repo policy for all Atlas repos.
+- [x] Define three-core-repo operating model: `atlas`, `atlas-docs`, and `atlas-research`.
 - [x] Define contribution model and branch policy.
 - [x] Choose initial stack for API, workers, packages, and frontend.
 - [x] Create root package manager/workspace setup.

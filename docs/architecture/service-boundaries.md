@@ -9,6 +9,28 @@ Atlas is built around capabilities rather than named applications. Each pillar o
 - Cross-pillar writes happen through commands or events, not direct storage mutation.
 - Providers and interface drivers are implementation details behind capabilities.
 - The Decision Engine reviews proposed actions and can approve, constrain, discuss, improve, simulate, reject, or delegate before execution.
+- Repository boundaries are also architecture boundaries: `atlas-research` explores options, `atlas-docs` records accepted architecture, and `atlas` implements tested runtime behavior.
+
+## Repository Boundaries
+
+The three core repositories map to different levels of certainty:
+
+| Repository       | Architectural Layer | Responsibility                                                                  |
+| ---------------- | ------------------- | ------------------------------------------------------------------------------- |
+| `atlas-research` | Exploratory         | Compare papers, models, algorithms, providers, interface strategies, and risks. |
+| `atlas-docs`     | Canonical decision  | Store ADRs, architecture specs, diagrams, and accepted design constraints.      |
+| `atlas`          | Runtime             | Implement packages, services, tests, benchmarks, and executable contracts.      |
+
+A research result should not directly become production behavior. It should first become a documented decision or spec, then a checklist item, then implementation with tests.
+
+```text
+Question
+-> research note
+-> accepted ADR/spec
+-> checklist item
+-> package/service implementation
+-> benchmark and governance review
+```
 
 ## Pillar Map
 

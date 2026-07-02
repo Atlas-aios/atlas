@@ -15,6 +15,29 @@ Atlas starts as a TypeScript monorepo so the platform can share typed contracts 
 
 Atlas starts with public implementation, documentation, RFC, examples, research, workspace, and organization profile repositories. Repositories that contain secrets, private user data, customer data, production credentials, or unpublished security-sensitive implementation details must be private from creation.
 
+## Core Repository Operating Model
+
+The active build uses three core repositories together:
+
+| Repository       | Role                              | What Belongs There                                                                                   | Promotion Rule                                                                   |
+| ---------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `atlas`          | Implementation monorepo           | Packages, services, runtime contracts, tests, fixtures, benchmarks, and implementation-adjacent docs | Code changes must be tied to checklist items, tests, and architecture refs.      |
+| `atlas-docs`     | Canonical documentation           | ADRs, architecture volumes, source specs, diagrams, Notion-ready pages, and accepted decisions       | Accepted research and architecture decisions are promoted here before broad use. |
+| `atlas-research` | Research and evaluation workspace | Paper notes, model studies, experiment logs, benchmark plans, and unresolved architecture questions  | Research becomes an ADR/spec before it changes core implementation behavior.     |
+
+Supporting repositories such as `atlas-rfcs`, `atlas-examples`, and `atlas-workspace` remain useful, but the implementation loop should always make clear which of the three core repositories owns the current artifact.
+
+```text
+atlas-research
+-> atlas-docs
+-> IMPLEMENTATION_CHECKLIST.md
+-> atlas implementation
+-> tests / benchmarks
+-> docs update
+```
+
+This prevents research notes from silently becoming architecture and prevents implementation from drifting away from accepted docs.
+
 ## Runtime Configuration
 
 Environment variables use the `ATLAS_` prefix. Values that grant authority or expose infrastructure must stay out of git and belong in the configured secret provider.

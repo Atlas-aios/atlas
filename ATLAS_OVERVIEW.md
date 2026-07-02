@@ -484,6 +484,27 @@ Implemented or started:
 
 The implementation checklist remains the source of truth for what is done and what remains.
 
+## Repository Operating Model
+
+Atlas uses three core repositories together:
+
+1. `atlas` is the implementation monorepo. It owns packages, services, tests, benchmarks, fixtures, and runtime contracts.
+2. `atlas-docs` is the canonical documentation repository. It owns ADRs, long-form architecture, diagrams, volume documents, and accepted specs.
+3. `atlas-research` is the research repository. It owns model research, paper reviews, experiment notes, benchmark designs, and open questions.
+
+The intended flow is:
+
+```text
+Research in atlas-research
+-> accepted ADR/spec in atlas-docs
+-> tracked task in IMPLEMENTATION_CHECKLIST.md
+-> implementation in atlas
+-> tests and benchmarks
+-> architecture/docs update
+```
+
+This means the Nemotron 3, TurboQuant, and LocateAnything tracks should start as research, become ADR/spec updates only after evaluation, and then become implementation tasks for model routing, memory efficiency, or desktop grounding providers.
+
 ## Immediate Direction
 
 The strongest next implementation path is:
