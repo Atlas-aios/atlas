@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ACREvent, ACRObject, AtlasCognitiveTransaction } from "./acr.js";
 import { ACR_OBJECT_TYPES, ACT_STATUSES } from "./acr.js";
-import { createACBMessagesForACT } from "./acr-bus.js";
+import { createACBMessagesForACT, getACBTopicForEvent } from "./acr-bus.js";
 import { projectCommittedACTs } from "./acr-projector.js";
 
 describe("ACR and ACT contracts", () => {
@@ -413,6 +413,66 @@ describe("ACT projection", () => {
 });
 
 describe("ACB publication", () => {
+  it("derives deterministic topics for ACR event routing", () => {
+    expect(
+      getACBTopicForEvent({
+        id: "acr:event:goal:create",
+        actId: "act:goal:create",
+        type: "object.created",
+        occurredAt: "2026-06-28T00:00:00.000Z",
+        actorId: "actor:brain",
+        objectId: "acr:goal:release",
+        objectVersion: 1,
+        traceId: "trace:release",
+        payload: {
+          object: {
+            id: "acr:goal:release",
+            type: "goal"
+          }
+        }
+      })
+    ).toBe("acb.goal.object.created");
+    expect(
+      getACBTopicForEvent({
+        id: "acr:event:relationship",
+        actId: "act:goal:relationship",
+        type: "relationship.added",
+        occurredAt: "2026-06-28T00:00:00.000Z",
+        actorId: "actor:brain",
+        objectId: "acr:goal:release",
+        objectVersion: 2,
+        traceId: "trace:release",
+        payload: {}
+      })
+    ).toBe("acb.relationship.added");
+    expect(
+      getACBTopicForEvent({
+        id: "acr:event:evidence",
+        actId: "act:goal:evidence",
+        type: "evidence.attached",
+        occurredAt: "2026-06-28T00:00:00.000Z",
+        actorId: "actor:brain",
+        objectId: "acr:goal:release",
+        objectVersion: 2,
+        traceId: "trace:release",
+        payload: {}
+      })
+    ).toBe("acb.evidence.attached");
+    expect(
+      getACBTopicForEvent({
+        id: "acr:event:policy",
+        actId: "act:goal:policy",
+        type: "policy.attached",
+        occurredAt: "2026-06-28T00:00:00.000Z",
+        actorId: "actor:brain",
+        objectId: "acr:goal:release",
+        objectVersion: 2,
+        traceId: "trace:release",
+        payload: {}
+      })
+    ).toBe("acb.policy.attached");
+  });
+
   it("creates lightweight bus messages only after an ACT commits", () => {
     const committedTransaction: AtlasCognitiveTransaction = {
       id: "act:release:publish",
@@ -482,6 +542,7 @@ describe("ACB publication", () => {
     expect(createACBMessagesForACT(committedTransaction)).toEqual([
       {
         messageId: "acb:acr:event:publish",
+        topic: "acb.goal.object.created",
         type: "object.created",
         timestamp: "2026-06-28T00:01:00.000Z",
         source: "actor:brain",

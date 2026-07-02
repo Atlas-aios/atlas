@@ -48,7 +48,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [ ] Design PostgreSQL schema baseline.
 - [ ] Design migration strategy.
-- [ ] Design event bus topic naming.
+- [x] Design event bus topic naming.
 - [ ] Define event envelope schema.
 - [ ] Define ACR event-first source-of-truth model.
 - [x] Define Atlas Cognitive Transaction schema.

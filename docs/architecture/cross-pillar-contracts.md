@@ -32,6 +32,30 @@ Event names use dot-separated domain language:
 - `governance.decision.created`
 - `cognitive-loop.cycle.completed`
 
+## ACB Topic Naming
+
+Atlas Cognitive Bus topics use deterministic dot-separated names:
+
+```text
+acb.<scope>.<event-type>
+```
+
+Object lifecycle events include the ACR object type as the scope:
+
+- `acb.goal.object.created`
+- `acb.goal.object.validated`
+- `acb.execution.object.completed`
+
+Relationship, evidence, and policy events use the event domain directly:
+
+- `acb.relationship.added`
+- `acb.relationship.removed`
+- `acb.evidence.attached`
+- `acb.evidence.detached`
+- `acb.policy.attached`
+
+Topic names are derived from committed ACT events by `@atlas-aios/core`. ACB subscribers should route by topic, then fetch full payloads through object references such as `dataRef`, `actId`, and `objectId`.
+
 ## Persistence Ownership
 
 Atlas uses ownership boundaries rather than shared mutable tables.
