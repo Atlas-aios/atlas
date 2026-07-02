@@ -476,7 +476,70 @@ describe("CapabilityKernel", () => {
         }
       ],
       approvalRequired: false,
+      simulationRequired: false,
       rationale: "Selected provider:fast-api with 1 fallback provider."
     });
+  });
+
+  it("requires approval when the selected provider has policy or permission risk", async () => {
+    const kernel = createCapabilityKernel({
+      artifacts: [],
+      providers: [
+        {
+          providerId: "provider:external-write-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.95,
+          riskScore: 0.1,
+          estimatedCost: 1,
+          estimatedLatencyMs: 300,
+          permissionFit: 0.8,
+          policyRiskScore: 0.3
+        }
+      ],
+      minimumRankingScore: 0.4
+    });
+
+    const resolution = await kernel.resolve({
+      goalId: "goal:create-resource",
+      capabilityId: "capability:create-resource",
+      inputs: { name: "invoice" },
+      governanceContextId: "governance:external-write"
+    });
+
+    expect(resolution.approvalRequired).toBe(true);
+    expect(resolution.approvalReason).toBe(
+      "Selected provider requires approval because permission fit or policy risk is not fully safe."
+    );
+  });
+
+  it("requires simulation before using a high-risk selected provider", async () => {
+    const kernel = createCapabilityKernel({
+      artifacts: [],
+      providers: [
+        {
+          providerId: "provider:risky-api",
+          capabilityId: "capability:create-resource",
+          confidence: 0.98,
+          riskScore: 0.65,
+          estimatedCost: 1,
+          estimatedLatencyMs: 300,
+          permissionFit: 1,
+          policyRiskScore: 0
+        }
+      ],
+      minimumRankingScore: 0.1
+    });
+
+    const resolution = await kernel.resolve({
+      goalId: "goal:create-resource",
+      capabilityId: "capability:create-resource",
+      inputs: { name: "invoice" },
+      governanceContextId: "governance:default"
+    });
+
+    expect(resolution.simulationRequired).toBe(true);
+    expect(resolution.simulationRequirement).toBe(
+      "Simulate selected provider execution before dispatch because adjusted risk is high."
+    );
   });
 });

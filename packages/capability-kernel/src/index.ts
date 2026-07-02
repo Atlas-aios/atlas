@@ -27,6 +27,9 @@ export interface CapabilityResolution {
   selectedProviderId: string;
   candidates: ProviderCandidate[];
   approvalRequired: boolean;
+  approvalReason?: string;
+  simulationRequired: boolean;
+  simulationRequirement?: string;
   rationale: string;
 }
 
@@ -233,7 +236,8 @@ export function createCapabilityKernel(input: CapabilityKernelInput): Capability
           stripRankedProvider(selection.selectedProvider),
           ...selection.fallbackProviders.map(stripRankedProvider)
         ],
-        approvalRequired: false,
+        ...approvalGateForProvider(selection.selectedProvider),
+        ...simulationRequirementForProvider(selection.selectedProvider),
         rationale: selection.rationale
       };
     }
@@ -278,6 +282,39 @@ function stripRankedProvider(provider: RankedProviderCandidate): ProviderCandida
     ...(provider.reputationScore === undefined
       ? {}
       : { reputationScore: provider.reputationScore })
+  };
+}
+
+function approvalGateForProvider(provider: RankedProviderCandidate): {
+  approvalRequired: boolean;
+  approvalReason?: string;
+} {
+  const permissionFit = clampRawScore(provider.permissionFit ?? 1);
+  const policyRiskScore = clampRawScore(provider.policyRiskScore ?? 0);
+
+  if (permissionFit === 1 && policyRiskScore === 0) {
+    return { approvalRequired: false };
+  }
+
+  return {
+    approvalRequired: true,
+    approvalReason:
+      "Selected provider requires approval because permission fit or policy risk is not fully safe."
+  };
+}
+
+function simulationRequirementForProvider(provider: RankedProviderCandidate): {
+  simulationRequired: boolean;
+  simulationRequirement?: string;
+} {
+  if (provider.adjustedRiskScore < 0.6) {
+    return { simulationRequired: false };
+  }
+
+  return {
+    simulationRequired: true,
+    simulationRequirement:
+      "Simulate selected provider execution before dispatch because adjusted risk is high."
   };
 }
 
