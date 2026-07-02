@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { createProviderRegistry, executeProvider, registerProvider } from "./index.js";
+import {
+  createProviderRegistry,
+  executeProvider,
+  getLatestProviderVersion,
+  getProviderVersions,
+  registerProvider
+} from "./index.js";
 
 describe("Capability Provider Runtime", () => {
   it("registers a provider and executes it with validated inputs and outputs", async () => {
@@ -54,6 +60,95 @@ describe("Capability Provider Runtime", () => {
         }
       ]
     });
+  });
+
+  it("registers multiple versions for one provider id and resolves the latest version", async () => {
+    const registry = createProviderRegistry();
+
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.1.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "version", type: "string", required: true }]
+      },
+      handler: async () => ({
+        outputs: { version: "0.1.0" },
+        evidence: ["trace:provider:v1"]
+      }),
+      registeredAt: "2026-06-28T00:00:00.000Z"
+    });
+
+    registerProvider(registry, {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.2.0",
+        lifecycle: "healthy",
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string", required: true }],
+        outputSchema: [{ name: "version", type: "string", required: true }]
+      },
+      handler: async () => ({
+        outputs: { version: "0.2.0" },
+        evidence: ["trace:provider:v2"]
+      }),
+      registeredAt: "2026-06-28T00:01:00.000Z"
+    });
+
+    expect(
+      getProviderVersions(registry, "provider:rest:create-resource").map(
+        (provider) => provider.manifest.version
+      )
+    ).toEqual(["0.1.0", "0.2.0"]);
+    expect(
+      getLatestProviderVersion(registry, "provider:rest:create-resource")?.manifest
+        .version
+    ).toBe("0.2.0");
+
+    const result = await executeProvider(registry, {
+      providerId: "provider:rest:create-resource",
+      capabilityId: "capability:create-resource",
+      inputs: { name: "invoice" },
+      executionContextId: "execution:create-resource:versioned"
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.result?.outputs).toEqual({ version: "0.2.0" });
+  });
+
+  it("rejects duplicate versions for the same provider id", () => {
+    const registry = createProviderRegistry();
+    const registration = {
+      manifest: {
+        id: "provider:rest:create-resource",
+        name: "REST Create Resource Provider",
+        version: "0.1.0",
+        lifecycle: "healthy" as const,
+        capabilityIds: ["capability:create-resource"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: [],
+        inputSchema: [{ name: "name", type: "string" as const, required: true }],
+        outputSchema: [{ name: "resourceId", type: "string" as const, required: true }]
+      },
+      handler: async () => ({
+        outputs: { resourceId: "resource:invoice" },
+        evidence: ["trace:provider:v1"]
+      })
+    };
+
+    registerProvider(registry, registration);
+
+    expect(() => registerProvider(registry, registration)).toThrow(
+      "Provider version already registered: provider:rest:create-resource@0.1.0"
+    );
   });
 
   it("blocks execution when required inputs are missing", async () => {

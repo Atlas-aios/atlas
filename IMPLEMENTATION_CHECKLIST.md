@@ -201,7 +201,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define Provider Manifest v0.
 - [x] Define provider lifecycle states.
 - [x] Implement provider registration.
-- [ ] Implement provider versioning.
+- [x] Implement provider versioning.
 - [x] Implement provider input validation.
 - [x] Implement provider output validation.
 - [x] Implement provider execution wrapper.

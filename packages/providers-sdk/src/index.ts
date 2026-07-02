@@ -107,6 +107,7 @@ export interface RegisteredCapabilityProvider {
 
 export interface ProviderRegistry {
   providers: Map<string, RegisteredCapabilityProvider>;
+  providerVersions: Map<string, RegisteredCapabilityProvider[]>;
 }
 
 export interface ExecuteProviderOptions {
@@ -115,7 +116,8 @@ export interface ExecuteProviderOptions {
 
 export function createProviderRegistry(): ProviderRegistry {
   return {
-    providers: new Map()
+    providers: new Map(),
+    providerVersions: new Map()
   };
 }
 
@@ -123,8 +125,14 @@ export function registerProvider(
   registry: ProviderRegistry,
   input: RegisterProviderInput
 ): RegisteredCapabilityProvider {
-  if (registry.providers.has(input.manifest.id)) {
-    throw new Error(`Provider already registered: ${input.manifest.id}`);
+  const versions = registry.providerVersions.get(input.manifest.id) ?? [];
+
+  if (
+    versions.some((provider) => provider.manifest.version === input.manifest.version)
+  ) {
+    throw new Error(
+      `Provider version already registered: ${input.manifest.id}@${input.manifest.version}`
+    );
   }
 
   const provider = {
@@ -134,8 +142,24 @@ export function registerProvider(
     registeredAt: input.registeredAt ?? new Date().toISOString()
   };
 
-  registry.providers.set(input.manifest.id, provider);
+  const nextVersions = [...versions, provider].sort(compareProviderVersions);
+  registry.providerVersions.set(input.manifest.id, nextVersions);
+  registry.providers.set(input.manifest.id, nextVersions[nextVersions.length - 1]!);
   return provider;
+}
+
+export function getProviderVersions(
+  registry: ProviderRegistry,
+  providerId: string
+): RegisteredCapabilityProvider[] {
+  return [...(registry.providerVersions.get(providerId) ?? [])];
+}
+
+export function getLatestProviderVersion(
+  registry: ProviderRegistry,
+  providerId: string
+): RegisteredCapabilityProvider | null {
+  return registry.providers.get(providerId) ?? null;
 }
 
 export async function executeProvider(
@@ -368,4 +392,44 @@ function retryDelayMs(
   return Math.round(
     initialDelayMs * Math.max(1, backoffMultiplier) ** (failedAttempt - 1)
   );
+}
+
+function compareProviderVersions(
+  left: RegisteredCapabilityProvider,
+  right: RegisteredCapabilityProvider
+): number {
+  const versionComparison = compareSemver(
+    left.manifest.version,
+    right.manifest.version
+  );
+
+  if (versionComparison !== 0) {
+    return versionComparison;
+  }
+
+  return left.registeredAt.localeCompare(right.registeredAt);
+}
+
+function compareSemver(left: string, right: string): number {
+  const leftParts = semverParts(left);
+  const rightParts = semverParts(right);
+  const partCount = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < partCount; index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+
+    if (leftPart !== rightPart) {
+      return leftPart - rightPart;
+    }
+  }
+
+  return left.localeCompare(right);
+}
+
+function semverParts(version: string): number[] {
+  return version
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
 }
