@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACR_SOURCE_OF_TRUTH_MODEL,
   PILLAR_BOUNDARIES,
   buildContextPacket,
   buildContextPacketFromRetrievers,
@@ -73,6 +74,51 @@ describe("event envelopes", () => {
         capabilityId: "cap_create_resource",
         providerId: "provider_rest"
       }
+    });
+  });
+});
+
+describe("ACR event-first source of truth", () => {
+  it("declares ACES as canonical and all query stores as rebuildable projections", () => {
+    expect(ACR_SOURCE_OF_TRUTH_MODEL).toEqual({
+      canonicalStore: "aces",
+      atomicWriteUnit: "act",
+      appendOnly: true,
+      sourceEventGroupingKey: "actId",
+      publicationBoundary: "committed-act",
+      projections: [
+        {
+          name: "acr_objects",
+          purpose: "current and historical object-version queries",
+          rebuildableFromCanonicalStore: true,
+          authoritative: false
+        },
+        {
+          name: "acr_relationships",
+          purpose: "graph traversal queries",
+          rebuildableFromCanonicalStore: true,
+          authoritative: false
+        },
+        {
+          name: "acr_evidence_refs",
+          purpose: "structured evidence reference queries",
+          rebuildableFromCanonicalStore: true,
+          authoritative: false
+        },
+        {
+          name: "acr_search",
+          purpose: "semantic and keyword retrieval",
+          rebuildableFromCanonicalStore: true,
+          authoritative: false
+        }
+      ],
+      invariants: [
+        "No ACR event commits without an ACT id.",
+        "Only committed ACTs update projections.",
+        "Only committed ACTs publish to ACB.",
+        "Projection stores are never the source of truth.",
+        "Raw evidence is stored by reference and retained outside compact projections."
+      ]
     });
   });
 });

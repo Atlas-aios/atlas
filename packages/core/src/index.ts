@@ -6,6 +6,7 @@ export * from "./acr-bus.js";
 export * from "./acr-event-log.js";
 export * from "./acr.js";
 export * from "./acr-projector.js";
+export * from "./acr-source-of-truth.js";
 export * from "./context.js";
 export * from "./events.js";
 export * from "./pillars.js";

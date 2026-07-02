@@ -50,7 +50,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Design migration strategy.
 - [x] Design event bus topic naming.
 - [x] Define event envelope schema.
-- [ ] Define ACR event-first source-of-truth model.
+- [x] Define ACR event-first source-of-truth model.
 - [x] Define Atlas Cognitive Transaction schema.
 - [x] Define ACT lifecycle states.
 - [x] Define ACT validation and commit rules.

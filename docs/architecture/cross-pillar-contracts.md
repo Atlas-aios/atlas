@@ -81,6 +81,26 @@ Rules:
 - Shared IDs are references, not permission to mutate another pillar's records.
 - Governance events are durable audit inputs and cannot be silently rewritten.
 
+## ACR Source Of Truth
+
+ACR is event-first.
+
+```text
+Canonical store: ACES
+Atomic write unit: ACT
+Grouping key: actId
+Publication boundary: committed ACT
+```
+
+Operational stores are projections, not authorities:
+
+- `acr_objects` for current and historical object-version queries.
+- `acr_relationships` for graph traversal.
+- `acr_evidence_refs` for structured evidence references.
+- `acr_search` for semantic and keyword retrieval.
+
+All projections must be rebuildable from committed ACTs. Vector/search stores may improve retrieval, but they must never become the source of truth.
+
 ## Observability Contract
 
 Every pillar must report:
