@@ -420,6 +420,13 @@ Default rule:
 
 Models are providers. They should be ranked and governed like other providers.
 
+Current model research tracks:
+
+- Evaluate Nemotron 3 as a possible private or self-hosted agentic reasoning backbone.
+- Evaluate TurboQuant-style KV-cache and vector compression for long-context efficiency.
+- Evaluate LocateAnything as a fast desktop vision grounding provider.
+- Compare LocateAnything against GUI-specific grounding work such as SeeClick, ScreenSpot-Pro, Agent S2, and GroundCUA/GroundNext.
+
 ## MVP
 
 Atlas MVP should prove:

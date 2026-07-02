@@ -310,6 +310,131 @@ Primary metrics:
 - graph confidence calibration
 - human correction count
 
+## Emerging Model Research Tracks
+
+### Nemotron 3 For Agentic Reasoning Backbone
+
+Research status: open.
+
+Initial read: Nemotron 3 is relevant to Atlas because it is explicitly positioned around agentic, reasoning, conversational, and multi-step tool-use workloads. The reported family includes Nano, Super, and Ultra variants, with hybrid Mamba-Transformer Mixture-of-Experts architecture, up to 1M-token context, granular reasoning-budget control, and planned open release of weights, recipes, and redistributable data.
+
+Why it matters for Atlas:
+
+- Atlas needs a private or self-hostable reasoning backbone for Brain Engines, planning, reflection, code generation, and high-volume agent work.
+- A model family with small, medium, and large tiers maps cleanly onto Atlas model routing: Nano for cheap extraction/routing, Super for collaborative agent work, Ultra for high-risk planning and deep reasoning.
+- The open-weight direction fits Atlas's provider-agnostic design and avoids hard dependency on one closed model vendor.
+
+Research questions:
+
+- Can Nemotron 3 reliably produce strict ACR, AtlasFlow, and AtlasIR structured outputs?
+- How does its tool-use reliability compare against frontier closed models on Atlas-specific tasks?
+- Does the 1M-token context reduce retrieval pressure, or does Atlas still get better cost and correctness from ACR references plus retrieval?
+- Can reasoning-budget control become an input to the Atlas model router?
+- What hardware/runtime stack is required for local or private deployment at acceptable latency?
+
+Proposed experiment:
+
+```text
+Atlas planning benchmark
+-> same goal and bounded context packet
+-> compare Nemotron 3 tier vs current frontier baseline
+-> measure structured-output validity, plan correctness, tool-use validity, latency, cost, and governance explanation quality
+```
+
+### TurboQuant For Long-Context KV-Cache And Memory Compression
+
+Research status: open.
+
+Initial read: TurboQuant is an online vector quantization method from Google Research/Google DeepMind researchers. It targets high-dimensional vector compression, KV-cache quantization, and nearest-neighbor search, with reported quality-neutral KV-cache compression around 3.5 bits per channel and marginal degradation around 2.5 bits per channel. Follow-on reporting describes Google positioning it as a training-free method that can reduce KV-cache memory by at least 6x and improve attention-logit computation on Nvidia H100-class hardware.
+
+Why it matters for Atlas:
+
+- Atlas cannot afford to send full history or long prompt state through a large model on every pillar call.
+- TurboQuant-style compression could matter in two places: model serving KV-cache efficiency and vector/search storage efficiency.
+- It strengthens the case for Atlas's current design: store durable cognition externally as ACR/ACT/ACES, retrieve compact relevant context, and use compression only for active inference/runtime acceleration.
+
+Research questions:
+
+- Is TurboQuant available in a production-ready implementation or only as research?
+- Can it be integrated into vLLM, TensorRT-LLM, SGLang, or another serving stack Atlas might use?
+- Does it preserve accuracy for tool-use, JSON/schema outputs, and long-context retrieval-heavy prompts, not just generic long-context benchmarks?
+- Can similar quantization be used for Atlas embedding/vector indexes without hurting recall for Memory and Experience retrieval?
+- What workload threshold makes KV-cache compression worth the added complexity?
+
+Proposed experiment:
+
+```text
+Long-context Atlas context packets
+-> uncompressed KV-cache baseline
+-> TurboQuant or closest available KV-cache quantization baseline
+-> measure context length, throughput, p95 latency, output validity, retrieval accuracy, and hallucinated-reference rate
+```
+
+### LocateAnything For Desktop Vision Grounding
+
+Research status: open.
+
+Initial read: LocateAnything is a recent vision-language grounding and detection framework that introduces Parallel Box Decoding. Instead of serializing 2D boxes as independent coordinate tokens, it decodes boxes and points as atomic geometric units, improving localization quality and decoding throughput. The paper also reports a large LocateAnything-Data training set with more than 138 million samples.
+
+Why it matters for Atlas:
+
+- Atlas's Browser UI and Desktop UI interface drivers need fast, precise grounding from instruction to screen element.
+- UI control becomes laggy when every click requires expensive sequential visual reasoning.
+- A fast grounding model can act as a specialist provider under a higher-level planner: the Brain decides intent, the Interface Driver observes the screen, the grounding model proposes target coordinates, and deterministic driver checks verify action safety.
+
+Research questions:
+
+- Does LocateAnything work well on GUI screenshots, or is it primarily general object/region grounding?
+- Can it localize small UI controls on high-resolution desktop screens?
+- Does it support point targets, bounding boxes, and text-conditioned grounding with enough latency for interactive desktop control?
+- Can Atlas combine LocateAnything with OCR/accessibility-tree data for higher confidence?
+- What is the failure mode on dense enterprise UIs, remote desktops, dark themes, and scaled Windows displays?
+
+Proposed experiment:
+
+```text
+Desktop UI grounding benchmark
+-> screenshots + target instructions
+-> LocateAnything proposals
+-> OCR/accessibility-tree cross-check
+-> execute only when target confidence and policy checks pass
+```
+
+### Compare LocateAnything With Existing UI Grounding Models
+
+Research status: open.
+
+Initial read: Existing GUI grounding research already shows that computer-use agents fail when grounding is weak. SeeClick focuses on screenshot-only GUI grounding, ScreenSpot-Pro shows professional high-resolution GUI grounding remains hard, Agent S2 uses a compositional generalist/specialist framework and mixture-of-grounding, and GroundCUA/GroundNext emphasizes expert human demonstrations for desktop grounding.
+
+Why it matters for Atlas:
+
+- LocateAnything may be excellent at general visual grounding, but Atlas needs GUI-specific grounding and safe computer control.
+- The best architecture is likely not one vision model. It is a grounding cascade: accessibility tree, OCR, UI-specific model, general grounding model, deterministic coordinate validation, then execution.
+- The Capability Kernel should treat grounding models as providers with cost, latency, permission, confidence, and Experience scores.
+
+Comparison candidates:
+
+- LocateAnything for fast general visual grounding and detection.
+- SeeClick for screenshot-only GUI grounding.
+- ScreenSeekeR/ScreenSpot-Pro methodology for high-resolution professional UI evaluation.
+- Agent S2 style mixture-of-grounding for planner plus specialist delegation.
+- GroundCUA/GroundNext-style desktop grounding data and models.
+- OCR plus OS accessibility APIs as deterministic non-model baselines.
+
+Proposed experiment:
+
+```text
+Grounding provider shootout
+-> same UI task corpus
+-> each provider returns target box/point + confidence + evidence
+-> driver verifies target through OCR/accessibility/DOM where available
+-> score success, false-click rate, latency, cost, and recovery behavior
+```
+
+Decision rule:
+
+Atlas should not adopt a desktop vision model because it is impressive in isolation. It should adopt whichever provider or provider cascade gives the best safe-action rate under latency and cost budgets.
+
 ## Papers And Research To Use
 
 | Area                          | Paper / Source                                                   | Use In Atlas                               |
@@ -327,6 +452,10 @@ Primary metrics:
 | Cost routing                  | FrugalGPT / RouteLLM                                             | Model routing and cascades                 |
 | Governance/safety             | Constitutional AI                                                | Critic/Defender/Judge inspiration          |
 | Prompt injection              | Indirect prompt-injection research                               | Interface driver security                  |
+| Agentic open models           | NVIDIA Nemotron 3                                                | Private/self-hosted reasoning provider     |
+| KV-cache compression          | TurboQuant                                                       | Long-context inference and vector memory   |
+| Desktop vision grounding      | LocateAnything                                                   | Fast UI element localization candidate     |
+| GUI grounding                 | SeeClick, ScreenSpot-Pro, Agent S2, GroundCUA/GroundNext         | Desktop control provider comparison        |
 
 ## Immediate Implementation Next Steps
 
@@ -357,3 +486,12 @@ Primary metrics:
 - RouteLLM: https://arxiv.org/abs/2406.18665
 - Constitutional AI: https://arxiv.org/abs/2212.08073
 - Indirect prompt injection: https://arxiv.org/abs/2302.12173
+- NVIDIA Nemotron 3: https://arxiv.org/abs/2512.20856
+- Nemotron 3 Nano Omni: https://arxiv.org/abs/2604.24954
+- TurboQuant: https://arxiv.org/abs/2504.19874
+- KVQuant: https://arxiv.org/abs/2401.18079
+- LocateAnything: https://arxiv.org/abs/2605.27365
+- SeeClick: https://arxiv.org/abs/2401.10935
+- ScreenSpot-Pro: https://arxiv.org/abs/2504.07981
+- Agent S2: https://arxiv.org/abs/2504.00906
+- GroundCUA/GroundNext: https://arxiv.org/abs/2511.07332

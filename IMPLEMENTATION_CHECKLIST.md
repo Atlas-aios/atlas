@@ -546,6 +546,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Keep architecture diagrams current.
 - [ ] Maintain RFC process.
 - [ ] Maintain research backlog.
+- [ ] Evaluate Nemotron 3 for agentic reasoning backbone.
+- [ ] Evaluate TurboQuant for long-context KV-cache and memory compression.
+- [ ] Evaluate LocateAnything for desktop vision grounding.
+- [ ] Compare LocateAnything with existing UI grounding models for computer control.
 - [ ] Document every subsystem.
 - [ ] Document every provider contract.
 - [ ] Document every interface driver.
