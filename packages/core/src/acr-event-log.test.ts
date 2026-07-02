@@ -2,12 +2,56 @@ import { describe, expect, it } from "vitest";
 
 import type { ACRObject, AtlasCognitiveTransaction } from "./acr.js";
 import {
+  commitACT,
   createACREventLog,
   replayACREventLog,
   replayACREventLogUntil
 } from "./acr-event-log.js";
 
 describe("ACR append-only event log", () => {
+  it("commits an ACT atomically only when validation passes", () => {
+    const log = createACREventLog(() => "2026-06-28T00:01:01.000Z");
+    const transaction = createGoalACT({
+      actId: "act:goal:create",
+      eventId: "acr:event:goal:create",
+      objectVersion: 1,
+      lifecycle: "draft",
+      occurredAt: "2026-06-28T00:01:00.000Z",
+      status: "validated"
+    });
+
+    const entry = commitACT(log, transaction, {
+      committedAt: "2026-06-28T00:01:00.500Z"
+    });
+
+    expect(entry.status).toBe("committed");
+    expect(entry.transaction.status).toBe("committed");
+    expect(entry.transaction.committedAt).toBe("2026-06-28T00:01:00.500Z");
+    expect(log.entries()).toHaveLength(1);
+  });
+
+  it("does not append any ACT events when validation fails", () => {
+    const log = createACREventLog();
+    const invalidTransaction = createGoalACT({
+      actId: "act:goal:invalid",
+      eventId: "acr:event:goal:invalid",
+      objectVersion: 1,
+      lifecycle: "draft",
+      occurredAt: "2026-06-28T00:01:00.000Z",
+      status: "validated",
+      validation: {
+        passed: false,
+        errors: ["Missing evidence"],
+        warnings: []
+      }
+    });
+
+    expect(() => commitACT(log, invalidTransaction)).toThrow(
+      "Cannot commit ACT act:goal:invalid because validation failed: Missing evidence"
+    );
+    expect(log.entries()).toEqual([]);
+  });
+
   it("assigns monotonic sequence numbers and rejects duplicate ACT ids", () => {
     const log = createACREventLog();
     const firstTransaction = createGoalACT({
@@ -95,11 +139,13 @@ function createGoalACT(input: {
   lifecycle: ACRObject["lifecycle"];
   occurredAt: string;
   eventType?: "object.created" | "object.validated";
+  status?: AtlasCognitiveTransaction["status"];
+  validation?: AtlasCognitiveTransaction["validation"];
 }): AtlasCognitiveTransaction {
   return {
     id: input.actId,
     schemaVersion: "0.1",
-    status: "committed",
+    status: input.status ?? "committed",
     goalId: "acr:goal:release",
     traceId: "trace:release",
     createdAt: input.occurredAt,
@@ -141,11 +187,15 @@ function createGoalACT(input: {
               }
       }
     ],
-    validation: {
+    validation: input.validation ?? {
       passed: true,
       errors: [],
       warnings: []
     },
-    committedAt: input.occurredAt
+    ...(input.status === "validated"
+      ? {}
+      : {
+          committedAt: input.occurredAt
+        })
   };
 }

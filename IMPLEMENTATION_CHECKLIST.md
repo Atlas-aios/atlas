@@ -509,7 +509,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Test workflow state machine.
 - [ ] Test governance gates.
 - [ ] Test simulation outputs.
-- [ ] Test ACT atomic commit behavior.
+- [x] Test ACT atomic commit behavior.
 - [x] Test ACT publication-after-commit behavior.
 - [x] Test ACT compensation replay behavior.
 - [x] Test ACR event replay determinism.

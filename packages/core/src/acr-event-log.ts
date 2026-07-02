@@ -15,6 +15,10 @@ export interface ACREventLogAppendOptions {
   appendedAt?: string;
 }
 
+export interface ACTCommitOptions {
+  committedAt?: string;
+}
+
 export interface ACREventLog {
   append(
     transaction: AtlasCognitiveTransaction,
@@ -56,6 +60,27 @@ export function createACREventLog(
       return [...entries];
     }
   };
+}
+
+export function commitACT(
+  log: ACREventLog,
+  transaction: AtlasCognitiveTransaction,
+  options: ACTCommitOptions = {}
+): ACREventLogEntry {
+  if (!transaction.validation.passed) {
+    throw new Error(
+      `Cannot commit ACT ${transaction.id} because validation failed: ${transaction.validation.errors.join(", ")}`
+    );
+  }
+
+  const committedAt = options.committedAt ?? new Date().toISOString();
+  const committedTransaction: AtlasCognitiveTransaction = {
+    ...cloneTransaction(transaction),
+    status: "committed",
+    committedAt
+  };
+
+  return log.append(committedTransaction, { appendedAt: committedAt });
 }
 
 export function replayACREventLog(log: ACREventLog): ACRProjection {
