@@ -8,10 +8,15 @@ export interface AtlasEventEnvelope<
 > {
   id: AtlasId;
   type: string;
+  topic?: string;
   schemaVersion: AtlasEventSchemaVersion;
   sourcePillar: PillarId;
   occurredAt: ISODateTime;
   correlationId: AtlasId;
+  traceId?: AtlasId;
+  causalityId?: AtlasId;
+  subjectRef?: AtlasId;
+  dataRef?: AtlasId;
   payload: TPayload;
 }
 
@@ -20,9 +25,14 @@ export interface AtlasEventEnvelopeInput<
 > {
   id: AtlasId;
   type: string;
+  topic?: string;
   sourcePillar: PillarId;
   occurredAt: ISODateTime;
   correlationId: AtlasId;
+  traceId?: AtlasId;
+  causalityId?: AtlasId;
+  subjectRef?: AtlasId;
+  dataRef?: AtlasId;
   payload: TPayload;
 }
 
@@ -32,10 +42,15 @@ export function createAtlasEventEnvelope<TPayload extends Record<string, unknown
   return {
     id: input.id,
     type: input.type,
+    ...(input.topic === undefined ? {} : { topic: input.topic }),
     schemaVersion: "1.0",
     sourcePillar: input.sourcePillar,
     occurredAt: input.occurredAt,
     correlationId: input.correlationId,
+    ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
+    ...(input.causalityId === undefined ? {} : { causalityId: input.causalityId }),
+    ...(input.subjectRef === undefined ? {} : { subjectRef: input.subjectRef }),
+    ...(input.dataRef === undefined ? {} : { dataRef: input.dataRef }),
     payload: input.payload
   };
 }

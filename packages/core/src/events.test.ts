@@ -1,11 +1,51 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createAtlasEventEnvelope,
   createApprovalEvent,
   createAuditEvent,
   createExecutionEvent,
   createMemoryEvent
 } from "./index.js";
+
+describe("Atlas event envelope schema", () => {
+  it("creates a topic-addressed envelope with object references and optional payload refs", () => {
+    expect(
+      createAtlasEventEnvelope({
+        id: "evt:capability:resolved",
+        type: "capability.resolved",
+        topic: "atlas.capability.resolved",
+        sourcePillar: "capability-kernel",
+        occurredAt: "2026-06-28T00:00:00.000Z",
+        correlationId: "goal:create-resource",
+        traceId: "trace:create-resource",
+        causalityId: "decision:capability-resolution",
+        subjectRef: "capability:create-resource",
+        dataRef: "object-store:event-payload:capability-resolved",
+        payload: {
+          capabilityId: "capability:create-resource",
+          providerId: "provider:rest"
+        }
+      })
+    ).toEqual({
+      id: "evt:capability:resolved",
+      type: "capability.resolved",
+      topic: "atlas.capability.resolved",
+      schemaVersion: "1.0",
+      sourcePillar: "capability-kernel",
+      occurredAt: "2026-06-28T00:00:00.000Z",
+      correlationId: "goal:create-resource",
+      traceId: "trace:create-resource",
+      causalityId: "decision:capability-resolution",
+      subjectRef: "capability:create-resource",
+      dataRef: "object-store:event-payload:capability-resolved",
+      payload: {
+        capabilityId: "capability:create-resource",
+        providerId: "provider:rest"
+      }
+    });
+  });
+});
 
 describe("specific Atlas event schemas", () => {
   it("creates audit event envelopes", () => {

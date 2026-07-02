@@ -10,13 +10,20 @@ Every cross-pillar event uses this envelope:
 interface AtlasEventEnvelope<TPayload> {
   id: string;
   type: string;
+  topic?: string;
   schemaVersion: "1.0";
   sourcePillar: PillarId;
   occurredAt: string;
   correlationId: string;
+  traceId?: string;
+  causalityId?: string;
+  subjectRef?: string;
+  dataRef?: string;
   payload: TPayload;
 }
 ```
+
+`payload` is allowed for compact event data. Large payloads must be stored externally and referenced through `dataRef`. `subjectRef` identifies the primary object the event is about, while `traceId` and `causalityId` preserve execution and reasoning lineage.
 
 ## Event Naming
 
