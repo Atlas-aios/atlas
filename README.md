@@ -94,4 +94,5 @@ Research finding
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)
 - [Local Database](docs/implementation/local-database.md)
+- [Model Routing](docs/architecture/model-routing.md)
 - [Pillar Implementation And Model Strategy Research](docs/research/pillar-implementation-and-model-strategy.md)

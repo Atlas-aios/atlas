@@ -100,6 +100,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement Thought scheduling hooks.
 - [x] Implement planning context builder.
 - [x] Define retrieval adapter contract for context lookups.
+- [x] Define optional remote deep reasoning model lane.
 - [ ] Add SWM context lookup.
 - [ ] Add World State lookup.
 - [ ] Add Memory lookup.
@@ -547,7 +548,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Keep architecture diagrams current.
 - [ ] Maintain RFC process.
 - [ ] Maintain research backlog.
-- [ ] Evaluate Nemotron 3 for agentic reasoning backbone.
+- [x] Evaluate Nemotron 3 for agentic reasoning backbone.
 - [ ] Evaluate TurboQuant for long-context KV-cache and memory compression.
 - [ ] Evaluate LocateAnything for desktop vision grounding.
 - [ ] Compare LocateAnything with existing UI grounding models for computer control.

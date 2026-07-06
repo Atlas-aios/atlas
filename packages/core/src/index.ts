@@ -9,6 +9,7 @@ export * from "./acr-projector.js";
 export * from "./acr-source-of-truth.js";
 export * from "./context.js";
 export * from "./events.js";
+export * from "./model-profiles.js";
 export * from "./pillars.js";
 export * from "./postgres-schema.js";
 

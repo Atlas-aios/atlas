@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACR_SOURCE_OF_TRUTH_MODEL,
   LOCAL_POSTGRES_DEVELOPMENT_SETUP,
+  MODEL_PROFILES,
   POSTGRES_MIGRATION_STRATEGY,
   PILLAR_BOUNDARIES,
   POSTGRES_SCHEMA_BASELINE,
@@ -11,7 +12,8 @@ import {
   createAtlasEventEnvelope,
   fail,
   getPillarBoundary,
-  ok
+  ok,
+  routeModelRequest
 } from "./index.js";
 
 describe("result helpers", () => {
@@ -78,6 +80,47 @@ describe("event envelopes", () => {
         capabilityId: "cap_create_resource",
         providerId: "provider_rest"
       }
+    });
+  });
+});
+
+describe("model routing profiles", () => {
+  it("keeps local Qwen-style routing as the default model lane", () => {
+    expect(MODEL_PROFILES.find((profile) => profile.default)).toMatchObject({
+      id: "qwen-local-default",
+      provider: "local-qwen",
+      lane: "local-default",
+      requiresExplicitRemoteDataPermission: false
+    });
+  });
+
+  it("allows NVIDIA Nemotron only as an optional remote deep reasoning lane", () => {
+    expect(
+      routeModelRequest({
+        taskClass: "architecture",
+        difficulty: "high",
+        privacyClass: "internal",
+        allowRemoteModels: true,
+        allowFreeHostedEndpoints: true
+      })
+    ).toMatchObject({
+      selectedProfileId: "nvidia-nemotron-super-remote",
+      lane: "remote-deep-reasoning"
+    });
+  });
+
+  it("falls back to local models for private data even on difficult requests", () => {
+    expect(
+      routeModelRequest({
+        taskClass: "governance-review",
+        difficulty: "critical",
+        privacyClass: "private",
+        allowRemoteModels: true,
+        allowFreeHostedEndpoints: true
+      })
+    ).toMatchObject({
+      selectedProfileId: "qwen-local-default",
+      lane: "local-default"
     });
   });
 });

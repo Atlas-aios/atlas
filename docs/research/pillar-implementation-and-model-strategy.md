@@ -314,9 +314,20 @@ Primary metrics:
 
 ### Nemotron 3 For Agentic Reasoning Backbone
 
-Research status: open.
+Research status: remote optional lane accepted for experimentation.
 
 Initial read: Nemotron 3 is relevant to Atlas because it is explicitly positioned around agentic, reasoning, conversational, and multi-step tool-use workloads. The reported family includes Nano, Super, and Ultra variants, with hybrid Mamba-Transformer Mixture-of-Experts architecture, up to 1M-token context, granular reasoning-budget control, and planned open release of weights, recipes, and redistributable data.
+
+Implementation decision: Atlas should not depend on Nemotron as the default local backbone. Instead, Atlas should expose NVIDIA NIM as an optional `remote-deep-reasoning` model lane for high-difficulty public/internal requests. The current candidate profile is `nvidia/nemotron-3-super-120b-a12b` through NVIDIA's OpenAI-compatible endpoint. Local Qwen-style routing remains the default lane.
+
+Remote lane gates:
+
+- difficulty is `high` or `critical`;
+- task class is architecture, governance review, hard debugging, or research synthesis;
+- privacy class is `public` or `internal`;
+- remote models are explicitly allowed;
+- free hosted endpoints are explicitly allowed;
+- context is bounded and source-referenced, not raw memory or confidential dumps.
 
 Why it matters for Atlas:
 
@@ -331,6 +342,7 @@ Research questions:
 - Does the 1M-token context reduce retrieval pressure, or does Atlas still get better cost and correctness from ACR references plus retrieval?
 - Can reasoning-budget control become an input to the Atlas model router?
 - What hardware/runtime stack is required for local or private deployment at acceptable latency?
+- What quota/rate limits apply to the free hosted endpoint under Atlas planning workloads?
 
 Proposed experiment:
 
