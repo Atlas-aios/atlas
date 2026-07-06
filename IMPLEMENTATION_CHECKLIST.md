@@ -85,7 +85,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define Self Model schema.
 - [x] Define Identity resolution schema.
 - [x] Add local development database setup.
-- [ ] Add seed data for synthetic unknown business system.
+- [x] Add seed data for synthetic unknown business system.
 
 ---
 

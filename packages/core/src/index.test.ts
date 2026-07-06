@@ -5,6 +5,7 @@ import {
   POSTGRES_MIGRATION_STRATEGY,
   PILLAR_BOUNDARIES,
   POSTGRES_SCHEMA_BASELINE,
+  SYNTHETIC_UNKNOWN_BUSINESS_SYSTEM_SEED,
   buildContextPacket,
   buildContextPacketFromRetrievers,
   createAtlasEventEnvelope,
@@ -200,6 +201,24 @@ describe("local PostgreSQL development setup", () => {
         migrate: "db:migrate:local",
         psql: "db:psql"
       }
+    });
+  });
+});
+
+describe("synthetic unknown business system seed", () => {
+  it("defines a seed fixture for the Create Resource learning scenario", () => {
+    expect(SYNTHETIC_UNKNOWN_BUSINESS_SYSTEM_SEED).toEqual({
+      seedFile: "infra/postgres/seeds/001_unknown_business_system.sql",
+      scriptName: "db:seed:local",
+      systemRef: "synthetic-system:unknown-business-system",
+      capabilityRef: "capability:create-resource",
+      interfaceRefs: [
+        "interface:rest-api",
+        "interface:openapi-documentation",
+        "interface:browser-ui"
+      ],
+      purpose:
+        "Seed enough ACR data for Atlas to reason about an unknown system before the full MVP fixture exists."
     });
   });
 });

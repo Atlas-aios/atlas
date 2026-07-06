@@ -54,6 +54,19 @@ export interface LocalPostgresDevelopmentSetup {
   };
 }
 
+export interface SyntheticUnknownBusinessSystemSeed {
+  seedFile: "infra/postgres/seeds/001_unknown_business_system.sql";
+  scriptName: "db:seed:local";
+  systemRef: "synthetic-system:unknown-business-system";
+  capabilityRef: "capability:create-resource";
+  interfaceRefs: [
+    "interface:rest-api",
+    "interface:openapi-documentation",
+    "interface:browser-ui"
+  ];
+  purpose: string;
+}
+
 export const POSTGRES_SCHEMA_BASELINE: PostgresSchemaBaseline = {
   schemaName: "atlas_core",
   version: "001",
@@ -128,6 +141,21 @@ export const LOCAL_POSTGRES_DEVELOPMENT_SETUP: LocalPostgresDevelopmentSetup = {
     psql: "db:psql"
   }
 };
+
+export const SYNTHETIC_UNKNOWN_BUSINESS_SYSTEM_SEED: SyntheticUnknownBusinessSystemSeed =
+  {
+    seedFile: "infra/postgres/seeds/001_unknown_business_system.sql",
+    scriptName: "db:seed:local",
+    systemRef: "synthetic-system:unknown-business-system",
+    capabilityRef: "capability:create-resource",
+    interfaceRefs: [
+      "interface:rest-api",
+      "interface:openapi-documentation",
+      "interface:browser-ui"
+    ],
+    purpose:
+      "Seed enough ACR data for Atlas to reason about an unknown system before the full MVP fixture exists."
+  };
 
 export const POSTGRES_MIGRATION_STRATEGY: PostgresMigrationStrategy = {
   migrationsDirectory: "infra/postgres",
