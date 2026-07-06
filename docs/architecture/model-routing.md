@@ -43,3 +43,12 @@ request
 ```
 
 The model router is a governance surface. Future changes that broaden remote eligibility must be reviewed as policy changes.
+
+## NVIDIA NIM Client
+
+`@atlas-aios/core` includes a small NVIDIA NIM chat-completion client contract:
+
+- `buildNvidiaNimChatCompletionRequest` builds the OpenAI-compatible HTTP request.
+- `callNvidiaNimChatCompletion` executes through an injected fetcher.
+
+The injected fetcher keeps tests offline and allows runtime services to enforce their own retry, timeout, quota, audit, and secret-loading policies. Runtime services must source `NVIDIA_API_KEY` from the configured secret provider, never from code.
