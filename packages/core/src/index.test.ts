@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACR_SOURCE_OF_TRUTH_MODEL,
+  POSTGRES_MIGRATION_STRATEGY,
   PILLAR_BOUNDARIES,
   POSTGRES_SCHEMA_BASELINE,
   buildContextPacket,
@@ -159,6 +160,28 @@ describe("PostgreSQL schema baseline", () => {
 
     expect(POSTGRES_SCHEMA_BASELINE.invariants).toContain(
       "Every projection row references the ACT or ACR event that produced it."
+    );
+  });
+});
+
+describe("PostgreSQL migration strategy", () => {
+  it("uses ordered SQL files with checksummed append-only history", () => {
+    expect(POSTGRES_MIGRATION_STRATEGY).toMatchObject({
+      migrationsDirectory: "infra/postgres",
+      ordering: "version-prefix",
+      checksumAlgorithm: "sha256",
+      historyTable: "atlas_core.schema_migrations",
+      historyWriteModel: "append-only"
+    });
+  });
+
+  it("requires a database lock and rejects changed applied migrations", () => {
+    expect(POSTGRES_MIGRATION_STRATEGY.invariants).toEqual(
+      expect.arrayContaining([
+        "Migration runners acquire an advisory lock before applying files.",
+        "Already-applied migration checksums must match the filesystem copy.",
+        "Applied migration history is append-only and is never rewritten."
+      ])
     );
   });
 });

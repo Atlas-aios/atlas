@@ -120,6 +120,21 @@ Rebuildable projection tables:
 
 Every projection row must reference the ACT or ACR event that produced it. This keeps replay, debugging, and rollback anchored to the canonical cognitive transaction history.
 
+## Migration Strategy
+
+PostgreSQL migrations are ordered SQL files under `infra/postgres`. The version prefix defines apply order, for example `001_atlas_core.sql`.
+
+Migration runners must:
+
+- acquire a PostgreSQL advisory lock before applying files;
+- compute a SHA-256 checksum for each migration file;
+- write append-only migration history to `atlas_core.schema_migrations`;
+- reject startup when an already-applied migration checksum no longer matches the filesystem copy;
+- record failed migrations before exiting;
+- require an ADR for any schema change that rewrites canonical ACT or ACR event history.
+
+This keeps local development, CI, and production deploys on the same schema path while protecting Atlas's cognitive audit trail from silent drift.
+
 ## Observability Contract
 
 Every pillar must report:

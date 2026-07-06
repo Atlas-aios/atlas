@@ -1,5 +1,21 @@
 CREATE SCHEMA IF NOT EXISTS atlas_core;
 
+CREATE TABLE IF NOT EXISTS atlas_core.schema_migrations (
+  migration_id text PRIMARY KEY,
+  checksum_sha256 text NOT NULL,
+  status text NOT NULL CHECK (status IN ('applied', 'failed')),
+  started_at timestamptz NOT NULL,
+  finished_at timestamptz,
+  applied_by text NOT NULL,
+  error_message text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  CHECK (finished_at IS NULL OR finished_at >= started_at),
+  CHECK (
+    (status = 'failed' AND error_message IS NOT NULL)
+    OR (status = 'applied' AND error_message IS NULL)
+  )
+);
+
 CREATE TABLE IF NOT EXISTS atlas_core.act_transactions (
   act_id text PRIMARY KEY,
   schema_version text NOT NULL DEFAULT '1.0',

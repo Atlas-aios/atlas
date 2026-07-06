@@ -47,7 +47,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 2. Core Data And Event Model
 
 - [x] Design PostgreSQL schema baseline.
-- [ ] Design migration strategy.
+- [x] Design migration strategy.
 - [x] Design event bus topic naming.
 - [x] Define event envelope schema.
 - [x] Define ACR event-first source-of-truth model.

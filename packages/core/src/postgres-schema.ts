@@ -27,6 +27,20 @@ export interface PostgresSchemaBaseline {
   invariants: string[];
 }
 
+export interface PostgresMigrationStrategy {
+  migrationsDirectory: "infra/postgres";
+  ordering: "version-prefix";
+  checksumAlgorithm: "sha256";
+  historyTable: "atlas_core.schema_migrations";
+  historyWriteModel: "append-only";
+  lock: {
+    mechanism: "postgres-advisory-lock";
+    key: "atlas-core-migrations";
+  };
+  appliedStates: ["applied", "failed"];
+  invariants: string[];
+}
+
 export const POSTGRES_SCHEMA_BASELINE: PostgresSchemaBaseline = {
   schemaName: "atlas_core",
   version: "001",
@@ -86,5 +100,26 @@ export const POSTGRES_SCHEMA_BASELINE: PostgresSchemaBaseline = {
     "Every projection row references the ACT or ACR event that produced it.",
     "Projection tables are rebuildable and never authoritative.",
     "Raw evidence and large payloads are stored outside PostgreSQL by reference."
+  ]
+};
+
+export const POSTGRES_MIGRATION_STRATEGY: PostgresMigrationStrategy = {
+  migrationsDirectory: "infra/postgres",
+  ordering: "version-prefix",
+  checksumAlgorithm: "sha256",
+  historyTable: "atlas_core.schema_migrations",
+  historyWriteModel: "append-only",
+  lock: {
+    mechanism: "postgres-advisory-lock",
+    key: "atlas-core-migrations"
+  },
+  appliedStates: ["applied", "failed"],
+  invariants: [
+    "Migration runners acquire an advisory lock before applying files.",
+    "Migrations apply in lexicographic version-prefix order.",
+    "Already-applied migration checksums must match the filesystem copy.",
+    "Applied migration history is append-only and is never rewritten.",
+    "A failed migration records failure details before the runner exits.",
+    "Schema changes that rewrite canonical ACT or ACR events require a new ADR."
   ]
 };
