@@ -38,6 +38,49 @@ export interface BrainEngine {
 export type PlanningModelSelectionInput = ModelRoutingRequest;
 export type PlanningModelSelection = ModelRoutingDecision;
 
+export type ThoughtStatus =
+  | "draft"
+  | "ready"
+  | "scheduled"
+  | "blocked"
+  | "resolved"
+  | "discarded";
+export type ThoughtKind =
+  | "observation"
+  | "question"
+  | "hypothesis"
+  | "decision"
+  | "reflection"
+  | "planning_note";
+
+export interface ThoughtLifecycleModel {
+  initialStatus: "draft";
+  terminalStatuses: ["resolved", "discarded"];
+  allowedTransitions: Record<ThoughtStatus, ThoughtStatus[]>;
+}
+
+export interface CreateThoughtInput {
+  id: string;
+  goalId: string;
+  kind: ThoughtKind;
+  summary: string;
+  createdAt: string;
+  sourceRefs: string[];
+  modelSelection: PlanningModelSelection;
+}
+
+export interface Thought {
+  id: string;
+  goalId: string;
+  kind: ThoughtKind;
+  status: ThoughtStatus;
+  summary: string;
+  createdAt: string;
+  sourceRefs: string[];
+  modelLane: PlanningModelSelection["lane"];
+  modelProfileId: string;
+}
+
 export interface PlanExplanationInput {
   plan: AtlasPlan;
   modelSelection: PlanningModelSelection;
@@ -53,6 +96,56 @@ export interface PlanExplanation {
   modelLane: PlanningModelSelection["lane"];
   modelProfileId: string;
   guardrails: string[];
+}
+
+export interface BrainOutputBase {
+  id: string;
+  goalId: string;
+  blocking: boolean;
+  modelLane: PlanningModelSelection["lane"];
+  modelProfileId: string;
+}
+
+export interface ClarificationNeededOutput extends BrainOutputBase {
+  kind: "clarification_needed";
+  question: string;
+  reason: string;
+  requiredFor: string;
+  choices: string[];
+  sourceRefs: string[];
+}
+
+export interface ApprovalNeededOutput extends BrainOutputBase {
+  kind: "approval_needed";
+  planId: string;
+  approvalStepIds: string[];
+  reason: string;
+  risks: string[];
+  constraints: string[];
+}
+
+export type BrainStructuredOutput = ClarificationNeededOutput | ApprovalNeededOutput;
+
+export interface CreateClarificationNeededOutputInput {
+  id: string;
+  goalId: string;
+  question: string;
+  reason: string;
+  requiredFor: string;
+  choices: string[];
+  sourceRefs: string[];
+  modelSelection: PlanningModelSelection;
+}
+
+export interface CreateApprovalNeededOutputInput {
+  id: string;
+  goalId: string;
+  planId: string;
+  approvalStepIds: string[];
+  reason: string;
+  risks: string[];
+  constraints: string[];
+  modelSelection: PlanningModelSelection;
 }
 
 export interface PlanningExperienceLookupInput {
@@ -71,6 +164,19 @@ export interface PlanningExperienceLookupResult {
   goalId: string;
   guidance: PlanningExperienceGuidance[];
 }
+
+export const THOUGHT_LIFECYCLE_MODEL: ThoughtLifecycleModel = {
+  initialStatus: "draft",
+  terminalStatuses: ["resolved", "discarded"],
+  allowedTransitions: {
+    draft: ["ready", "discarded"],
+    ready: ["scheduled", "blocked", "resolved", "discarded"],
+    scheduled: ["blocked", "resolved", "discarded"],
+    blocked: ["ready", "discarded"],
+    resolved: [],
+    discarded: []
+  }
+};
 
 export function lookupPlanningExperience(
   input: PlanningExperienceLookupInput
@@ -110,6 +216,56 @@ export function explainPlan(input: PlanExplanationInput): PlanExplanation {
     modelLane: input.modelSelection.lane,
     modelProfileId: input.modelSelection.selectedProfileId,
     guardrails: input.modelSelection.guardrails
+  };
+}
+
+export function createThought(input: CreateThoughtInput): Thought {
+  return {
+    id: input.id,
+    goalId: input.goalId,
+    kind: input.kind,
+    status: THOUGHT_LIFECYCLE_MODEL.initialStatus,
+    summary: input.summary,
+    createdAt: input.createdAt,
+    sourceRefs: input.sourceRefs,
+    modelLane: input.modelSelection.lane,
+    modelProfileId: input.modelSelection.selectedProfileId
+  };
+}
+
+export function createClarificationNeededOutput(
+  input: CreateClarificationNeededOutputInput
+): ClarificationNeededOutput {
+  return {
+    id: input.id,
+    kind: "clarification_needed",
+    goalId: input.goalId,
+    question: input.question,
+    reason: input.reason,
+    requiredFor: input.requiredFor,
+    choices: input.choices,
+    blocking: true,
+    sourceRefs: input.sourceRefs,
+    modelLane: input.modelSelection.lane,
+    modelProfileId: input.modelSelection.selectedProfileId
+  };
+}
+
+export function createApprovalNeededOutput(
+  input: CreateApprovalNeededOutputInput
+): ApprovalNeededOutput {
+  return {
+    id: input.id,
+    kind: "approval_needed",
+    goalId: input.goalId,
+    planId: input.planId,
+    approvalStepIds: input.approvalStepIds,
+    reason: input.reason,
+    risks: input.risks,
+    constraints: input.constraints,
+    blocking: true,
+    modelLane: input.modelSelection.lane,
+    modelProfileId: input.modelSelection.selectedProfileId
   };
 }
 

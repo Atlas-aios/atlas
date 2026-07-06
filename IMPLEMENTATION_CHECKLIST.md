@@ -95,8 +95,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define Atlas compiler interface from natural language to ACR drafts.
 - [ ] Define AtlasFlow compiler interface from ACR goals to workflow graphs.
 - [ ] Define AtlasIR compiler interface from AtlasFlow to executable IR.
-- [ ] Define Thought lifecycle model.
-- [ ] Implement Thought creation.
+- [x] Define Thought lifecycle model.
+- [x] Implement Thought creation.
 - [ ] Implement Thought scheduling hooks.
 - [x] Implement planning context builder.
 - [x] Define retrieval adapter contract for context lookups.
@@ -111,8 +111,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Add Capability Graph lookup.
 - [ ] Add Governance constraint lookup.
 - [x] Implement plan explanation output.
-- [ ] Implement clarification-needed output.
-- [ ] Implement approval-needed output.
+- [x] Implement clarification-needed output.
+- [x] Implement approval-needed output.
 - [x] Add tests for planning context assembly.
 
 ---

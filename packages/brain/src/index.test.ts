@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
-import { explainPlan, lookupPlanningExperience, selectPlanningModel } from "./index.js";
+import {
+  THOUGHT_LIFECYCLE_MODEL,
+  createApprovalNeededOutput,
+  createClarificationNeededOutput,
+  createThought,
+  explainPlan,
+  lookupPlanningExperience,
+  selectPlanningModel
+} from "./index.js";
 
 describe("lookupPlanningExperience", () => {
   it("returns planning-relevant Experience for requested capabilities", () => {
@@ -126,6 +134,118 @@ describe("explainPlan", () => {
       modelLane: "remote-deep-reasoning",
       modelProfileId: "nvidia-nemotron-super-remote",
       guardrails: ["Do not send private memory to hosted endpoints."]
+    });
+  });
+});
+
+describe("Thought lifecycle", () => {
+  it("defines deterministic thought states and allowed transitions", () => {
+    expect(THOUGHT_LIFECYCLE_MODEL).toEqual({
+      initialStatus: "draft",
+      terminalStatuses: ["resolved", "discarded"],
+      allowedTransitions: {
+        draft: ["ready", "discarded"],
+        ready: ["scheduled", "blocked", "resolved", "discarded"],
+        scheduled: ["blocked", "resolved", "discarded"],
+        blocked: ["ready", "discarded"],
+        resolved: [],
+        discarded: []
+      }
+    });
+  });
+
+  it("creates a draft Thought with provenance and model lane metadata", () => {
+    expect(
+      createThought({
+        id: "thought:plan-risk",
+        goalId: "goal:unknown-system",
+        kind: "hypothesis",
+        summary: "Browser fallback may require human approval.",
+        createdAt: "2026-07-06T08:30:00.000Z",
+        sourceRefs: ["plan:create-resource", "risk:browser-fallback"],
+        modelSelection: {
+          selectedProfileId: "qwen-local-default",
+          lane: "local-default",
+          reason: "Selected local default lane.",
+          guardrails: ["Use retrieval before generation."]
+        }
+      })
+    ).toEqual({
+      id: "thought:plan-risk",
+      goalId: "goal:unknown-system",
+      kind: "hypothesis",
+      status: "draft",
+      summary: "Browser fallback may require human approval.",
+      createdAt: "2026-07-06T08:30:00.000Z",
+      sourceRefs: ["plan:create-resource", "risk:browser-fallback"],
+      modelLane: "local-default",
+      modelProfileId: "qwen-local-default"
+    });
+  });
+});
+
+describe("Brain structured outputs", () => {
+  it("creates a clarification-needed output that blocks planning until answered", () => {
+    expect(
+      createClarificationNeededOutput({
+        id: "brain-output:clarify-target",
+        goalId: "goal:unknown-system",
+        question: "Which resource type should Atlas create first?",
+        reason: "The available evidence mentions invoices and projects.",
+        requiredFor: "provider selection",
+        choices: ["invoice", "project"],
+        sourceRefs: ["acr:evidence:unknown-openapi"],
+        modelSelection: {
+          selectedProfileId: "qwen-local-default",
+          lane: "local-default",
+          reason: "Selected local default lane.",
+          guardrails: ["Use retrieval before generation."]
+        }
+      })
+    ).toEqual({
+      id: "brain-output:clarify-target",
+      kind: "clarification_needed",
+      goalId: "goal:unknown-system",
+      question: "Which resource type should Atlas create first?",
+      reason: "The available evidence mentions invoices and projects.",
+      requiredFor: "provider selection",
+      choices: ["invoice", "project"],
+      blocking: true,
+      sourceRefs: ["acr:evidence:unknown-openapi"],
+      modelLane: "local-default",
+      modelProfileId: "qwen-local-default"
+    });
+  });
+
+  it("creates an approval-needed output for gated plan steps", () => {
+    expect(
+      createApprovalNeededOutput({
+        id: "brain-output:approval-create",
+        goalId: "goal:unknown-system",
+        planId: "plan:create-resource",
+        approvalStepIds: ["step:create"],
+        reason: "Creating a resource changes external system state.",
+        risks: ["Wrong field mapping could create bad data."],
+        constraints: ["Run simulation first.", "Use idempotency key."],
+        modelSelection: {
+          selectedProfileId: "nvidia-nemotron-super-remote",
+          lane: "remote-deep-reasoning",
+          reason: "Selected optional NVIDIA Nemotron lane.",
+          guardrails: ["Do not send private memory to hosted endpoints."]
+        }
+      })
+    ).toEqual({
+      id: "brain-output:approval-create",
+      kind: "approval_needed",
+      goalId: "goal:unknown-system",
+      planId: "plan:create-resource",
+      approvalStepIds: ["step:create"],
+      reason: "Creating a resource changes external system state.",
+      risks: ["Wrong field mapping could create bad data."],
+      constraints: ["Run simulation first.", "Use idempotency key."],
+      blocking: true,
+      modelLane: "remote-deep-reasoning",
+      modelProfileId: "nvidia-nemotron-super-remote"
     });
   });
 });

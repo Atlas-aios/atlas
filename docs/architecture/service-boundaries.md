@@ -63,6 +63,10 @@ Brain Engines decide how Atlas reasons about a goal. They do not execute provide
 
 Plan explanations are structured outputs, not free-form prose only. The Brain explanation boundary includes the plan id, goal id, rationale, risk summary, approval-gated step ids, selected model lane, model profile id, and active guardrails. UI and API layers can render that structure for humans without losing machine-readable governance context.
 
+Brain Thought objects begin as `draft` and move through explicit lifecycle states: `ready`, `scheduled`, `blocked`, `resolved`, or `discarded`. Thoughts carry provenance references and model lane metadata so reasoning artifacts can be audited later.
+
+Clarification and approval outputs are blocking structured outputs. A clarification output records the exact question, reason, required planning decision, choices, evidence references, and model metadata. An approval output records the plan, gated steps, reason, risks, constraints, and model metadata. These outputs are intended to feed AGOE waiting states, approval inboxes, and Memory records without scraping prose.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.
