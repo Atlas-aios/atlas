@@ -101,6 +101,25 @@ Operational stores are projections, not authorities:
 
 All projections must be rebuildable from committed ACTs. Vector/search stores may improve retrieval, but they must never become the source of truth.
 
+## PostgreSQL Baseline
+
+The first PostgreSQL baseline lives in `infra/postgres/001_atlas_core.sql` and is mirrored as an importable contract in `@atlas-aios/core`.
+
+Canonical append-only tables:
+
+- `act_transactions` stores ACT lifecycle, commit status, actor reference, goal linkage, and trace lineage.
+- `acr_events` stores ordered ACR events grouped by `act_id`.
+
+Rebuildable projection tables:
+
+- `acr_objects` stores current and historical object versions.
+- `acr_relationships` stores graph traversal edges with confidence and permission scope.
+- `acr_evidence_refs` stores references to raw evidence held outside PostgreSQL.
+- `acr_search` stores keyword and vector-index coordination metadata.
+- `atlas_event_envelopes` stores ACB publication audit and topic routing metadata.
+
+Every projection row must reference the ACT or ACR event that produced it. This keeps replay, debugging, and rollback anchored to the canonical cognitive transaction history.
+
 ## Observability Contract
 
 Every pillar must report:

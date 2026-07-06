@@ -10,6 +10,7 @@ export * from "./acr-source-of-truth.js";
 export * from "./context.js";
 export * from "./events.js";
 export * from "./pillars.js";
+export * from "./postgres-schema.js";
 
 export interface AtlasReference {
   id: AtlasId;

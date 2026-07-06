@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACR_SOURCE_OF_TRUTH_MODEL,
   PILLAR_BOUNDARIES,
+  POSTGRES_SCHEMA_BASELINE,
   buildContextPacket,
   buildContextPacketFromRetrievers,
   createAtlasEventEnvelope,
@@ -120,6 +121,45 @@ describe("ACR event-first source of truth", () => {
         "Raw evidence is stored by reference and retained outside compact projections."
       ]
     });
+  });
+});
+
+describe("PostgreSQL schema baseline", () => {
+  it("keeps ACT and ACR events as canonical append-only stores", () => {
+    expect(
+      POSTGRES_SCHEMA_BASELINE.tables.filter((table) => table.authority === "canonical")
+    ).toEqual([
+      {
+        name: "act_transactions",
+        authority: "canonical",
+        writeModel: "append-only",
+        purpose: "atomic cognitive transaction records"
+      },
+      {
+        name: "acr_events",
+        authority: "canonical",
+        writeModel: "append-only",
+        purpose: "ordered ACR events committed through ACT"
+      }
+    ]);
+  });
+
+  it("defines rebuildable ACR projections tied back to canonical events", () => {
+    expect(
+      POSTGRES_SCHEMA_BASELINE.tables
+        .filter((table) => table.authority === "projection")
+        .map((table) => table.name)
+    ).toEqual([
+      "acr_objects",
+      "acr_relationships",
+      "acr_evidence_refs",
+      "acr_search",
+      "atlas_event_envelopes"
+    ]);
+
+    expect(POSTGRES_SCHEMA_BASELINE.invariants).toContain(
+      "Every projection row references the ACT or ACR event that produced it."
+    );
   });
 });
 
