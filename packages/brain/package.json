@@ -14,6 +14,7 @@
   "dependencies": {
     "@atlas-aios/core": "workspace:*",
     "@atlas-aios/experience": "workspace:*",
+    "@atlas-aios/memory": "workspace:*",
     "@atlas-aios/swm": "workspace:*",
     "@atlas-aios/world-state": "workspace:*"
   }

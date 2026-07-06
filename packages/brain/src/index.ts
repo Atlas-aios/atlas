@@ -8,6 +8,7 @@ import {
   type ExperienceLookupQuery,
   type ExperienceArtifact
 } from "@atlas-aios/experience";
+import type { MemoryEvent, MemoryEventKind } from "@atlas-aios/memory";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 import type { OperationalBlocker, WorldStateSnapshot } from "@atlas-aios/world-state";
 
@@ -201,7 +202,7 @@ export interface PlanningExperienceLookupResult {
 
 export interface BrainContextItem {
   id: string;
-  source: "swm" | "world-state";
+  source: "swm" | "world-state" | "memory";
   summary: string;
   content: string;
   confidence: number;
@@ -237,6 +238,20 @@ export interface WorldStatePlanningContextLookupInput {
 
 export interface WorldStatePlanningContextLookupResult {
   source: "world-state";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
+export interface MemoryPlanningContextLookupInput {
+  events: MemoryEvent[];
+  eventKinds: MemoryEventKind[];
+  sourceIds: string[];
+  permissionScope: string[];
+  limit: number;
+}
+
+export interface MemoryPlanningContextLookupResult {
+  source: "memory";
   items: BrainContextItem[];
   droppedItemIds: string[];
 }
@@ -370,6 +385,52 @@ export function lookupWorldStatePlanningContext(
   return {
     source: "world-state",
     items: [snapshotItem, ...blockerItems],
+    droppedItemIds
+  };
+}
+
+export function lookupMemoryPlanningContext(
+  input: MemoryPlanningContextLookupInput
+): MemoryPlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const items = input.events.flatMap((event): BrainContextItem[] => {
+    if (!input.eventKinds.includes(event.kind)) {
+      droppedItemIds.push(event.id);
+      return [];
+    }
+
+    const matchingSourceIds = event.sourceIds.filter((sourceId) =>
+      input.sourceIds.includes(sourceId)
+    );
+    if (input.sourceIds.length > 0 && matchingSourceIds.length === 0) {
+      droppedItemIds.push(event.id);
+      return [];
+    }
+
+    return [
+      {
+        id: `memory-context:event:${event.id}`,
+        source: "memory",
+        summary: `${event.kind} memory from ${event.occurredAt}`,
+        content: event.summary,
+        confidence: 1,
+        relevance:
+          input.sourceIds.length === 0
+            ? 0.8
+            : matchingSourceIds.length / input.sourceIds.length,
+        estimatedTokens: estimateContextTokens(event.summary),
+        permissionScope: input.permissionScope,
+        sourceRefs: [event.id, ...event.sourceIds]
+      }
+    ];
+  });
+
+  const limitedItems = items.slice(0, input.limit);
+  droppedItemIds.push(...items.slice(input.limit).map((item) => item.id));
+
+  return {
+    source: "memory",
+    items: limitedItems,
     droppedItemIds
   };
 }
@@ -539,4 +600,8 @@ function meetsMinimumSeverity(
   };
 
   return order[actual] >= order[minimum];
+}
+
+function estimateContextTokens(content: string): number {
+  return Math.max(12, Math.ceil(content.trim().split(/\s+/).length * 1.5));
 }

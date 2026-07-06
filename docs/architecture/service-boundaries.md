@@ -73,6 +73,8 @@ Brain reads SWM through a context lookup adapter. The adapter converts permissio
 
 Brain reads World State through a separate context lookup adapter. The adapter summarizes the current snapshot, active goals, active executions, and severity-filtered blockers into bounded planning context. Low-severity blockers can be dropped for a given planning pass while still being reported as dropped ids for auditability.
 
+Brain reads Memory through an episodic context lookup adapter. The adapter filters immutable Memory events by event kind and source references, converts matching records into compact planning context, and preserves the Memory event id plus original source ids for auditability. Memory remains append-first evidence; Brain consumes retrieved events but does not mutate Memory storage.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.

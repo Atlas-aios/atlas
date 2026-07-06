@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
+import type { MemoryEvent } from "@atlas-aios/memory";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 import type { WorldStateSnapshot } from "@atlas-aios/world-state";
 import {
@@ -9,6 +10,7 @@ import {
   createClarificationNeededOutput,
   createThought,
   explainPlan,
+  lookupMemoryPlanningContext,
   lookupSwmPlanningContext,
   lookupWorldStatePlanningContext,
   lookupPlanningExperience,
@@ -486,6 +488,57 @@ describe("lookupWorldStatePlanningContext", () => {
         }
       ],
       droppedItemIds: ["blocker:minor-note"]
+    });
+  });
+});
+
+describe("lookupMemoryPlanningContext", () => {
+  it("returns relevant Memory events as compact Brain context items", () => {
+    const events: MemoryEvent[] = [
+      {
+        id: "memory:event:decision:create-resource",
+        kind: "decision",
+        occurredAt: "2026-07-06T09:20:00.000Z",
+        summary: "Decision Engine approved Create Resource after simulation.",
+        sourceIds: ["goal:unknown-system", "capability:create-resource"]
+      },
+      {
+        id: "memory:event:meeting:unrelated",
+        kind: "meeting",
+        occurredAt: "2026-07-06T09:21:00.000Z",
+        summary: "Discussed a separate documentation cleanup.",
+        sourceIds: ["goal:docs-cleanup"]
+      }
+    ];
+
+    expect(
+      lookupMemoryPlanningContext({
+        events,
+        eventKinds: ["decision", "failure"],
+        sourceIds: ["goal:unknown-system", "capability:create-resource"],
+        permissionScope: ["project:atlas"],
+        limit: 5
+      })
+    ).toEqual({
+      source: "memory",
+      items: [
+        {
+          id: "memory-context:event:memory:event:decision:create-resource",
+          source: "memory",
+          summary: "decision memory from 2026-07-06T09:20:00.000Z",
+          content: "Decision Engine approved Create Resource after simulation.",
+          confidence: 1,
+          relevance: 1,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "memory:event:decision:create-resource",
+            "goal:unknown-system",
+            "capability:create-resource"
+          ]
+        }
+      ],
+      droppedItemIds: ["memory:event:meeting:unrelated"]
     });
   });
 });
