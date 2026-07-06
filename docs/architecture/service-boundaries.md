@@ -69,6 +69,8 @@ Clarification and approval outputs are blocking structured outputs. A clarificat
 
 Thought scheduling is a deterministic hook, not a model call. The scheduler moves `ready` thoughts to `scheduled` when no blockers exist, moves them to `blocked` when blocker references are present, and rejects invalid lifecycle transitions with a typed error. Scheduling emits machine-readable `thought.scheduled` or `thought.blocked` events for later Memory, AGOE, and Cognitive Loop integration.
 
+Brain reads SWM through a context lookup adapter. The adapter converts permissioned, confidence-filtered SWM entities and relationships into bounded Brain context items with source references. Brain does not mutate SWM storage; it consumes SWM context for planning and records dropped item ids when evidence is too low-confidence or outside permission scope.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.

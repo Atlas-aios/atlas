@@ -102,7 +102,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define retrieval adapter contract for context lookups.
 - [x] Define optional remote deep reasoning model lane.
 - [x] Add NVIDIA NIM remote reasoning client contract.
-- [ ] Add SWM context lookup.
+- [x] Add SWM context lookup.
 - [ ] Add World State lookup.
 - [ ] Add Memory lookup.
 - [ ] Add Experience lookup.

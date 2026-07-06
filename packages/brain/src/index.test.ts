@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
+import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 import {
   THOUGHT_LIFECYCLE_MODEL,
   createApprovalNeededOutput,
   createClarificationNeededOutput,
   createThought,
   explainPlan,
+  lookupSwmPlanningContext,
   lookupPlanningExperience,
   scheduleThought,
   selectPlanningModel
@@ -336,6 +338,89 @@ describe("scheduleThought", () => {
         message:
           "Cannot transition thought thought:plan-risk from resolved to scheduled."
       }
+    });
+  });
+});
+
+describe("lookupSwmPlanningContext", () => {
+  it("returns permissioned SWM entities and relationships as Brain context items", () => {
+    const entities: SemanticEntity[] = [
+      {
+        id: "swm:entity:resource",
+        schemaVersion: "0.1",
+        type: "business_resource",
+        label: "Resource",
+        attributes: { externalName: "Resource" },
+        confidence: 0.91,
+        evidenceRefs: ["evidence:docs:resource"],
+        observedAt: "2026-07-06T09:00:00.000Z"
+      },
+      {
+        id: "swm:entity:private-vendor",
+        schemaVersion: "0.1",
+        type: "vendor",
+        label: "Private Vendor",
+        attributes: { permissionScope: ["project:private"] },
+        confidence: 0.95,
+        evidenceRefs: ["evidence:private"],
+        observedAt: "2026-07-06T09:01:00.000Z"
+      }
+    ];
+    const relationships: SemanticRelationship[] = [
+      {
+        id: "swm:relationship:resource-owned-by-project",
+        schemaVersion: "0.1",
+        fromEntityId: "swm:entity:resource",
+        toEntityId: "swm:entity:project",
+        type: "owned_by",
+        confidence: 0.82,
+        evidenceRefs: ["evidence:openapi:resource-schema"],
+        observedAt: "2026-07-06T09:02:00.000Z"
+      }
+    ];
+
+    expect(
+      lookupSwmPlanningContext({
+        entities,
+        relationships,
+        entityIds: ["swm:entity:resource", "swm:entity:private-vendor"],
+        relationshipTypes: ["owned_by"],
+        permissionScope: ["project:atlas"],
+        minimumConfidence: 0.8
+      })
+    ).toEqual({
+      source: "swm",
+      items: [
+        {
+          id: "swm-context:entity:swm:entity:resource",
+          source: "swm",
+          summary: "business_resource Resource",
+          content:
+            "Entity swm:entity:resource has type business_resource and label Resource.",
+          confidence: 0.91,
+          relevance: 1,
+          estimatedTokens: 24,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["swm:entity:resource", "evidence:docs:resource"]
+        },
+        {
+          id: "swm-context:relationship:swm:relationship:resource-owned-by-project",
+          source: "swm",
+          summary:
+            "owned_by relationship from swm:entity:resource to swm:entity:project",
+          content:
+            "Relationship swm:relationship:resource-owned-by-project links swm:entity:resource to swm:entity:project as owned_by.",
+          confidence: 0.82,
+          relevance: 0.9,
+          estimatedTokens: 32,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "swm:relationship:resource-owned-by-project",
+            "evidence:openapi:resource-schema"
+          ]
+        }
+      ],
+      droppedItemIds: ["swm:entity:private-vendor"]
     });
   });
 });

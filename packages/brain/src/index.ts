@@ -8,6 +8,7 @@ import {
   type ExperienceLookupQuery,
   type ExperienceArtifact
 } from "@atlas-aios/experience";
+import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 
 export interface PlanningContext {
   goalId: string;
@@ -197,6 +198,33 @@ export interface PlanningExperienceLookupResult {
   guidance: PlanningExperienceGuidance[];
 }
 
+export interface BrainContextItem {
+  id: string;
+  source: "swm";
+  summary: string;
+  content: string;
+  confidence: number;
+  relevance: number;
+  estimatedTokens: number;
+  permissionScope: string[];
+  sourceRefs: string[];
+}
+
+export interface SwmPlanningContextLookupInput {
+  entities: SemanticEntity[];
+  relationships: SemanticRelationship[];
+  entityIds: string[];
+  relationshipTypes: string[];
+  permissionScope: string[];
+  minimumConfidence: number;
+}
+
+export interface SwmPlanningContextLookupResult {
+  source: "swm";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
 export const THOUGHT_LIFECYCLE_MODEL: ThoughtLifecycleModel = {
   initialStatus: "draft",
   terminalStatuses: ["resolved", "discarded"],
@@ -224,6 +252,63 @@ export function lookupPlanningExperience(
         })
       }))
       .filter((guidance) => guidance.artifacts.length > 0)
+  };
+}
+
+export function lookupSwmPlanningContext(
+  input: SwmPlanningContextLookupInput
+): SwmPlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const entityItems = input.entities
+    .filter((entity) => input.entityIds.includes(entity.id))
+    .flatMap((entity): BrainContextItem[] => {
+      if (!canUseSwmItem(entity, input.permissionScope, input.minimumConfidence)) {
+        droppedItemIds.push(entity.id);
+        return [];
+      }
+
+      return [
+        {
+          id: `swm-context:entity:${entity.id}`,
+          source: "swm",
+          summary: `${entity.type} ${entity.label}`,
+          content: `Entity ${entity.id} has type ${entity.type} and label ${entity.label}.`,
+          confidence: entity.confidence,
+          relevance: 1,
+          estimatedTokens: 24,
+          permissionScope: input.permissionScope,
+          sourceRefs: [entity.id, ...entity.evidenceRefs]
+        }
+      ];
+    });
+
+  const relationshipItems = input.relationships
+    .filter((relationship) => input.relationshipTypes.includes(relationship.type))
+    .flatMap((relationship): BrainContextItem[] => {
+      if (relationship.confidence < input.minimumConfidence) {
+        droppedItemIds.push(relationship.id);
+        return [];
+      }
+
+      return [
+        {
+          id: `swm-context:relationship:${relationship.id}`,
+          source: "swm",
+          summary: `${relationship.type} relationship from ${relationship.fromEntityId} to ${relationship.toEntityId}`,
+          content: `Relationship ${relationship.id} links ${relationship.fromEntityId} to ${relationship.toEntityId} as ${relationship.type}.`,
+          confidence: relationship.confidence,
+          relevance: 0.9,
+          estimatedTokens: 32,
+          permissionScope: input.permissionScope,
+          sourceRefs: [relationship.id, ...relationship.evidenceRefs]
+        }
+      ];
+    });
+
+  return {
+    source: "swm",
+    items: [...entityItems, ...relationshipItems],
+    droppedItemIds
   };
 }
 
@@ -355,4 +440,23 @@ function createPlanningExperienceQuery(
       ? {}
       : { minimumConfidence: input.minimumConfidence })
   };
+}
+
+function canUseSwmItem(
+  entity: SemanticEntity,
+  permissionScope: string[],
+  minimumConfidence: number
+): boolean {
+  if (entity.confidence < minimumConfidence) {
+    return false;
+  }
+
+  const itemPermissionScope = entity.attributes["permissionScope"];
+  if (!Array.isArray(itemPermissionScope)) {
+    return true;
+  }
+
+  return itemPermissionScope.every(
+    (scope) => typeof scope === "string" && permissionScope.includes(scope)
+  );
 }
