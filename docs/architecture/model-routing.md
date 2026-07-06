@@ -52,3 +52,17 @@ The model router is a governance surface. Future changes that broaden remote eli
 - `callNvidiaNimChatCompletion` executes through an injected fetcher.
 
 The injected fetcher keeps tests offline and allows runtime services to enforce their own retry, timeout, quota, audit, and secret-loading policies. Runtime services must source `NVIDIA_API_KEY` from the configured secret provider, never from code.
+
+## Brain Integration
+
+The Brain package exposes `selectPlanningModel` as its model-selection boundary. Brain callers provide task class, difficulty, privacy class, and remote-endpoint permissions; the helper returns a routing decision without exposing NVIDIA-specific implementation details to planning code.
+
+This keeps Brain planning model-aware but provider-agnostic:
+
+```text
+Brain planning request
+-> selectPlanningModel
+-> core model router
+-> local or remote lane decision
+-> Brain execution path calls the selected model provider
+```

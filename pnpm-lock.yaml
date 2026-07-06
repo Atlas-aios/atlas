@@ -33,6 +33,9 @@ importers:
 
   packages/brain:
     dependencies:
+      "@atlas-aios/core":
+        specifier: workspace:*
+        version: link:../core
       "@atlas-aios/experience":
         specifier: workspace:*
         version: link:../experience

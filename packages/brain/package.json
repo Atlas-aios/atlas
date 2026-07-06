@@ -12,6 +12,7 @@
     }
   },
   "dependencies": {
+    "@atlas-aios/core": "workspace:*",
     "@atlas-aios/experience": "workspace:*"
   }
 }

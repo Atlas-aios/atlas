@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
-import { lookupPlanningExperience } from "./index.js";
+import { lookupPlanningExperience, selectPlanningModel } from "./index.js";
 
 describe("lookupPlanningExperience", () => {
   it("returns planning-relevant Experience for requested capabilities", () => {
@@ -39,6 +39,38 @@ describe("lookupPlanningExperience", () => {
           artifacts: [artifacts[0]]
         }
       ]
+    });
+  });
+});
+
+describe("selectPlanningModel", () => {
+  it("selects the remote deep reasoning lane for difficult internal architecture planning", () => {
+    expect(
+      selectPlanningModel({
+        taskClass: "architecture",
+        difficulty: "high",
+        privacyClass: "internal",
+        allowRemoteModels: true,
+        allowFreeHostedEndpoints: true
+      })
+    ).toMatchObject({
+      selectedProfileId: "nvidia-nemotron-super-remote",
+      lane: "remote-deep-reasoning"
+    });
+  });
+
+  it("keeps private planning on the local lane even when the task is critical", () => {
+    expect(
+      selectPlanningModel({
+        taskClass: "governance-review",
+        difficulty: "critical",
+        privacyClass: "private",
+        allowRemoteModels: true,
+        allowFreeHostedEndpoints: true
+      })
+    ).toMatchObject({
+      selectedProfileId: "qwen-local-default",
+      lane: "local-default"
     });
   });
 });

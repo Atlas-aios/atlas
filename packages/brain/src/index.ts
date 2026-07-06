@@ -1,4 +1,9 @@
 import {
+  routeModelRequest,
+  type ModelRoutingDecision,
+  type ModelRoutingRequest
+} from "@atlas-aios/core";
+import {
   lookupExperienceArtifacts,
   type ExperienceLookupQuery,
   type ExperienceArtifact
@@ -29,6 +34,9 @@ export interface AtlasPlan {
 export interface BrainEngine {
   plan(context: PlanningContext): Promise<AtlasPlan>;
 }
+
+export type PlanningModelSelectionInput = ModelRoutingRequest;
+export type PlanningModelSelection = ModelRoutingDecision;
 
 export interface PlanningExperienceLookupInput {
   artifacts: ExperienceArtifact[];
@@ -62,6 +70,12 @@ export function lookupPlanningExperience(
       }))
       .filter((guidance) => guidance.artifacts.length > 0)
   };
+}
+
+export function selectPlanningModel(
+  input: PlanningModelSelectionInput
+): PlanningModelSelection {
+  return routeModelRequest(input);
 }
 
 function createPlanningExperienceQuery(

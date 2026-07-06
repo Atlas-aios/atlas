@@ -91,7 +91,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 3. Brain Engines
 
-- [ ] Define Brain Engine interface.
+- [x] Define Brain Engine interface.
 - [ ] Define Atlas compiler interface from natural language to ACR drafts.
 - [ ] Define AtlasFlow compiler interface from ACR goals to workflow graphs.
 - [ ] Define AtlasIR compiler interface from AtlasFlow to executable IR.
