@@ -38,6 +38,23 @@ export interface BrainEngine {
 export type PlanningModelSelectionInput = ModelRoutingRequest;
 export type PlanningModelSelection = ModelRoutingDecision;
 
+export interface PlanExplanationInput {
+  plan: AtlasPlan;
+  modelSelection: PlanningModelSelection;
+}
+
+export interface PlanExplanation {
+  planId: string;
+  goalId: string;
+  summary: string;
+  rationale: string;
+  riskSummary: string[];
+  approvalStepIds: string[];
+  modelLane: PlanningModelSelection["lane"];
+  modelProfileId: string;
+  guardrails: string[];
+}
+
 export interface PlanningExperienceLookupInput {
   artifacts: ExperienceArtifact[];
   goalId: string;
@@ -76,6 +93,24 @@ export function selectPlanningModel(
   input: PlanningModelSelectionInput
 ): PlanningModelSelection {
   return routeModelRequest(input);
+}
+
+export function explainPlan(input: PlanExplanationInput): PlanExplanation {
+  const approvalStepIds = input.plan.steps
+    .filter((step) => step.requiresApproval)
+    .map((step) => step.id);
+
+  return {
+    planId: input.plan.id,
+    goalId: input.plan.goalId,
+    summary: `Plan ${input.plan.id} for goal ${input.plan.goalId} has ${input.plan.steps.length} steps and ${approvalStepIds.length} approval gate${approvalStepIds.length === 1 ? "" : "s"}.`,
+    rationale: input.plan.rationale,
+    riskSummary: input.plan.risks,
+    approvalStepIds,
+    modelLane: input.modelSelection.lane,
+    modelProfileId: input.modelSelection.selectedProfileId,
+    guardrails: input.modelSelection.guardrails
+  };
 }
 
 function createPlanningExperienceQuery(

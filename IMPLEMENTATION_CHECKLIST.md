@@ -110,7 +110,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Add Identity lookup.
 - [ ] Add Capability Graph lookup.
 - [ ] Add Governance constraint lookup.
-- [ ] Implement plan explanation output.
+- [x] Implement plan explanation output.
 - [ ] Implement clarification-needed output.
 - [ ] Implement approval-needed output.
 - [x] Add tests for planning context assembly.

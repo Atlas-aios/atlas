@@ -61,6 +61,8 @@ It receives intent and action proposals, then returns one of: approve, approve w
 
 Brain Engines decide how Atlas reasons about a goal. They do not execute provider calls directly. They produce plans, explanations, clarification requests, and approval requests.
 
+Plan explanations are structured outputs, not free-form prose only. The Brain explanation boundary includes the plan id, goal id, rationale, risk summary, approval-gated step ids, selected model lane, model profile id, and active guardrails. UI and API layers can render that structure for humans without losing machine-readable governance context.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.
