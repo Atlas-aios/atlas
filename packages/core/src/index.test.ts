@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACR_SOURCE_OF_TRUTH_MODEL,
+  LOCAL_POSTGRES_DEVELOPMENT_SETUP,
   POSTGRES_MIGRATION_STRATEGY,
   PILLAR_BOUNDARIES,
   POSTGRES_SCHEMA_BASELINE,
@@ -183,6 +184,23 @@ describe("PostgreSQL migration strategy", () => {
         "Applied migration history is append-only and is never rewritten."
       ])
     );
+  });
+});
+
+describe("local PostgreSQL development setup", () => {
+  it("defines docker compose and package scripts for a reproducible database", () => {
+    expect(LOCAL_POSTGRES_DEVELOPMENT_SETUP).toEqual({
+      composeFile: "infra/docker/docker-compose.db.yml",
+      serviceName: "postgres",
+      databaseUrl: "postgresql://atlas:atlas@localhost:5432/atlas",
+      migrationMount: "/migrations:ro",
+      scripts: {
+        up: "db:up",
+        down: "db:down",
+        migrate: "db:migrate:local",
+        psql: "db:psql"
+      }
+    });
   });
 });
 

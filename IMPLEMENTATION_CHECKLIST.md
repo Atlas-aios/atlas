@@ -84,7 +84,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define Experience artifact schema.
 - [ ] Define Self Model schema.
 - [x] Define Identity resolution schema.
-- [ ] Add local development database setup.
+- [x] Add local development database setup.
 - [ ] Add seed data for synthetic unknown business system.
 
 ---

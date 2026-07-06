@@ -41,6 +41,19 @@ export interface PostgresMigrationStrategy {
   invariants: string[];
 }
 
+export interface LocalPostgresDevelopmentSetup {
+  composeFile: "infra/docker/docker-compose.db.yml";
+  serviceName: "postgres";
+  databaseUrl: "postgresql://atlas:atlas@localhost:5432/atlas";
+  migrationMount: "/migrations:ro";
+  scripts: {
+    up: "db:up";
+    down: "db:down";
+    migrate: "db:migrate:local";
+    psql: "db:psql";
+  };
+}
+
 export const POSTGRES_SCHEMA_BASELINE: PostgresSchemaBaseline = {
   schemaName: "atlas_core",
   version: "001",
@@ -101,6 +114,19 @@ export const POSTGRES_SCHEMA_BASELINE: PostgresSchemaBaseline = {
     "Projection tables are rebuildable and never authoritative.",
     "Raw evidence and large payloads are stored outside PostgreSQL by reference."
   ]
+};
+
+export const LOCAL_POSTGRES_DEVELOPMENT_SETUP: LocalPostgresDevelopmentSetup = {
+  composeFile: "infra/docker/docker-compose.db.yml",
+  serviceName: "postgres",
+  databaseUrl: "postgresql://atlas:atlas@localhost:5432/atlas",
+  migrationMount: "/migrations:ro",
+  scripts: {
+    up: "db:up",
+    down: "db:down",
+    migrate: "db:migrate:local",
+    psql: "db:psql"
+  }
 };
 
 export const POSTGRES_MIGRATION_STRATEGY: PostgresMigrationStrategy = {

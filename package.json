@@ -7,6 +7,10 @@
   "scripts": {
     "build": "tsc -b tsconfig.packages.json",
     "check": "prettier --check . && eslint . && tsc -b tsconfig.packages.json --pretty false && vitest run && tsc -b tsconfig.packages.json",
+    "db:down": "docker compose -f infra/docker/docker-compose.db.yml down",
+    "db:migrate:local": "docker compose -f infra/docker/docker-compose.db.yml exec -T postgres psql -U atlas -d atlas -f /migrations/001_atlas_core.sql",
+    "db:psql": "docker compose -f infra/docker/docker-compose.db.yml exec postgres psql -U atlas -d atlas",
+    "db:up": "docker compose -f infra/docker/docker-compose.db.yml up -d postgres",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

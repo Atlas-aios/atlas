@@ -93,4 +93,5 @@ Research finding
 - [Execution Gate](docs/architecture/execution-gate.md)
 - [MVP Roadmap](docs/roadmap/mvp.md)
 - [Foundation Implementation Notes](docs/implementation/foundation.md)
+- [Local Database](docs/implementation/local-database.md)
 - [Pillar Implementation And Model Strategy Research](docs/research/pillar-implementation-and-model-strategy.md)
