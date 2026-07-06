@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
+import type { WorldStateSnapshot } from "@atlas-aios/world-state";
 import {
   THOUGHT_LIFECYCLE_MODEL,
   createApprovalNeededOutput,
@@ -9,6 +10,7 @@ import {
   createThought,
   explainPlan,
   lookupSwmPlanningContext,
+  lookupWorldStatePlanningContext,
   lookupPlanningExperience,
   scheduleThought,
   selectPlanningModel
@@ -421,6 +423,69 @@ describe("lookupSwmPlanningContext", () => {
         }
       ],
       droppedItemIds: ["swm:entity:private-vendor"]
+    });
+  });
+});
+
+describe("lookupWorldStatePlanningContext", () => {
+  it("returns active state and relevant blockers as Brain context items", () => {
+    const snapshot: WorldStateSnapshot = {
+      id: "world:snapshot:now",
+      capturedAt: "2026-07-06T09:10:00.000Z",
+      activeGoalIds: ["goal:unknown-system", "goal:other"],
+      activeExecutionIds: ["execution:create-resource"],
+      blockers: [
+        {
+          id: "blocker:approval",
+          summary: "Create Resource requires approval before external write.",
+          severity: "high",
+          ownerId: "identity:user"
+        },
+        {
+          id: "blocker:minor-note",
+          summary: "Optional docs cleanup is pending.",
+          severity: "low"
+        }
+      ]
+    };
+
+    expect(
+      lookupWorldStatePlanningContext({
+        snapshot,
+        goalIds: ["goal:unknown-system"],
+        minimumBlockerSeverity: "medium",
+        permissionScope: ["project:atlas"]
+      })
+    ).toEqual({
+      source: "world-state",
+      items: [
+        {
+          id: "world-state-context:snapshot:world:snapshot:now",
+          source: "world-state",
+          summary: "World State snapshot world:snapshot:now",
+          content:
+            "Snapshot world:snapshot:now has 2 active goals and 1 active executions.",
+          confidence: 1,
+          relevance: 1,
+          estimatedTokens: 28,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["world:snapshot:now"]
+        },
+        {
+          id: "world-state-context:blocker:blocker:approval",
+          source: "world-state",
+          summary:
+            "high blocker: Create Resource requires approval before external write.",
+          content:
+            "Blocker blocker:approval has severity high and owner identity:user.",
+          confidence: 1,
+          relevance: 0.95,
+          estimatedTokens: 24,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["world:snapshot:now", "blocker:approval"]
+        }
+      ],
+      droppedItemIds: ["blocker:minor-note"]
     });
   });
 });

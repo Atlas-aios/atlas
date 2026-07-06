@@ -103,7 +103,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define optional remote deep reasoning model lane.
 - [x] Add NVIDIA NIM remote reasoning client contract.
 - [x] Add SWM context lookup.
-- [ ] Add World State lookup.
+- [x] Add World State lookup.
 - [ ] Add Memory lookup.
 - [ ] Add Experience lookup.
 - [ ] Add Self Model lookup.

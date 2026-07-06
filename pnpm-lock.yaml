@@ -42,6 +42,9 @@ importers:
       "@atlas-aios/swm":
         specifier: workspace:*
         version: link:../swm
+      "@atlas-aios/world-state":
+        specifier: workspace:*
+        version: link:../world-state
 
   packages/capability-graph: {}
 

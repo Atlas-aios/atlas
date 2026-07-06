@@ -9,6 +9,7 @@ import {
   type ExperienceArtifact
 } from "@atlas-aios/experience";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
+import type { OperationalBlocker, WorldStateSnapshot } from "@atlas-aios/world-state";
 
 export interface PlanningContext {
   goalId: string;
@@ -200,7 +201,7 @@ export interface PlanningExperienceLookupResult {
 
 export interface BrainContextItem {
   id: string;
-  source: "swm";
+  source: "swm" | "world-state";
   summary: string;
   content: string;
   confidence: number;
@@ -221,6 +222,21 @@ export interface SwmPlanningContextLookupInput {
 
 export interface SwmPlanningContextLookupResult {
   source: "swm";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
+export type BlockerSeverity = OperationalBlocker["severity"];
+
+export interface WorldStatePlanningContextLookupInput {
+  snapshot: WorldStateSnapshot;
+  goalIds: string[];
+  minimumBlockerSeverity: BlockerSeverity;
+  permissionScope: string[];
+}
+
+export interface WorldStatePlanningContextLookupResult {
+  source: "world-state";
   items: BrainContextItem[];
   droppedItemIds: string[];
 }
@@ -308,6 +324,52 @@ export function lookupSwmPlanningContext(
   return {
     source: "swm",
     items: [...entityItems, ...relationshipItems],
+    droppedItemIds
+  };
+}
+
+export function lookupWorldStatePlanningContext(
+  input: WorldStatePlanningContextLookupInput
+): WorldStatePlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const snapshotItem: BrainContextItem = {
+    id: `world-state-context:snapshot:${input.snapshot.id}`,
+    source: "world-state",
+    summary: `World State snapshot ${input.snapshot.id}`,
+    content: `Snapshot ${input.snapshot.id} has ${input.snapshot.activeGoalIds.length} active goals and ${input.snapshot.activeExecutionIds.length} active executions.`,
+    confidence: 1,
+    relevance: hasAnyActiveGoal(input.snapshot, input.goalIds) ? 1 : 0.75,
+    estimatedTokens: 28,
+    permissionScope: input.permissionScope,
+    sourceRefs: [input.snapshot.id]
+  };
+
+  const blockerItems = input.snapshot.blockers.flatMap(
+    (blocker): BrainContextItem[] => {
+      if (!meetsMinimumSeverity(blocker.severity, input.minimumBlockerSeverity)) {
+        droppedItemIds.push(blocker.id);
+        return [];
+      }
+
+      return [
+        {
+          id: `world-state-context:blocker:${blocker.id}`,
+          source: "world-state",
+          summary: `${blocker.severity} blocker: ${blocker.summary}`,
+          content: `Blocker ${blocker.id} has severity ${blocker.severity} and owner ${blocker.ownerId ?? "unassigned"}.`,
+          confidence: 1,
+          relevance: 0.95,
+          estimatedTokens: 24,
+          permissionScope: input.permissionScope,
+          sourceRefs: [input.snapshot.id, blocker.id]
+        }
+      ];
+    }
+  );
+
+  return {
+    source: "world-state",
+    items: [snapshotItem, ...blockerItems],
     droppedItemIds
   };
 }
@@ -459,4 +521,22 @@ function canUseSwmItem(
   return itemPermissionScope.every(
     (scope) => typeof scope === "string" && permissionScope.includes(scope)
   );
+}
+
+function hasAnyActiveGoal(snapshot: WorldStateSnapshot, goalIds: string[]): boolean {
+  return goalIds.some((goalId) => snapshot.activeGoalIds.includes(goalId));
+}
+
+function meetsMinimumSeverity(
+  actual: BlockerSeverity,
+  minimum: BlockerSeverity
+): boolean {
+  const order: Record<BlockerSeverity, number> = {
+    low: 0,
+    medium: 1,
+    high: 2,
+    critical: 3
+  };
+
+  return order[actual] >= order[minimum];
 }

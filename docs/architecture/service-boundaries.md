@@ -71,6 +71,8 @@ Thought scheduling is a deterministic hook, not a model call. The scheduler move
 
 Brain reads SWM through a context lookup adapter. The adapter converts permissioned, confidence-filtered SWM entities and relationships into bounded Brain context items with source references. Brain does not mutate SWM storage; it consumes SWM context for planning and records dropped item ids when evidence is too low-confidence or outside permission scope.
 
+Brain reads World State through a separate context lookup adapter. The adapter summarizes the current snapshot, active goals, active executions, and severity-filtered blockers into bounded planning context. Low-severity blockers can be dropped for a given planning pass while still being reported as dropped ids for auditability.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.
