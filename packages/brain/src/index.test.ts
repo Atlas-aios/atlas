@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
 import type { MemoryEvent } from "@atlas-aios/memory";
+import type { SelfModelSnapshot } from "@atlas-aios/self-model";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 import type { WorldStateSnapshot } from "@atlas-aios/world-state";
 import {
@@ -11,6 +12,7 @@ import {
   createThought,
   explainPlan,
   lookupMemoryPlanningContext,
+  lookupSelfModelPlanningContext,
   lookupSwmPlanningContext,
   lookupWorldStatePlanningContext,
   lookupPlanningExperience,
@@ -539,6 +541,72 @@ describe("lookupMemoryPlanningContext", () => {
         }
       ],
       droppedItemIds: ["memory:event:meeting:unrelated"]
+    });
+  });
+});
+
+describe("lookupSelfModelPlanningContext", () => {
+  it("returns capability confidence, limitations, and authority as Brain context", () => {
+    const snapshot: SelfModelSnapshot = {
+      id: "self-model:snapshot:now",
+      generatedAt: "2026-07-06T09:30:00.000Z",
+      grantedAuthority: ["simulate", "read_docs", "execute_reversible"],
+      capabilityConfidence: [
+        {
+          capabilityId: "capability:create-resource",
+          providerId: "provider:generated-openapi",
+          confidence: 0.78,
+          knownLimitations: ["Field mapping has not been production-validated."]
+        },
+        {
+          capabilityId: "capability:delete-resource",
+          providerId: "provider:generated-openapi",
+          confidence: 0.42,
+          knownLimitations: ["Destructive actions require human approval."]
+        }
+      ]
+    };
+
+    expect(
+      lookupSelfModelPlanningContext({
+        snapshot,
+        capabilityIds: ["capability:create-resource", "capability:delete-resource"],
+        minimumConfidence: 0.6,
+        permissionScope: ["project:atlas"]
+      })
+    ).toEqual({
+      source: "self-model",
+      items: [
+        {
+          id: "self-model-context:authority:self-model:snapshot:now",
+          source: "self-model",
+          summary: "Self Model authority snapshot self-model:snapshot:now",
+          content: "Granted authority: simulate, read_docs, execute_reversible.",
+          confidence: 1,
+          relevance: 0.9,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["self-model:snapshot:now"]
+        },
+        {
+          id: "self-model-context:capability:capability:create-resource:provider:generated-openapi",
+          source: "self-model",
+          summary:
+            "Self confidence 0.78 for capability:create-resource via provider:generated-openapi",
+          content:
+            "Known limitations: Field mapping has not been production-validated.",
+          confidence: 0.78,
+          relevance: 1,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "self-model:snapshot:now",
+            "capability:create-resource",
+            "provider:generated-openapi"
+          ]
+        }
+      ],
+      droppedItemIds: ["capability:delete-resource:provider:generated-openapi"]
     });
   });
 });

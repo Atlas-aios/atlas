@@ -9,6 +9,7 @@ import {
   type ExperienceArtifact
 } from "@atlas-aios/experience";
 import type { MemoryEvent, MemoryEventKind } from "@atlas-aios/memory";
+import type { SelfModelSnapshot } from "@atlas-aios/self-model";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 import type { OperationalBlocker, WorldStateSnapshot } from "@atlas-aios/world-state";
 
@@ -202,7 +203,7 @@ export interface PlanningExperienceLookupResult {
 
 export interface BrainContextItem {
   id: string;
-  source: "swm" | "world-state" | "memory";
+  source: "swm" | "world-state" | "memory" | "self-model";
   summary: string;
   content: string;
   confidence: number;
@@ -252,6 +253,19 @@ export interface MemoryPlanningContextLookupInput {
 
 export interface MemoryPlanningContextLookupResult {
   source: "memory";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
+export interface SelfModelPlanningContextLookupInput {
+  snapshot: SelfModelSnapshot;
+  capabilityIds: string[];
+  minimumConfidence: number;
+  permissionScope: string[];
+}
+
+export interface SelfModelPlanningContextLookupResult {
+  source: "self-model";
   items: BrainContextItem[];
   droppedItemIds: string[];
 }
@@ -435,6 +449,62 @@ export function lookupMemoryPlanningContext(
   };
 }
 
+export function lookupSelfModelPlanningContext(
+  input: SelfModelPlanningContextLookupInput
+): SelfModelPlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const authorityItem: BrainContextItem = {
+    id: `self-model-context:authority:${input.snapshot.id}`,
+    source: "self-model",
+    summary: `Self Model authority snapshot ${input.snapshot.id}`,
+    content: `Granted authority: ${input.snapshot.grantedAuthority.join(", ")}.`,
+    confidence: 1,
+    relevance: 0.9,
+    estimatedTokens: estimateContextTokens(input.snapshot.grantedAuthority.join(" ")),
+    permissionScope: input.permissionScope,
+    sourceRefs: [input.snapshot.id]
+  };
+
+  const capabilityItems = input.snapshot.capabilityConfidence.flatMap(
+    (capability): BrainContextItem[] => {
+      const capabilityRef = `${capability.capabilityId}:${capability.providerId}`;
+      if (!input.capabilityIds.includes(capability.capabilityId)) {
+        droppedItemIds.push(capabilityRef);
+        return [];
+      }
+
+      if (capability.confidence < input.minimumConfidence) {
+        droppedItemIds.push(capabilityRef);
+        return [];
+      }
+
+      return [
+        {
+          id: `self-model-context:capability:${capability.capabilityId}:${capability.providerId}`,
+          source: "self-model",
+          summary: `Self confidence ${capability.confidence} for ${capability.capabilityId} via ${capability.providerId}`,
+          content: `Known limitations: ${formatSentenceList(capability.knownLimitations)}`,
+          confidence: capability.confidence,
+          relevance: 1,
+          estimatedTokens: estimateContextTokens(capability.knownLimitations.join(" ")),
+          permissionScope: input.permissionScope,
+          sourceRefs: [
+            input.snapshot.id,
+            capability.capabilityId,
+            capability.providerId
+          ]
+        }
+      ];
+    }
+  );
+
+  return {
+    source: "self-model",
+    items: [authorityItem, ...capabilityItems],
+    droppedItemIds
+  };
+}
+
 export function selectPlanningModel(
   input: PlanningModelSelectionInput
 ): PlanningModelSelection {
@@ -604,4 +674,9 @@ function meetsMinimumSeverity(
 
 function estimateContextTokens(content: string): number {
   return Math.max(12, Math.ceil(content.trim().split(/\s+/).length * 1.5));
+}
+
+function formatSentenceList(items: string[]): string {
+  const content = items.join("; ").trim();
+  return content.endsWith(".") ? content : `${content}.`;
 }

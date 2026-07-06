@@ -106,7 +106,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Add World State lookup.
 - [x] Add Memory lookup.
 - [ ] Add Experience lookup.
-- [ ] Add Self Model lookup.
+- [x] Add Self Model lookup.
 - [ ] Add Identity lookup.
 - [ ] Add Capability Graph lookup.
 - [ ] Add Governance constraint lookup.
