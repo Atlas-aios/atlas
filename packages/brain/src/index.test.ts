@@ -8,6 +8,7 @@ import {
   createThought,
   explainPlan,
   lookupPlanningExperience,
+  scheduleThought,
   selectPlanningModel
 } from "./index.js";
 
@@ -246,6 +247,95 @@ describe("Brain structured outputs", () => {
       blocking: true,
       modelLane: "remote-deep-reasoning",
       modelProfileId: "nvidia-nemotron-super-remote"
+    });
+  });
+});
+
+describe("scheduleThought", () => {
+  const readyThought = {
+    id: "thought:plan-risk",
+    goalId: "goal:unknown-system",
+    kind: "hypothesis" as const,
+    status: "ready" as const,
+    summary: "Browser fallback may require human approval.",
+    createdAt: "2026-07-06T08:30:00.000Z",
+    sourceRefs: ["plan:create-resource"],
+    modelLane: "local-default" as const,
+    modelProfileId: "qwen-local-default"
+  };
+
+  it("schedules a ready Thought and emits a scheduling event", () => {
+    expect(
+      scheduleThought({
+        thought: readyThought,
+        eventId: "event:thought-scheduled",
+        occurredAt: "2026-07-06T08:31:00.000Z",
+        blockerRefs: []
+      })
+    ).toEqual({
+      ok: true,
+      thought: {
+        ...readyThought,
+        status: "scheduled"
+      },
+      event: {
+        id: "event:thought-scheduled",
+        type: "thought.scheduled",
+        thoughtId: "thought:plan-risk",
+        goalId: "goal:unknown-system",
+        fromStatus: "ready",
+        toStatus: "scheduled",
+        occurredAt: "2026-07-06T08:31:00.000Z",
+        blockerRefs: []
+      }
+    });
+  });
+
+  it("blocks a ready Thought when scheduler blockers are present", () => {
+    expect(
+      scheduleThought({
+        thought: readyThought,
+        eventId: "event:thought-blocked",
+        occurredAt: "2026-07-06T08:32:00.000Z",
+        blockerRefs: ["clarification:target-resource"]
+      })
+    ).toEqual({
+      ok: true,
+      thought: {
+        ...readyThought,
+        status: "blocked"
+      },
+      event: {
+        id: "event:thought-blocked",
+        type: "thought.blocked",
+        thoughtId: "thought:plan-risk",
+        goalId: "goal:unknown-system",
+        fromStatus: "ready",
+        toStatus: "blocked",
+        occurredAt: "2026-07-06T08:32:00.000Z",
+        blockerRefs: ["clarification:target-resource"]
+      }
+    });
+  });
+
+  it("rejects scheduling from terminal Thought states", () => {
+    expect(
+      scheduleThought({
+        thought: {
+          ...readyThought,
+          status: "resolved"
+        },
+        eventId: "event:invalid",
+        occurredAt: "2026-07-06T08:33:00.000Z",
+        blockerRefs: []
+      })
+    ).toEqual({
+      ok: false,
+      error: {
+        code: "thought.transition.invalid",
+        message:
+          "Cannot transition thought thought:plan-risk from resolved to scheduled."
+      }
     });
   });
 });

@@ -81,6 +81,38 @@ export interface Thought {
   modelProfileId: string;
 }
 
+export interface ThoughtSchedulingEvent {
+  id: string;
+  type: "thought.scheduled" | "thought.blocked";
+  thoughtId: string;
+  goalId: string;
+  fromStatus: ThoughtStatus;
+  toStatus: "scheduled" | "blocked";
+  occurredAt: string;
+  blockerRefs: string[];
+}
+
+export interface ScheduleThoughtInput {
+  thought: Thought;
+  eventId: string;
+  occurredAt: string;
+  blockerRefs: string[];
+}
+
+export type ThoughtSchedulingResult =
+  | {
+      ok: true;
+      thought: Thought;
+      event: ThoughtSchedulingEvent;
+    }
+  | {
+      ok: false;
+      error: {
+        code: "thought.transition.invalid";
+        message: string;
+      };
+    };
+
 export interface PlanExplanationInput {
   plan: AtlasPlan;
   modelSelection: PlanningModelSelection;
@@ -230,6 +262,43 @@ export function createThought(input: CreateThoughtInput): Thought {
     sourceRefs: input.sourceRefs,
     modelLane: input.modelSelection.lane,
     modelProfileId: input.modelSelection.selectedProfileId
+  };
+}
+
+export function scheduleThought(input: ScheduleThoughtInput): ThoughtSchedulingResult {
+  const toStatus: "scheduled" | "blocked" =
+    input.blockerRefs.length > 0 ? "blocked" : "scheduled";
+  const allowed =
+    THOUGHT_LIFECYCLE_MODEL.allowedTransitions[input.thought.status].includes(toStatus);
+
+  if (!allowed) {
+    return {
+      ok: false,
+      error: {
+        code: "thought.transition.invalid",
+        message: `Cannot transition thought ${input.thought.id} from ${input.thought.status} to ${toStatus}.`
+      }
+    };
+  }
+
+  const thought = {
+    ...input.thought,
+    status: toStatus
+  };
+
+  return {
+    ok: true,
+    thought,
+    event: {
+      id: input.eventId,
+      type: toStatus === "blocked" ? "thought.blocked" : "thought.scheduled",
+      thoughtId: input.thought.id,
+      goalId: input.thought.goalId,
+      fromStatus: input.thought.status,
+      toStatus,
+      occurredAt: input.occurredAt,
+      blockerRefs: input.blockerRefs
+    }
   };
 }
 

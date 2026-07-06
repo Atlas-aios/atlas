@@ -97,7 +97,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define AtlasIR compiler interface from AtlasFlow to executable IR.
 - [x] Define Thought lifecycle model.
 - [x] Implement Thought creation.
-- [ ] Implement Thought scheduling hooks.
+- [x] Implement Thought scheduling hooks.
 - [x] Implement planning context builder.
 - [x] Define retrieval adapter contract for context lookups.
 - [x] Define optional remote deep reasoning model lane.

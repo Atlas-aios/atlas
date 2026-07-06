@@ -67,6 +67,8 @@ Brain Thought objects begin as `draft` and move through explicit lifecycle state
 
 Clarification and approval outputs are blocking structured outputs. A clarification output records the exact question, reason, required planning decision, choices, evidence references, and model metadata. An approval output records the plan, gated steps, reason, risks, constraints, and model metadata. These outputs are intended to feed AGOE waiting states, approval inboxes, and Memory records without scraping prose.
 
+Thought scheduling is a deterministic hook, not a model call. The scheduler moves `ready` thoughts to `scheduled` when no blockers exist, moves them to `blocked` when blocker references are present, and rejects invalid lifecycle transitions with a typed error. Scheduling emits machine-readable `thought.scheduled` or `thought.blocked` events for later Memory, AGOE, and Cognitive Loop integration.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.
