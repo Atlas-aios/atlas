@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ExperienceArtifact } from "@atlas-aios/experience";
+import type { IdentityResolution, IdentitySubject } from "@atlas-aios/identity";
 import type { MemoryEvent } from "@atlas-aios/memory";
 import type { SelfModelSnapshot } from "@atlas-aios/self-model";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
@@ -11,6 +12,7 @@ import {
   createClarificationNeededOutput,
   createThought,
   explainPlan,
+  lookupIdentityPlanningContext,
   lookupMemoryPlanningContext,
   lookupSelfModelPlanningContext,
   lookupSwmPlanningContext,
@@ -607,6 +609,87 @@ describe("lookupSelfModelPlanningContext", () => {
         }
       ],
       droppedItemIds: ["capability:delete-resource:provider:generated-openapi"]
+    });
+  });
+});
+
+describe("lookupIdentityPlanningContext", () => {
+  it("returns confidence-filtered identity subjects and external resolutions", () => {
+    const subjects: IdentitySubject[] = [
+      {
+        id: "identity:user:moksh",
+        schemaVersion: "0.1",
+        kind: "human",
+        displayName: "Moksh",
+        confidence: 0.99,
+        aliases: ["Apophis WillTakeOver"],
+        evidenceRefs: ["workspace:notion:user"]
+      },
+      {
+        id: "identity:provider:uncertain",
+        schemaVersion: "0.1",
+        kind: "provider",
+        displayName: "Uncertain Provider",
+        confidence: 0.41,
+        aliases: [],
+        evidenceRefs: ["evidence:weak"]
+      }
+    ];
+    const resolutions: IdentityResolution[] = [
+      {
+        id: "identity-resolution:github:moksh",
+        schemaVersion: "0.1",
+        subjectId: "identity:user:moksh",
+        externalSystem: "github",
+        externalId: "Atlas-aios",
+        confidence: 0.91,
+        resolvedAt: "2026-07-06T09:40:00.000Z",
+        evidenceRefs: ["github:org:Atlas-aios"]
+      }
+    ];
+
+    expect(
+      lookupIdentityPlanningContext({
+        subjects,
+        resolutions,
+        subjectIds: ["identity:user:moksh", "identity:provider:uncertain"],
+        externalSystems: ["github"],
+        minimumConfidence: 0.8,
+        permissionScope: ["project:atlas"]
+      })
+    ).toEqual({
+      source: "identity",
+      items: [
+        {
+          id: "identity-context:subject:identity:user:moksh",
+          source: "identity",
+          summary: "human identity Moksh",
+          content:
+            "Identity identity:user:moksh is a human named Moksh with aliases Apophis WillTakeOver.",
+          confidence: 0.99,
+          relevance: 1,
+          estimatedTokens: 17,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["identity:user:moksh", "workspace:notion:user"]
+        },
+        {
+          id: "identity-context:resolution:identity-resolution:github:moksh",
+          source: "identity",
+          summary: "github identity resolution for identity:user:moksh",
+          content:
+            "Subject identity:user:moksh resolves to github external id Atlas-aios.",
+          confidence: 0.91,
+          relevance: 0.95,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "identity-resolution:github:moksh",
+            "identity:user:moksh",
+            "github:org:Atlas-aios"
+          ]
+        }
+      ],
+      droppedItemIds: ["identity:provider:uncertain"]
     });
   });
 });

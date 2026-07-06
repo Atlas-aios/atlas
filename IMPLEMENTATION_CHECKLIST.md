@@ -107,7 +107,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Add Memory lookup.
 - [ ] Add Experience lookup.
 - [x] Add Self Model lookup.
-- [ ] Add Identity lookup.
+- [x] Add Identity lookup.
 - [ ] Add Capability Graph lookup.
 - [ ] Add Governance constraint lookup.
 - [x] Implement plan explanation output.

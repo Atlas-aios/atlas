@@ -77,6 +77,8 @@ Brain reads Memory through an episodic context lookup adapter. The adapter filte
 
 Brain reads Self Model through a capability-awareness context lookup adapter. The adapter summarizes granted authority, capability confidence, provider-specific confidence, and known limitations into planning context. Low-confidence capability records can be dropped for a planning pass while still being reported as dropped ids so Atlas can explain when it ignored its own uncertain abilities.
 
+Brain reads Identity through a confidence-filtered identity context lookup adapter. The adapter converts identity subjects and external system resolutions into bounded context for planning, preserving aliases, evidence references, and external ids. Brain uses this to reason about humans, systems, organizations, and providers without guessing identity from names alone.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.

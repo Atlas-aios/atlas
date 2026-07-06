@@ -39,6 +39,9 @@ importers:
       "@atlas-aios/experience":
         specifier: workspace:*
         version: link:../experience
+      "@atlas-aios/identity":
+        specifier: workspace:*
+        version: link:../identity
       "@atlas-aios/memory":
         specifier: workspace:*
         version: link:../memory

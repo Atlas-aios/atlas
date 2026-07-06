@@ -8,6 +8,7 @@ import {
   type ExperienceLookupQuery,
   type ExperienceArtifact
 } from "@atlas-aios/experience";
+import type { IdentityResolution, IdentitySubject } from "@atlas-aios/identity";
 import type { MemoryEvent, MemoryEventKind } from "@atlas-aios/memory";
 import type { SelfModelSnapshot } from "@atlas-aios/self-model";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
@@ -203,7 +204,7 @@ export interface PlanningExperienceLookupResult {
 
 export interface BrainContextItem {
   id: string;
-  source: "swm" | "world-state" | "memory" | "self-model";
+  source: "swm" | "world-state" | "memory" | "self-model" | "identity";
   summary: string;
   content: string;
   confidence: number;
@@ -266,6 +267,21 @@ export interface SelfModelPlanningContextLookupInput {
 
 export interface SelfModelPlanningContextLookupResult {
   source: "self-model";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
+export interface IdentityPlanningContextLookupInput {
+  subjects: IdentitySubject[];
+  resolutions: IdentityResolution[];
+  subjectIds: string[];
+  externalSystems: string[];
+  minimumConfidence: number;
+  permissionScope: string[];
+}
+
+export interface IdentityPlanningContextLookupResult {
+  source: "identity";
   items: BrainContextItem[];
   droppedItemIds: string[];
 }
@@ -505,6 +521,78 @@ export function lookupSelfModelPlanningContext(
   };
 }
 
+export function lookupIdentityPlanningContext(
+  input: IdentityPlanningContextLookupInput
+): IdentityPlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const subjectItems = input.subjects.flatMap((subject): BrainContextItem[] => {
+    if (!input.subjectIds.includes(subject.id)) {
+      droppedItemIds.push(subject.id);
+      return [];
+    }
+
+    if (subject.confidence < input.minimumConfidence) {
+      droppedItemIds.push(subject.id);
+      return [];
+    }
+
+    const content = `Identity ${subject.id} is a ${subject.kind} named ${subject.displayName} with aliases ${formatList(subject.aliases)}.`;
+    return [
+      {
+        id: `identity-context:subject:${subject.id}`,
+        source: "identity",
+        summary: `${subject.kind} identity ${subject.displayName}`,
+        content,
+        confidence: subject.confidence,
+        relevance: 1,
+        estimatedTokens: estimateContextTokens(content),
+        permissionScope: input.permissionScope,
+        sourceRefs: [subject.id, ...subject.evidenceRefs]
+      }
+    ];
+  });
+
+  const resolutionItems = input.resolutions.flatMap(
+    (resolution): BrainContextItem[] => {
+      if (!input.subjectIds.includes(resolution.subjectId)) {
+        droppedItemIds.push(resolution.id);
+        return [];
+      }
+
+      if (!input.externalSystems.includes(resolution.externalSystem)) {
+        droppedItemIds.push(resolution.id);
+        return [];
+      }
+
+      if (resolution.confidence < input.minimumConfidence) {
+        droppedItemIds.push(resolution.id);
+        return [];
+      }
+
+      const content = `Subject ${resolution.subjectId} resolves to ${resolution.externalSystem} external id ${resolution.externalId}.`;
+      return [
+        {
+          id: `identity-context:resolution:${resolution.id}`,
+          source: "identity",
+          summary: `${resolution.externalSystem} identity resolution for ${resolution.subjectId}`,
+          content,
+          confidence: resolution.confidence,
+          relevance: 0.95,
+          estimatedTokens: estimateContextTokens(content),
+          permissionScope: input.permissionScope,
+          sourceRefs: [resolution.id, resolution.subjectId, ...resolution.evidenceRefs]
+        }
+      ];
+    }
+  );
+
+  return {
+    source: "identity",
+    items: [...subjectItems, ...resolutionItems],
+    droppedItemIds
+  };
+}
+
 export function selectPlanningModel(
   input: PlanningModelSelectionInput
 ): PlanningModelSelection {
@@ -679,4 +767,8 @@ function estimateContextTokens(content: string): number {
 function formatSentenceList(items: string[]): string {
   const content = items.join("; ").trim();
   return content.endsWith(".") ? content : `${content}.`;
+}
+
+function formatList(items: string[]): string {
+  return items.length === 0 ? "none" : items.join(", ");
 }
