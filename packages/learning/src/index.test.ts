@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { learnOpenApiCapabilities } from "./index.js";
+import {
+  createUnknownBusinessSystemOpenApiFixture,
+  learnOpenApiCapabilities
+} from "./index.js";
 
 describe("learnOpenApiCapabilities", () => {
   it("builds draft graph, driver mappings, provider manifests, and Kernel candidates from OpenAPI", () => {
@@ -141,5 +144,36 @@ describe("learnOpenApiCapabilities", () => {
         requiredAction: "Simulate provider execution and require approval before use."
       }
     ]);
+  });
+
+  it("learns a synthetic unknown business system from its OpenAPI fixture", () => {
+    const fixture = createUnknownBusinessSystemOpenApiFixture();
+
+    const result = learnOpenApiCapabilities({
+      graphId: fixture.graphId,
+      generatedAt: "2026-07-16T16:10:00.000Z",
+      providerVersion: "0.1.0",
+      defaultEstimatedCost: 0.05,
+      defaultEstimatedLatencyMs: 900,
+      document: fixture.document
+    });
+
+    expect(fixture.domainModel).toEqual({
+      entities: ["folio", "settlement", "work packet"],
+      unknownTerms: ["folio", "settlement", "work packet"],
+      primaryScenario: "Create Resource"
+    });
+    expect(result.graph.nodes.map((node) => node.id)).toEqual([
+      "capability:create-folio",
+      "capability:allocate-settlement",
+      "capability:dispatch-work-packet"
+    ]);
+    expect(result.providerManifests.map((manifest) => manifest.id)).toEqual([
+      "provider:openapi:create-folio",
+      "provider:openapi:allocate-settlement",
+      "provider:openapi:dispatch-work-packet"
+    ]);
+    expect(result.providerCandidates).toHaveLength(3);
+    expect(result.reviewItems.map((item) => item.subjectType)).toContain("provider");
   });
 });

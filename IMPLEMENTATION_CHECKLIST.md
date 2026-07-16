@@ -467,16 +467,16 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 20. MVP Unknown Business System
 
-- [ ] Design synthetic domain model.
+- [x] Design synthetic domain model.
 - [ ] Implement REST API fixture.
-- [ ] Implement OpenAPI fixture.
+- [x] Implement OpenAPI fixture.
 - [ ] Implement browser UI fixture.
 - [ ] Implement authentication fixture.
 - [ ] Add sample data.
 - [ ] Add example workflows.
-- [ ] Add unknown terminology.
+- [x] Add unknown terminology.
 - [ ] Add benchmark scenario for `Create Resource`.
-- [ ] Test Atlas learns the system without handwritten app-specific code.
+- [x] Test Atlas learns the system without handwritten app-specific code.
 
 ---
 

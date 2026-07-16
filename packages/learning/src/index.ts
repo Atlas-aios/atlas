@@ -65,6 +65,18 @@ export interface LearningReviewItem {
   requiredAction: string;
 }
 
+export interface UnknownBusinessSystemDomainModel {
+  entities: string[];
+  unknownTerms: string[];
+  primaryScenario: "Create Resource";
+}
+
+export interface UnknownBusinessSystemOpenApiFixture {
+  graphId: string;
+  domainModel: UnknownBusinessSystemDomainModel;
+  document: OpenApiDocument;
+}
+
 export function learnOpenApiCapabilities(
   input: LearnOpenApiCapabilitiesInput
 ): LearnOpenApiCapabilitiesResult {
@@ -98,6 +110,47 @@ export function learnOpenApiCapabilities(
     providerCandidates,
     confidenceAssessments,
     reviewItems: confidenceAssessments.flatMap(reviewItemForAssessment)
+  };
+}
+
+export function createUnknownBusinessSystemOpenApiFixture(): UnknownBusinessSystemOpenApiFixture {
+  return {
+    graphId: "capability-graph:unknown-business-system",
+    domainModel: {
+      entities: ["folio", "settlement", "work packet"],
+      unknownTerms: ["folio", "settlement", "work packet"],
+      primaryScenario: "Create Resource"
+    },
+    document: {
+      openapi: "3.1.0",
+      info: {
+        title: "Unknown Business System API",
+        version: "0.1.0"
+      },
+      paths: {
+        "/folios": {
+          post: {
+            operationId: "createFolio",
+            summary: "Create folio",
+            description: "Creates a folio resource in the unknown business system."
+          }
+        },
+        "/settlements/allocate": {
+          post: {
+            operationId: "allocateSettlement",
+            summary: "Allocate settlement",
+            description: "Allocates a settlement against a folio or work packet."
+          }
+        },
+        "/work-packets/dispatch": {
+          post: {
+            operationId: "dispatchWorkPacket",
+            summary: "Dispatch work packet",
+            description: "Dispatches a work packet for downstream handling."
+          }
+        }
+      }
+    }
   };
 }
 

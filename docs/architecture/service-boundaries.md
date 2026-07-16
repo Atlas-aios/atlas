@@ -101,6 +101,8 @@ The `@atlas-aios/learning` package currently owns the OpenAPI interface-learning
 
 The learning pipeline also emits confidence ladder assessments and review items for low-confidence learned outputs. These review items are structured handoff records for later Decision Engine, benchmark, approval, or human review flows; they are not automatic promotion decisions.
 
+The MVP unknown-business-system fixture lives in the learning package as a synthetic OpenAPI document with unfamiliar domain terms. It is used to verify that Atlas can derive draft capabilities and providers from interface evidence without hardcoded application-specific logic.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
