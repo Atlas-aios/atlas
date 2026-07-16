@@ -97,6 +97,8 @@ Provider manifests can be adapted into Kernel candidates without making the Kern
 
 Interface Drivers translate provider-level intent into interface-specific requests. REST execution is handled through an injected transport and explicit permission checks. OpenAPI ingestion currently extracts draft capability graph nodes plus draft REST driver mappings from an unknown API specification; it does not automatically promote the graph or execute generated provider behavior without later evidence, tests, and governance gates.
 
+The `@atlas-aios/learning` package currently owns the OpenAPI interface-learning pipeline: it composes OpenAPI ingestion, draft provider manifest generation, and Kernel candidate creation into one tested contract. This pipeline produces planning artifacts only; execution still flows through provider runtime, simulation, approval, and promotion gates.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.

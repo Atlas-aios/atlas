@@ -92,7 +92,17 @@ importers:
 
   packages/interface-drivers: {}
 
-  packages/learning: {}
+  packages/learning:
+    dependencies:
+      "@atlas-aios/capability-kernel":
+        specifier: workspace:*
+        version: link:../capability-kernel
+      "@atlas-aios/interface-drivers":
+        specifier: workspace:*
+        version: link:../interface-drivers
+      "@atlas-aios/providers-sdk":
+        specifier: workspace:*
+        version: link:../providers-sdk
 
   packages/memory:
     dependencies:

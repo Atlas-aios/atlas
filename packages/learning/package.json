@@ -10,5 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "dependencies": {
+    "@atlas-aios/capability-kernel": "workspace:*",
+    "@atlas-aios/interface-drivers": "workspace:*",
+    "@atlas-aios/providers-sdk": "workspace:*"
   }
 }
