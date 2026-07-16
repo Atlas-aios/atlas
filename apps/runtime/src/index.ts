@@ -78,6 +78,11 @@ export interface ResolveRuntimeCapabilityRequest {
   governanceContextId: string;
 }
 
+export interface ResolveGoalScopedRuntimeCapabilityRequest {
+  inputs: Record<string, unknown>;
+  governanceContextId: string;
+}
+
 export interface CreateRuntimeExecutionRequest {
   id: string;
   goalId?: string;
@@ -183,6 +188,31 @@ async function handleRuntimeRequest(
     return json(await createRuntimeExecution(state, { ...input, goalId }), {
       status: 201
     });
+  }
+
+  const goalCapabilityResolutionMatch =
+    /^\/goals\/([^/]+)\/capabilities\/([^/]+)\/resolve$/.exec(url.pathname);
+  if (request.method === "POST" && goalCapabilityResolutionMatch !== null) {
+    const goalId = decodeURIComponent(goalCapabilityResolutionMatch[1] ?? "");
+    const capabilityId = decodeURIComponent(goalCapabilityResolutionMatch[2] ?? "");
+
+    if (!state.goals.has(goalId)) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    const input = (await request.json()) as ResolveGoalScopedRuntimeCapabilityRequest;
+
+    return json(
+      await resolveRuntimeCapability({
+        state,
+        request: {
+          goalId,
+          capabilityId,
+          inputs: input.inputs,
+          governanceContextId: input.governanceContextId
+        }
+      })
+    );
   }
 
   const goalDetailMatch = /^\/goals\/(.+)$/.exec(url.pathname);

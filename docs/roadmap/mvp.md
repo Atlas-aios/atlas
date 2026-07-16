@@ -24,6 +24,7 @@ The first local runtime surface lives in `apps/runtime`.
 - `GET /goals` lists locally created Goals.
 - `GET /goals/:id` returns a Goal with linked runtime execution summaries.
 - `POST /goals/:id/executions` creates a runtime execution that is bound to the Goal.
+- `POST /goals/:id/capabilities/:capabilityId/resolve` resolves a learned capability through the Capability Kernel in Goal scope.
 - `GET /capabilities` lists draft capabilities learned into local runtime memory.
 - `POST /capabilities/:id/resolve` asks Capability Kernel to select a provider for a learned capability.
 - `GET /providers` lists generated provider candidates learned into local runtime memory.

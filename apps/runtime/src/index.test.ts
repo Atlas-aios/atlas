@@ -403,6 +403,58 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("resolves a learned capability in goal scope", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/capabilities/capability:create-folio/resolve",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            inputs: {
+              name: "Goal scoped folio"
+            },
+            governanceContextId: "governance:runtime:mvp"
+          })
+        }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      selectedProviderId: "provider:openapi:create-folio",
+      candidates: [
+        {
+          providerId: "provider:openapi:create-folio",
+          capabilityId: "capability:create-folio"
+        }
+      ],
+      approvalRequired: true,
+      simulationRequired: true
+    });
+  });
+
   it("creates an execution session for a learned provider", async () => {
     const runtime = createAtlasRuntime();
 

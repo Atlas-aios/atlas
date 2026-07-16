@@ -72,6 +72,7 @@ Initial endpoints:
 - `GET /goals`
 - `GET /goals/:id`
 - `POST /goals/:id/executions`
+- `POST /goals/:id/capabilities/:capabilityId/resolve`
 - `GET /capabilities`
 - `POST /capabilities/:id/resolve`
 - `GET /providers`
