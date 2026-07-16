@@ -71,6 +71,7 @@ Initial endpoints:
 - `POST /goals`
 - `GET /goals`
 - `GET /capabilities`
+- `POST /capabilities/:id/resolve`
 - `GET /providers`
 - `POST /mvp/unknown-business/learn-and-execute`
 

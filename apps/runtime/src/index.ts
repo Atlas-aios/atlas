@@ -1,5 +1,10 @@
 import { createGoal, type CreateGoalInput, type Goal } from "@atlas-aios/agoe";
 import {
+  createCapabilityKernel,
+  type CapabilityResolutionRequest,
+  type ProviderCandidate
+} from "@atlas-aios/capability-kernel";
+import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemOpenApiFixture,
@@ -57,6 +62,12 @@ export interface RuntimeProviderListItem {
   permissionFit?: number;
   policyRiskScore?: number;
   reputationScore?: number;
+}
+
+export interface ResolveRuntimeCapabilityRequest {
+  goalId: string;
+  inputs: Record<string, unknown>;
+  governanceContextId: string;
 }
 
 interface RuntimeState {
@@ -133,6 +144,26 @@ async function handleRuntimeRequest(
     });
   }
 
+  const capabilityResolutionMatch = /^\/capabilities\/([^/]+)\/resolve$/.exec(
+    url.pathname
+  );
+  if (request.method === "POST" && capabilityResolutionMatch !== null) {
+    const capabilityId = decodeURIComponent(capabilityResolutionMatch[1] ?? "");
+    const input = (await request.json()) as ResolveRuntimeCapabilityRequest;
+
+    return json(
+      await resolveRuntimeCapability({
+        state,
+        request: {
+          goalId: input.goalId,
+          capabilityId,
+          inputs: input.inputs,
+          governanceContextId: input.governanceContextId
+        }
+      })
+    );
+  }
+
   return json({ error: "not_found" }, { status: 404 });
 }
 
@@ -206,6 +237,38 @@ function toGoalListItem(goal: Goal): RuntimeGoalListItem {
     status: goal.status,
     priority: goal.priority,
     ownerId: goal.ownerId
+  };
+}
+
+async function resolveRuntimeCapability(input: {
+  state: RuntimeState;
+  request: CapabilityResolutionRequest;
+}): Promise<unknown> {
+  const kernel = createCapabilityKernel({
+    artifacts: [],
+    providers: input.state.providers.map(toProviderCandidate)
+  });
+
+  return kernel.resolve(input.request);
+}
+
+function toProviderCandidate(provider: RuntimeProviderListItem): ProviderCandidate {
+  return {
+    providerId: provider.providerId,
+    capabilityId: provider.capabilityId,
+    confidence: provider.confidence,
+    riskScore: provider.riskScore,
+    estimatedCost: provider.estimatedCost,
+    estimatedLatencyMs: provider.estimatedLatencyMs,
+    ...(provider.permissionFit === undefined
+      ? {}
+      : { permissionFit: provider.permissionFit }),
+    ...(provider.policyRiskScore === undefined
+      ? {}
+      : { policyRiskScore: provider.policyRiskScore }),
+    ...(provider.reputationScore === undefined
+      ? {}
+      : { reputationScore: provider.reputationScore })
   };
 }
 

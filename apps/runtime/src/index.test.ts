@@ -228,4 +228,52 @@ describe("Atlas runtime API", () => {
       ]
     });
   });
+
+  it("resolves a learned capability through the Capability Kernel", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/capabilities/capability:create-folio/resolve", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:runtime-create-resource",
+          inputs: {
+            name: "Kernel selected folio"
+          },
+          governanceContextId: "governance:runtime:mvp"
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      selectedProviderId: "provider:openapi:create-folio",
+      candidates: [
+        {
+          providerId: "provider:openapi:create-folio",
+          capabilityId: "capability:create-folio",
+          confidence: 0.62,
+          riskScore: 0.6,
+          estimatedCost: 0.05,
+          estimatedLatencyMs: 900,
+          permissionFit: 0.7,
+          policyRiskScore: 0.2,
+          reputationScore: 0.5
+        }
+      ],
+      approvalRequired: true,
+      approvalReason:
+        "Selected provider requires approval because permission fit or policy risk is not fully safe.",
+      simulationRequired: true,
+      simulationRequirement:
+        "Simulate selected provider execution before dispatch because adjusted risk is high.",
+      rationale: "Selected provider:openapi:create-folio with 0 fallback providers."
+    });
+  });
 });
