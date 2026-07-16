@@ -83,6 +83,26 @@ export interface RuntimeCapabilityListItem {
   sourceRefs: string[];
 }
 
+export interface RuntimeCapabilityGraph {
+  id: string;
+  schemaVersion: "0.1";
+  status: "draft" | "trusted" | "production";
+  generatedAt: string;
+  nodes: Array<{
+    id: string;
+    schemaVersion: "0.1";
+    name: string;
+    level: string;
+    confidence: number;
+    sourceRefs: string[];
+  }>;
+  edges: Array<{
+    fromCapabilityId: string;
+    toCapabilityId: string;
+    relationship: "requires" | "composes" | "fallbacks_to";
+  }>;
+}
+
 export interface RuntimeProviderListItem {
   providerId: string;
   capabilityId: string;
@@ -187,6 +207,7 @@ interface RuntimeState {
   goals: Map<string, Goal>;
   goalEvents: Map<string, GoalLifecycleEvent[]>;
   capabilities: RuntimeCapabilityListItem[];
+  capabilityGraphs: RuntimeCapabilityGraph[];
   providers: RuntimeProviderListItem[];
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
@@ -196,6 +217,7 @@ interface RuntimeState {
 interface UnknownBusinessMvpFlowResult {
   response: UnknownBusinessMvpResponse;
   capabilities: RuntimeCapabilityListItem[];
+  capabilityGraphs: RuntimeCapabilityGraph[];
   providers: RuntimeProviderListItem[];
 }
 
@@ -204,6 +226,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     goals: new Map<string, Goal>(),
     goalEvents: new Map<string, GoalLifecycleEvent[]>(),
     capabilities: [],
+    capabilityGraphs: [],
     providers: [],
     executions: [],
     approvalRequests: [],
@@ -234,6 +257,7 @@ async function handleRuntimeRequest(
   ) {
     const result = await runUnknownBusinessMvpFlow();
     state.capabilities = result.capabilities;
+    state.capabilityGraphs = result.capabilityGraphs;
     state.providers = result.providers;
 
     return json<UnknownBusinessMvpResponse>(result.response);
@@ -467,6 +491,12 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "GET" && url.pathname === "/capability-graphs") {
+    return json({
+      capabilityGraphs: state.capabilityGraphs
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/providers") {
     return json({
       providers: state.providers
@@ -585,6 +615,7 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult
 
   return {
     capabilities,
+    capabilityGraphs: [learningResult.graph],
     providers: learningResult.providerCandidates.map((candidate) => ({
       providerId: candidate.providerId,
       capabilityId: candidate.capabilityId,

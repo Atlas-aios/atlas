@@ -87,6 +87,7 @@ Initial endpoints:
 - `POST /goals/:id/capabilities/:capabilityId/resolve`
 - `POST /goals/:id/capabilities/:capabilityId/dispatch`
 - `GET /capabilities`
+- `GET /capability-graphs`
 - `POST /capabilities/:id/resolve`
 - `GET /providers`
 - `GET /approval-requests`

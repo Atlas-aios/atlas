@@ -563,6 +563,59 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("lists capability graphs learned during the MVP flow", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/capability-graphs", { method: "GET" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      capabilityGraphs: [
+        {
+          id: "capability-graph:unknown-business-system",
+          schemaVersion: "0.1",
+          status: "draft",
+          generatedAt: "2026-07-16T00:00:00.000Z",
+          nodes: [
+            {
+              id: "capability:create-folio",
+              schemaVersion: "0.1",
+              name: "Create folio",
+              level: "L2",
+              confidence: 0.8,
+              sourceRefs: ["openapi:POST /folios"]
+            },
+            {
+              id: "capability:allocate-settlement",
+              schemaVersion: "0.1",
+              name: "Allocate settlement",
+              level: "L2",
+              confidence: 0.8,
+              sourceRefs: ["openapi:POST /settlements/allocate"]
+            },
+            {
+              id: "capability:dispatch-work-packet",
+              schemaVersion: "0.1",
+              name: "Dispatch work packet",
+              level: "L2",
+              confidence: 0.8,
+              sourceRefs: ["openapi:POST /work-packets/dispatch"]
+            }
+          ],
+          edges: []
+        }
+      ]
+    });
+  });
+
   it("lists provider candidates learned during the MVP flow", async () => {
     const runtime = createAtlasRuntime();
 

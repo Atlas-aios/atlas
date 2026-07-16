@@ -487,7 +487,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/mvp/unknown-business/learn-and-execute`.
 - [x] Implement `/goals`.
 - [x] Implement `/capabilities`.
-- [ ] Implement `/capability-graphs`.
+- [x] Implement `/capability-graphs`.
 - [x] Implement `/providers`.
 - [x] Implement `/capabilities/:id/resolve`.
 - [ ] Implement `/interface-drivers`.
