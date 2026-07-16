@@ -25,7 +25,7 @@ The first local runtime surface lives in `apps/runtime`.
 - `GET /goals/:id` returns a Goal with linked runtime execution summaries.
 - `GET /goals/:id/timeline` returns Goal lifecycle events and linked execution events in one view.
 - `POST /goals/:id/status` transitions a Goal through the AGOE state machine and records the lifecycle event.
-- `POST /goals/:id/completion-criteria/:criterionId/satisfy` marks a Goal completion criterion satisfied with evidence.
+- `POST /goals/:id/completion-criteria/:criterionId/satisfy` marks a Goal completion criterion satisfied with evidence and auto-completes active Goals when all criteria are satisfied.
 - `POST /goals/:id/executions` creates a runtime execution that is bound to the Goal.
 - `POST /goals/:id/capabilities/:capabilityId/resolve` resolves a learned capability through the Capability Kernel in Goal scope.
 - `POST /goals/:id/capabilities/:capabilityId/dispatch` resolves a learned capability and executes the selected provider in Goal scope.

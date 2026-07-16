@@ -1,5 +1,6 @@
 import {
   createGoal,
+  monitorGoals,
   satisfyGoalCompletionCriterion,
   transitionGoal,
   type CreateGoalInput,
@@ -284,13 +285,28 @@ async function handleRuntimeRequest(
       return json(result.error, { status: 404 });
     }
 
-    state.goals.set(goalId, result.goal);
-    state.goalEvents.set(goalId, [
-      ...(state.goalEvents.get(goalId) ?? []),
-      result.event
-    ]);
+    const monitoringResult = monitorGoals({
+      goals: [result.goal],
+      checkedAt: input.occurredAt,
+      eventIdPrefix: `${goalId}:event:auto`
+    });
+    const completionUpdate = monitoringResult.updates[0];
+    const nextGoal = completionUpdate?.goal ?? result.goal;
+    const events = [
+      result.event,
+      ...(completionUpdate === undefined ? [] : [completionUpdate.event])
+    ];
 
-    return json(result);
+    state.goals.set(goalId, nextGoal);
+    state.goalEvents.set(goalId, [...(state.goalEvents.get(goalId) ?? []), ...events]);
+
+    return json({
+      ...result,
+      goal: nextGoal,
+      ...(completionUpdate === undefined
+        ? {}
+        : { autoCompletionEvent: completionUpdate.event })
+    });
   }
 
   const goalExecutionMatch = /^\/goals\/(.+)\/executions$/.exec(url.pathname);
