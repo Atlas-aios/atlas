@@ -192,6 +192,20 @@ async function handleRuntimeRequest(
     });
   }
 
+  const executionDetailMatch = /^\/executions\/(.+)$/.exec(url.pathname);
+  if (request.method === "GET" && executionDetailMatch !== null) {
+    const executionId = decodeURIComponent(executionDetailMatch[1] ?? "");
+    const record = state.executions.find(
+      (execution) => execution.result.session.id === executionId
+    );
+
+    if (record === undefined) {
+      return json({ error: "execution_not_found", executionId }, { status: 404 });
+    }
+
+    return json(record);
+  }
+
   const capabilityResolutionMatch = /^\/capabilities\/([^/]+)\/resolve$/.exec(
     url.pathname
   );
