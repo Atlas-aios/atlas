@@ -33,6 +33,7 @@ The first local runtime surface lives in `apps/runtime`.
 - `POST /capabilities/:id/resolve` asks Capability Kernel to select a provider for a learned capability.
 - `GET /providers` lists generated provider candidates learned into local runtime memory.
 - `GET /approval-requests` lists runtime approval requests created by approval-gated dispatches.
+- `POST /approval-requests/:id/approve` and `POST /approval-requests/:id/reject` record governance decisions for runtime approval requests.
 - `POST /executions` creates a one-node Execution Engine session for a learned provider against the deterministic unknown-business REST fixture.
 - `GET /executions` lists in-memory execution history with status, provider, capability, step, and event counts.
 - `GET /executions/:id` returns the full stored execution request and run result.

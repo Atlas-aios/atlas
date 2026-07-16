@@ -81,6 +81,8 @@ Initial endpoints:
 - `POST /capabilities/:id/resolve`
 - `GET /providers`
 - `GET /approval-requests`
+- `POST /approval-requests/:id/approve`
+- `POST /approval-requests/:id/reject`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`

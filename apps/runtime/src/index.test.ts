@@ -863,6 +863,93 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("approves runtime approval requests", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/capabilities/capability:create-folio/dispatch",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            executionId: "execution:runtime:create-folio",
+            inputs: {
+              name: "Approved folio"
+            },
+            governanceContextId: "governance:runtime:mvp",
+            startedAt: "2026-07-16T12:30:00.000Z"
+          })
+        }
+      )
+    );
+
+    const approvalResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/approval-requests/approval:runtime:execution:runtime:create-folio/approve",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            decidedBy: "identity:user:moksh",
+            decidedAt: "2026-07-16T12:35:00.000Z",
+            reason: "Approved for MVP fixture execution."
+          })
+        }
+      )
+    );
+
+    expect(approvalResponse.status).toBe(200);
+    await expect(approvalResponse.json()).resolves.toEqual({
+      approvalRequest: {
+        id: "approval:runtime:execution:runtime:create-folio",
+        status: "approved",
+        goalId: "goal:runtime-create-resource",
+        capabilityId: "capability:create-folio",
+        providerId: "provider:openapi:create-folio",
+        executionId: "execution:runtime:create-folio",
+        governanceContextId: "governance:runtime:mvp",
+        requestedAt: "2026-07-16T12:30:00.000Z",
+        reason:
+          "Selected provider requires approval because permission fit or policy risk is not fully safe.",
+        decidedBy: "identity:user:moksh",
+        decidedAt: "2026-07-16T12:35:00.000Z",
+        decisionReason: "Approved for MVP fixture execution."
+      }
+    });
+
+    const listResponse = await runtime.handle(
+      new Request("http://atlas.local/approval-requests", { method: "GET" })
+    );
+
+    await expect(listResponse.json()).resolves.toMatchObject({
+      approvalRequests: [
+        {
+          id: "approval:runtime:execution:runtime:create-folio",
+          status: "approved",
+          decidedBy: "identity:user:moksh"
+        }
+      ]
+    });
+  });
+
   it("returns a goal timeline with goal and execution events", async () => {
     const runtime = createAtlasRuntime();
 

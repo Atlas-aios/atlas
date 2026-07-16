@@ -125,6 +125,15 @@ export interface RuntimeApprovalRequest {
   governanceContextId: string;
   requestedAt: string;
   reason: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionReason?: string;
+}
+
+export interface DecideRuntimeApprovalRequest {
+  decidedBy: string;
+  decidedAt: string;
+  reason: string;
 }
 
 export interface DispatchGoalScopedRuntimeCapabilityResponse {
@@ -468,6 +477,39 @@ async function handleRuntimeRequest(
     return json({
       approvalRequests: state.approvalRequests
     });
+  }
+
+  const approvalDecisionMatch = /^\/approval-requests\/(.+)\/(approve|reject)$/.exec(
+    url.pathname
+  );
+  if (request.method === "POST" && approvalDecisionMatch !== null) {
+    const approvalRequestId = decodeURIComponent(approvalDecisionMatch[1] ?? "");
+    const decision = approvalDecisionMatch[2] === "approve" ? "approved" : "rejected";
+    const approvalRequest = state.approvalRequests.find(
+      (item) => item.id === approvalRequestId
+    );
+
+    if (approvalRequest === undefined) {
+      return json(
+        { error: "approval_request_not_found", approvalRequestId },
+        { status: 404 }
+      );
+    }
+
+    const input = (await request.json()) as DecideRuntimeApprovalRequest;
+    const decidedRequest: RuntimeApprovalRequest = {
+      ...approvalRequest,
+      status: decision,
+      decidedBy: input.decidedBy,
+      decidedAt: input.decidedAt,
+      decisionReason: input.reason
+    };
+
+    state.approvalRequests = state.approvalRequests.map((item) =>
+      item.id === approvalRequestId ? decidedRequest : item
+    );
+
+    return json({ approvalRequest: decidedRequest });
   }
 
   if (request.method === "POST" && url.pathname === "/executions") {
