@@ -1,6 +1,7 @@
 import { createGoal, type CreateGoalInput, type Goal } from "@atlas-aios/agoe";
 import {
   createCapabilityKernel,
+  type CapabilityResolution,
   type CapabilityResolutionRequest,
   type ProviderCandidate
 } from "@atlas-aios/capability-kernel";
@@ -81,6 +82,18 @@ export interface ResolveRuntimeCapabilityRequest {
 export interface ResolveGoalScopedRuntimeCapabilityRequest {
   inputs: Record<string, unknown>;
   governanceContextId: string;
+}
+
+export interface DispatchGoalScopedRuntimeCapabilityRequest {
+  executionId: string;
+  inputs: Record<string, unknown>;
+  governanceContextId: string;
+  startedAt: string;
+}
+
+export interface DispatchGoalScopedRuntimeCapabilityResponse {
+  resolution: CapabilityResolution;
+  execution: ExecutionRunResult;
 }
 
 export interface CreateRuntimeExecutionRequest {
@@ -212,6 +225,41 @@ async function handleRuntimeRequest(
           governanceContextId: input.governanceContextId
         }
       })
+    );
+  }
+
+  const goalCapabilityDispatchMatch =
+    /^\/goals\/([^/]+)\/capabilities\/([^/]+)\/dispatch$/.exec(url.pathname);
+  if (request.method === "POST" && goalCapabilityDispatchMatch !== null) {
+    const goalId = decodeURIComponent(goalCapabilityDispatchMatch[1] ?? "");
+    const capabilityId = decodeURIComponent(goalCapabilityDispatchMatch[2] ?? "");
+
+    if (!state.goals.has(goalId)) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    const input = (await request.json()) as DispatchGoalScopedRuntimeCapabilityRequest;
+    const resolution = await resolveRuntimeCapability({
+      state,
+      request: {
+        goalId,
+        capabilityId,
+        inputs: input.inputs,
+        governanceContextId: input.governanceContextId
+      }
+    });
+    const execution = await createRuntimeExecution(state, {
+      id: input.executionId,
+      goalId,
+      capabilityId,
+      providerId: resolution.selectedProviderId,
+      inputs: input.inputs,
+      startedAt: input.startedAt
+    });
+
+    return json<DispatchGoalScopedRuntimeCapabilityResponse>(
+      { resolution, execution },
+      { status: 201 }
     );
   }
 
@@ -369,7 +417,7 @@ function toGoalListItem(goal: Goal): RuntimeGoalListItem {
 async function resolveRuntimeCapability(input: {
   state: RuntimeState;
   request: CapabilityResolutionRequest;
-}): Promise<unknown> {
+}): Promise<CapabilityResolution> {
   const kernel = createCapabilityKernel({
     artifacts: [],
     providers: input.state.providers.map(toProviderCandidate)
