@@ -109,6 +109,8 @@ The first benchmark scenario is `Create Resource`, which drives the fixture thro
 
 The REST fixture supports opt-in bearer authentication for protected fixture operations. This is test authentication for provider/driver validation, not production identity or tenant security.
 
+The browser UI fixture provides deterministic HTML with Atlas-readable selectors for the same `folio`, `settlement`, and `work packet` workflow. It is a screen-model fixture for UI learning and benchmark flow validation, not a deployed frontend, live browser driver, or Playwright target yet.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.

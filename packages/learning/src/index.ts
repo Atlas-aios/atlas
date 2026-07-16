@@ -133,6 +133,23 @@ export interface UnknownBusinessSystemRestFixtureOptions {
   authToken?: string;
 }
 
+export interface UnknownBusinessBrowserCreateResourceInput {
+  folioName: string;
+  amount: number;
+}
+
+export interface UnknownBusinessBrowserUiResult {
+  evidence: string[];
+  snapshot: UnknownBusinessSystemSnapshot;
+}
+
+export interface UnknownBusinessBrowserUiFixture {
+  render(): string;
+  submitCreateResource(
+    input: UnknownBusinessBrowserCreateResourceInput
+  ): Promise<UnknownBusinessBrowserUiResult>;
+}
+
 export interface UnknownBusinessBenchmarkResult {
   id: string;
   scenario: "Create Resource";
@@ -248,6 +265,41 @@ export function createUnknownBusinessSystemRestFixture(
   };
 }
 
+export function createUnknownBusinessBrowserUiFixture(): UnknownBusinessBrowserUiFixture {
+  const restFixture = createUnknownBusinessSystemRestFixture();
+
+  return {
+    render: renderUnknownBusinessBrowserUi,
+    submitCreateResource: async (input) => {
+      await restFixture.handle({
+        method: "POST",
+        path: "/folios",
+        body: { name: input.folioName }
+      });
+      await restFixture.handle({
+        method: "POST",
+        path: "/settlements/allocate",
+        body: { folioId: "folio:1", amount: input.amount }
+      });
+      await restFixture.handle({
+        method: "POST",
+        path: "/work-packets/dispatch",
+        body: { folioId: "folio:1", settlementId: "settlement:1" }
+      });
+
+      return {
+        evidence: [
+          "fixture:browser:submit create-resource",
+          "fixture:rest:POST /folios",
+          "fixture:rest:POST /settlements/allocate",
+          "fixture:rest:POST /work-packets/dispatch"
+        ],
+        snapshot: restFixture.snapshot()
+      };
+    }
+  };
+}
+
 export function createUnknownBusinessCreateResourceBenchmark(): UnknownBusinessBenchmark {
   return {
     run: async () => {
@@ -285,6 +337,36 @@ export function createUnknownBusinessCreateResourceBenchmark(): UnknownBusinessB
       };
     }
   };
+}
+
+function renderUnknownBusinessBrowserUi(): string {
+  return `
+<main data-atlas-fixture="unknown-business-system" data-atlas-scenario="Create Resource">
+  <section data-atlas-entity="folio">
+    <h1>Folio Console</h1>
+    <form data-atlas-capability="capability:create-folio" data-atlas-operation="createFolio">
+      <label for="folio-name">Folio name</label>
+      <input id="folio-name" name="name" data-atlas-field="folio.name" />
+      <button type="submit" data-atlas-action="submit">Create folio</button>
+    </form>
+  </section>
+  <section data-atlas-entity="settlement">
+    <h2>Settlement Allocation</h2>
+    <form data-atlas-capability="capability:allocate-settlement" data-atlas-operation="allocateSettlement">
+      <input name="folioId" data-atlas-field="settlement.folioId" />
+      <input name="amount" data-atlas-field="settlement.amount" />
+      <button type="submit" data-atlas-action="submit">Allocate settlement</button>
+    </form>
+  </section>
+  <section data-atlas-entity="work-packet">
+    <h2>Work Packet Dispatch</h2>
+    <form data-atlas-capability="capability:dispatch-work-packet" data-atlas-operation="dispatchWorkPacket">
+      <input name="folioId" data-atlas-field="workPacket.folioId" />
+      <input name="settlementId" data-atlas-field="workPacket.settlementId" />
+      <button type="submit" data-atlas-action="submit">Dispatch work packet</button>
+    </form>
+  </section>
+</main>`.trim();
 }
 
 function assessCapabilityConfidence(

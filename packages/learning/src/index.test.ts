@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createUnknownBusinessCreateResourceBenchmark,
+  createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
   learnOpenApiCapabilities
@@ -345,6 +346,60 @@ describe("learnOpenApiCapabilities", () => {
             id: "settlement:1",
             folioId: "folio:1",
             amount: 1000,
+            state: "allocated"
+          }
+        ],
+        workPackets: [
+          {
+            id: "work-packet:1",
+            folioId: "folio:1",
+            settlementId: "settlement:1",
+            state: "dispatched"
+          }
+        ]
+      }
+    });
+  });
+
+  it("exposes a browser UI fixture for the unknown business workflow", async () => {
+    const fixture = createUnknownBusinessBrowserUiFixture();
+
+    expect(fixture.render()).toContain('data-atlas-fixture="unknown-business-system"');
+    expect(fixture.render()).toContain(
+      'data-atlas-capability="capability:create-folio"'
+    );
+    expect(fixture.render()).toContain(
+      'data-atlas-capability="capability:allocate-settlement"'
+    );
+    expect(fixture.render()).toContain(
+      'data-atlas-capability="capability:dispatch-work-packet"'
+    );
+
+    const result = await fixture.submitCreateResource({
+      folioName: "Browser folio",
+      amount: 900
+    });
+
+    expect(result).toEqual({
+      evidence: [
+        "fixture:browser:submit create-resource",
+        "fixture:rest:POST /folios",
+        "fixture:rest:POST /settlements/allocate",
+        "fixture:rest:POST /work-packets/dispatch"
+      ],
+      snapshot: {
+        folios: [
+          {
+            id: "folio:1",
+            name: "Browser folio",
+            state: "open"
+          }
+        ],
+        settlements: [
+          {
+            id: "settlement:1",
+            folioId: "folio:1",
+            amount: 900,
             state: "allocated"
           }
         ],

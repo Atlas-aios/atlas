@@ -470,7 +470,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Design synthetic domain model.
 - [x] Implement REST API fixture.
 - [x] Implement OpenAPI fixture.
-- [ ] Implement browser UI fixture.
+- [x] Implement browser UI fixture.
 - [x] Implement authentication fixture.
 - [x] Add sample data.
 - [x] Add example workflows.
@@ -539,7 +539,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Test ACR temporal queries.
 - [x] Test ACR graph projection rebuilds.
 - [ ] Test Experience distillation.
-- [ ] Test unknown business system learning.
+- [x] Test unknown business system learning.
 - [ ] Benchmark `Create Resource`.
 - [ ] Benchmark provider reliability.
 - [ ] Benchmark plan correctness.
