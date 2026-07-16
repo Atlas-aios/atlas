@@ -123,6 +123,8 @@ The Capability Graph represents what Atlas can do and how capabilities compose. 
 
 The current implementation provides an MVP in-memory graph repository plus deterministic traversal and search APIs. It is suitable for local planning and tests; durable PostgreSQL/vector-backed persistence remains the production storage target defined by the service boundary.
 
+Capability Graph maturity is explicit. Draft graphs may be explored, trusted graphs require evidence and sufficient node confidence, and production graphs additionally require governance approval plus benchmark evidence before they can be used as production-grade capability knowledge.
+
 ### Identity Engine
 
 Identity resolves humans, organizations, systems, providers, aliases, roles, and delegation context without unsafe assumptions.

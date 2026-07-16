@@ -166,9 +166,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement capability composition.
 - [x] Implement capability confidence fields.
 - [x] Implement capability source tracking.
-- [ ] Implement Draft Capability Graph status.
-- [ ] Implement Trusted Capability Graph status.
-- [ ] Implement Production Capability Graph status.
+- [x] Implement Draft Capability Graph status.
+- [x] Implement Trusted Capability Graph status.
+- [x] Implement Production Capability Graph status.
 - [x] Implement graph traversal API.
 - [x] Implement capability search API.
 - [x] Add tests for capability graph resolution.

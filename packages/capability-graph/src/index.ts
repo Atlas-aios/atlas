@@ -57,6 +57,38 @@ export interface SearchCapabilityGraphInput {
   minimumConfidence: number;
 }
 
+export interface PromoteCapabilityGraphInput {
+  graph: CapabilityGraph;
+  targetStatus: Exclude<CapabilityGraphStatus, "draft">;
+  evidenceRefs: string[];
+  minimumNodeConfidence: number;
+  governanceApprovalRef?: string;
+  benchmarkRefs: string[];
+}
+
+export interface CapabilityGraphPromotion {
+  fromStatus: CapabilityGraphStatus;
+  toStatus: Exclude<CapabilityGraphStatus, "draft">;
+  evidenceRefs: string[];
+  benchmarkRefs: string[];
+  governanceApprovalRef?: string;
+}
+
+export type PromoteCapabilityGraphResult =
+  | {
+      ok: true;
+      graph: CapabilityGraph;
+      promotion: CapabilityGraphPromotion;
+    }
+  | {
+      ok: false;
+      error: {
+        code: "capability_graph.promotion.gate_failed";
+        message: string;
+        missingRefs: string[];
+      };
+    };
+
 export function createCapabilityNode(input: CapabilityNodeInput): CapabilityNode {
   return {
     id: input.id,
@@ -147,4 +179,76 @@ export function searchCapabilityGraph(
       node.confidence >= input.minimumConfidence &&
       node.name.toLowerCase().includes(normalizedQuery)
   );
+}
+
+export function promoteCapabilityGraph(
+  input: PromoteCapabilityGraphInput
+): PromoteCapabilityGraphResult {
+  const missingRefs = promotionMissingRefs(input);
+
+  if (missingRefs.length > 0) {
+    return {
+      ok: false,
+      error: {
+        code: "capability_graph.promotion.gate_failed",
+        message: promotionFailureMessage(input.targetStatus),
+        missingRefs
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    graph: {
+      ...input.graph,
+      status: input.targetStatus
+    },
+    promotion: {
+      fromStatus: input.graph.status,
+      toStatus: input.targetStatus,
+      evidenceRefs: input.evidenceRefs,
+      benchmarkRefs: input.benchmarkRefs,
+      ...(input.governanceApprovalRef === undefined
+        ? {}
+        : { governanceApprovalRef: input.governanceApprovalRef })
+    }
+  };
+}
+
+function promotionMissingRefs(input: PromoteCapabilityGraphInput): string[] {
+  const missingRefs: string[] = [];
+
+  if (input.graph.nodes.length === 0) {
+    missingRefs.push("nodes");
+  }
+
+  if (input.graph.nodes.some((node) => node.confidence < input.minimumNodeConfidence)) {
+    missingRefs.push("minimumNodeConfidence");
+  }
+
+  if (input.evidenceRefs.length === 0) {
+    missingRefs.push("evidenceRefs");
+  }
+
+  if (input.targetStatus === "production") {
+    if (input.governanceApprovalRef === undefined) {
+      missingRefs.push("governanceApprovalRef");
+    }
+
+    if (input.benchmarkRefs.length === 0) {
+      missingRefs.push("benchmarkRefs");
+    }
+  }
+
+  return missingRefs;
+}
+
+function promotionFailureMessage(
+  targetStatus: Exclude<CapabilityGraphStatus, "draft">
+): string {
+  if (targetStatus === "production") {
+    return "Production Capability Graph promotion requires governance approval and benchmark evidence.";
+  }
+
+  return "Trusted Capability Graph promotion requires evidence and sufficient capability confidence.";
 }

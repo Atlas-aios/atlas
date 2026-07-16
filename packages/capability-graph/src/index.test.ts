@@ -5,6 +5,7 @@ import {
   createCapabilityGraph,
   createCapabilityNode,
   createInMemoryCapabilityGraphStore,
+  promoteCapabilityGraph,
   searchCapabilityGraph,
   traverseCapabilityGraph
 } from "./index.js";
@@ -175,5 +176,93 @@ describe("Capability Graph schema", () => {
         sourceRefs: ["evidence:openapi:create"]
       }
     ]);
+  });
+
+  it("promotes graph maturity only when required evidence gates pass", () => {
+    const draftGraph = createCapabilityGraph({
+      id: "capability-graph:unknown-system",
+      status: "draft",
+      generatedAt: "2026-07-16T12:30:00.000Z",
+      nodes: [
+        createCapabilityNode({
+          id: "capability:create-resource",
+          name: "Create Resource",
+          level: "L2",
+          confidence: 0.86,
+          sourceRefs: ["evidence:openapi:create", "test:contract:create-resource"]
+        })
+      ],
+      edges: []
+    });
+
+    expect(
+      promoteCapabilityGraph({
+        graph: draftGraph,
+        targetStatus: "trusted",
+        evidenceRefs: ["test:contract:create-resource"],
+        minimumNodeConfidence: 0.8,
+        benchmarkRefs: []
+      })
+    ).toEqual({
+      ok: true,
+      graph: {
+        ...draftGraph,
+        status: "trusted"
+      },
+      promotion: {
+        fromStatus: "draft",
+        toStatus: "trusted",
+        evidenceRefs: ["test:contract:create-resource"],
+        benchmarkRefs: [],
+        governanceApprovalRef: undefined
+      }
+    });
+
+    const trustedGraph = {
+      ...draftGraph,
+      status: "trusted" as const
+    };
+
+    expect(
+      promoteCapabilityGraph({
+        graph: trustedGraph,
+        targetStatus: "production",
+        evidenceRefs: ["test:contract:create-resource"],
+        minimumNodeConfidence: 0.8,
+        governanceApprovalRef: "approval:capability-graph:production",
+        benchmarkRefs: ["benchmark:create-resource:v1"]
+      })
+    ).toEqual({
+      ok: true,
+      graph: {
+        ...trustedGraph,
+        status: "production"
+      },
+      promotion: {
+        fromStatus: "trusted",
+        toStatus: "production",
+        evidenceRefs: ["test:contract:create-resource"],
+        benchmarkRefs: ["benchmark:create-resource:v1"],
+        governanceApprovalRef: "approval:capability-graph:production"
+      }
+    });
+
+    expect(
+      promoteCapabilityGraph({
+        graph: trustedGraph,
+        targetStatus: "production",
+        evidenceRefs: ["test:contract:create-resource"],
+        minimumNodeConfidence: 0.8,
+        benchmarkRefs: []
+      })
+    ).toEqual({
+      ok: false,
+      error: {
+        code: "capability_graph.promotion.gate_failed",
+        message:
+          "Production Capability Graph promotion requires governance approval and benchmark evidence.",
+        missingRefs: ["governanceApprovalRef", "benchmarkRefs"]
+      }
+    });
   });
 });
