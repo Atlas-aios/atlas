@@ -34,6 +34,14 @@ export interface GoalCompletionCriterion {
   evidenceRefs: string[];
 }
 
+export interface GoalRecoveryAttempt {
+  id: string;
+  strategy: string;
+  reason: string;
+  attemptedAt: string;
+  sourceRefs: string[];
+}
+
 export interface Goal {
   id: string;
   title: string;
@@ -46,6 +54,7 @@ export interface Goal {
   completionCriteria: GoalCompletionCriterion[];
   dependencyIds: string[];
   childGoalIds: string[];
+  recoveryAttempts: GoalRecoveryAttempt[];
   waitingStates: GoalWaitingState[];
   createdAt: string;
   updatedAt: string;
@@ -57,6 +66,7 @@ export type GoalLifecycleEventType =
   | "goal.decomposed"
   | "goal.dependency_added"
   | "goal.waiting_state_added"
+  | "goal.recovery_attempted"
   | "goal.completion_criterion_satisfied";
 
 export interface GoalLifecycleEvent {
@@ -161,6 +171,29 @@ export interface MonitorGoalsResult {
   updates: GoalMonitoringUpdate[];
 }
 
+export interface RecoverGoalInput {
+  goal: Goal;
+  eventId: string;
+  occurredAt: string;
+  strategy: string;
+  reason: string;
+  sourceRefs?: string[];
+}
+
+export type RecoverGoalResult =
+  | {
+      ok: true;
+      goal: Goal;
+      event: GoalLifecycleEvent;
+    }
+  | {
+      ok: false;
+      error: {
+        code: "goal.recovery.invalid_state";
+        message: string;
+      };
+    };
+
 export interface AddGoalWaitingStateInput {
   goal: Goal;
   waitingState: GoalWaitingState;
@@ -217,6 +250,7 @@ export function createGoal(input: CreateGoalInput): CreateGoalResult {
     })),
     dependencyIds: [],
     childGoalIds: [],
+    recoveryAttempts: [],
     waitingStates: [],
     createdAt: input.createdAt,
     updatedAt: input.createdAt
@@ -355,6 +389,48 @@ export function addGoalDependency(input: AddGoalDependencyInput): {
       occurredAt: input.occurredAt,
       sourceRefs: [input.dependency.id, input.dependency.dependsOnGoalId],
       summary: input.dependency.reason
+    }
+  };
+}
+
+export function recoverGoal(input: RecoverGoalInput): RecoverGoalResult {
+  if (input.goal.status !== "waiting" && input.goal.status !== "blocked") {
+    return {
+      ok: false,
+      error: {
+        code: "goal.recovery.invalid_state",
+        message: `Cannot recover goal ${input.goal.id} from ${input.goal.status}.`
+      }
+    };
+  }
+
+  const sourceRefs = input.sourceRefs ?? [];
+  return {
+    ok: true,
+    goal: {
+      ...input.goal,
+      status: "active",
+      recoveryAttempts: [
+        ...input.goal.recoveryAttempts,
+        {
+          id: `${input.eventId}:attempt`,
+          strategy: input.strategy,
+          reason: input.reason,
+          attemptedAt: input.occurredAt,
+          sourceRefs
+        }
+      ],
+      updatedAt: input.occurredAt
+    },
+    event: {
+      id: input.eventId,
+      type: "goal.recovery_attempted",
+      goalId: input.goal.id,
+      occurredAt: input.occurredAt,
+      fromStatus: input.goal.status,
+      toStatus: "active",
+      sourceRefs,
+      summary: input.reason
     }
   };
 }

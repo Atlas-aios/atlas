@@ -7,6 +7,7 @@ import {
   createGoal,
   decomposeGoal,
   monitorGoals,
+  recoverGoal,
   satisfyGoalCompletionCriterion,
   transitionGoal
 } from "./index.js";
@@ -55,6 +56,7 @@ describe("Goal lifecycle", () => {
         ],
         dependencyIds: [],
         childGoalIds: [],
+        recoveryAttempts: [],
         waitingStates: [],
         createdAt: "2026-07-16T10:00:00.000Z",
         updatedAt: "2026-07-16T10:00:00.000Z"
@@ -254,6 +256,7 @@ describe("Goal lifecycle", () => {
           ],
           dependencyIds: [],
           childGoalIds: [],
+          recoveryAttempts: [],
           waitingStates: [],
           createdAt: "2026-07-16T10:21:00.000Z",
           updatedAt: "2026-07-16T10:21:00.000Z"
@@ -277,6 +280,7 @@ describe("Goal lifecycle", () => {
           ],
           dependencyIds: [],
           childGoalIds: [],
+          recoveryAttempts: [],
           waitingStates: [],
           createdAt: "2026-07-16T10:21:00.000Z",
           updatedAt: "2026-07-16T10:21:00.000Z"
@@ -353,6 +357,66 @@ describe("Goal lifecycle", () => {
           }
         }
       ]
+    });
+  });
+
+  it("recovers waiting Goals by recording an attempt and moving them active", () => {
+    const { goal } = createGoal({
+      id: "goal:recover-create-resource",
+      title: "Recover Create Resource",
+      ownerId: "identity:user:moksh",
+      priority: 85,
+      successCriteria: ["Create Resource resumes after approval."],
+      createdAt: "2026-07-16T10:40:00.000Z"
+    });
+    const waiting = addGoalWaitingState({
+      goal,
+      waitingState: {
+        id: "waiting:approval",
+        goalId: "goal:recover-create-resource",
+        reason: "Waiting for approval.",
+        waitingOn: "identity:user:moksh",
+        createdAt: "2026-07-16T10:41:00.000Z"
+      },
+      eventId: "event:waiting",
+      occurredAt: "2026-07-16T10:41:00.000Z"
+    });
+
+    expect(
+      recoverGoal({
+        goal: waiting.goal,
+        eventId: "event:recovery",
+        occurredAt: "2026-07-16T10:42:00.000Z",
+        strategy: "resume_after_wait",
+        reason: "Approval arrived; resume execution.",
+        sourceRefs: ["approval:event:approved"]
+      })
+    ).toEqual({
+      ok: true,
+      goal: {
+        ...waiting.goal,
+        status: "active",
+        recoveryAttempts: [
+          {
+            id: "event:recovery:attempt",
+            strategy: "resume_after_wait",
+            reason: "Approval arrived; resume execution.",
+            attemptedAt: "2026-07-16T10:42:00.000Z",
+            sourceRefs: ["approval:event:approved"]
+          }
+        ],
+        updatedAt: "2026-07-16T10:42:00.000Z"
+      },
+      event: {
+        id: "event:recovery",
+        type: "goal.recovery_attempted",
+        goalId: "goal:recover-create-resource",
+        occurredAt: "2026-07-16T10:42:00.000Z",
+        fromStatus: "waiting",
+        toStatus: "active",
+        sourceRefs: ["approval:event:approved"],
+        summary: "Approval arrived; resume execution."
+      }
     });
   });
 });

@@ -97,6 +97,8 @@ AGOE Goal records carry owner, priority, lifecycle status, parent goal reference
 
 The AGOE monitoring pass is deterministic. It inspects current Goal records and emits lifecycle updates when objective state changes, beginning with automatic completion of active goals whose completion criteria are all satisfied.
 
+Goal recovery is explicit and auditable. A waiting or blocked Goal can be recovered to `active` only through a recovery attempt that records strategy, reason, timestamp, and source references, then emits `goal.recovery_attempted` for Memory, World State, and later governance review.
+
 ### Semantic World Model
 
 The SWM owns the semantic understanding of entities and relationships. It stores meaning, provenance, confidence, and temporal validity.
