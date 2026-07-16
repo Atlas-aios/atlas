@@ -176,6 +176,17 @@ export interface ApproveRuntimeLearningPromotionRequest {
   reason: string;
 }
 
+export interface RuntimeAuditEvent {
+  id: string;
+  type: string;
+  actorId: string;
+  subjectId: string;
+  occurredAt: string;
+  summary: string;
+  evidenceRefs: string[];
+  metadata: Record<string, string>;
+}
+
 export interface DispatchGoalScopedRuntimeCapabilityResponse {
   resolution: CapabilityResolution;
   execution: ExecutionRunResult;
@@ -235,6 +246,7 @@ interface RuntimeState {
   learningPromotionApprovals: Map<string, ApproveRuntimeLearningPromotionRequest>;
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
+  auditLogs: RuntimeAuditEvent[];
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
@@ -264,6 +276,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     >(),
     executions: [],
     approvalRequests: [],
+    auditLogs: [],
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
@@ -570,8 +583,21 @@ async function handleRuntimeRequest(
     state.learningPromotionDecisions = state.learningPromotionDecisions.map(
       (decision) => (decision.stage === stage ? promotionDecision : decision)
     );
+    state.auditLogs.push(
+      createLearningPromotionApprovalAuditEvent({
+        stage,
+        input,
+        subjectId: "learning:unknown-business-system"
+      })
+    );
 
     return json({ promotionDecision });
+  }
+
+  if (request.method === "GET" && url.pathname === "/audit-logs") {
+    return json({
+      auditLogs: state.auditLogs
+    });
   }
 
   if (request.method === "GET" && url.pathname === "/providers") {
@@ -957,6 +983,26 @@ function createRuntimeApprovalRequest(input: {
     governanceContextId: input.governanceContextId,
     requestedAt: input.requestedAt,
     reason: input.reason
+  };
+}
+
+function createLearningPromotionApprovalAuditEvent(input: {
+  stage: "development" | "production";
+  subjectId: string;
+  input: ApproveRuntimeLearningPromotionRequest;
+}): RuntimeAuditEvent {
+  return {
+    id: `audit:learning-promotion:${input.stage}:${input.input.decidedAt}`,
+    type: "learning.promotion.approved",
+    actorId: input.input.decidedBy,
+    subjectId: input.subjectId,
+    occurredAt: input.input.decidedAt,
+    summary: `Approved ${input.stage} learning promotion gate: ${input.input.reason}`,
+    evidenceRefs: [input.input.governanceApprovalRef],
+    metadata: {
+      stage: input.stage,
+      governanceApprovalRef: input.input.governanceApprovalRef
+    }
   };
 }
 

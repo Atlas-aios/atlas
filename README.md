@@ -94,6 +94,7 @@ Initial endpoints:
 - `GET /approval-requests`
 - `POST /approval-requests/:id/approve`
 - `POST /approval-requests/:id/reject`
+- `GET /audit-logs`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`

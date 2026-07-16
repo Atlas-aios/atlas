@@ -377,7 +377,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement development promotion gate.
 - [x] Implement production promotion gate.
 - [x] Implement human approval workflow.
-- [ ] Implement audit logging.
+- [x] Implement audit logging.
 - [ ] Implement policy engine.
 - [ ] Implement sensitive action detection.
 - [x] Implement governance-blocked result type.
@@ -506,7 +506,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/learning/reports`.
 - [x] Implement `/learning/promotion-decisions/:stage/approve`.
 - [ ] Implement `/governance/policies`.
-- [ ] Add API auth and audit checks.
+- [x] Add API audit checks.
+- [ ] Add API auth checks.
 
 ---
 

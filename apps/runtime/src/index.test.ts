@@ -836,6 +836,31 @@ describe("Atlas runtime API", () => {
         }
       ]
     });
+
+    const auditResponse = await runtime.handle(
+      new Request("http://atlas.local/audit-logs", { method: "GET" })
+    );
+
+    expect(auditResponse.status).toBe(200);
+    await expect(auditResponse.json()).resolves.toEqual({
+      auditLogs: [
+        {
+          id: "audit:learning-promotion:production:2026-07-16T13:00:00.000Z",
+          type: "learning.promotion.approved",
+          actorId: "identity:user:moksh",
+          subjectId: "learning:unknown-business-system",
+          occurredAt: "2026-07-16T13:00:00.000Z",
+          summary:
+            "Approved production learning promotion gate: Approved production promotion gate, pending review cleanup.",
+          evidenceRefs: ["approval:learning:unknown-business-system:production"],
+          metadata: {
+            stage: "production",
+            governanceApprovalRef:
+              "approval:learning:unknown-business-system:production"
+          }
+        }
+      ]
+    });
   });
 
   it("resolves a learned capability through the Capability Kernel", async () => {
