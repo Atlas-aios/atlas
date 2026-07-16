@@ -82,4 +82,64 @@ describe("learnOpenApiCapabilities", () => {
       }
     ]);
   });
+
+  it("adds confidence ladder assessments and review items for low-confidence outputs", () => {
+    const result = learnOpenApiCapabilities({
+      graphId: "capability-graph:unknown-api",
+      generatedAt: "2026-07-16T16:05:00.000Z",
+      providerVersion: "0.1.0",
+      defaultEstimatedCost: 0.05,
+      defaultEstimatedLatencyMs: 800,
+      document: {
+        openapi: "3.1.0",
+        info: {
+          title: "Unknown API",
+          version: "1.0.0"
+        },
+        paths: {
+          "/invoices": {
+            get: {
+              operationId: "listInvoices",
+              summary: "List invoices"
+            }
+          }
+        }
+      }
+    });
+
+    expect(result.confidenceAssessments).toEqual([
+      {
+        subjectId: "capability:list-invoices",
+        subjectType: "capability",
+        score: 0.74,
+        band: "review_required",
+        reason: "Confidence is below evidence-ready threshold."
+      },
+      {
+        subjectId: "provider:openapi:list-invoices",
+        subjectType: "provider",
+        score: 0.62,
+        band: "draft_unverified",
+        reason: "Generated OpenAPI provider requires validation before execution."
+      }
+    ]);
+    expect(result.reviewItems).toEqual([
+      {
+        id: "review:capability:list-invoices",
+        subjectId: "capability:list-invoices",
+        subjectType: "capability",
+        severity: "medium",
+        reason: "Confidence is below evidence-ready threshold.",
+        requiredAction: "Review source evidence and add tests or benchmark traces."
+      },
+      {
+        id: "review:provider:openapi:list-invoices",
+        subjectId: "provider:openapi:list-invoices",
+        subjectType: "provider",
+        severity: "high",
+        reason: "Generated OpenAPI provider requires validation before execution.",
+        requiredAction: "Simulate provider execution and require approval before use."
+      }
+    ]);
+  });
 });

@@ -460,8 +460,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Generate Draft Capability Providers.
 - [x] Generate Draft Interface Driver mappings.
 - [x] Wire OpenAPI learning pipeline from spec to Kernel candidates.
-- [ ] Add confidence ladder.
-- [ ] Add review workflow for low-confidence outputs.
+- [x] Add confidence ladder.
+- [x] Add review workflow for low-confidence outputs.
 
 ---
 

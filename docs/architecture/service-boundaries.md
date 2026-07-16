@@ -99,6 +99,8 @@ Interface Drivers translate provider-level intent into interface-specific reques
 
 The `@atlas-aios/learning` package currently owns the OpenAPI interface-learning pipeline: it composes OpenAPI ingestion, draft provider manifest generation, and Kernel candidate creation into one tested contract. This pipeline produces planning artifacts only; execution still flows through provider runtime, simulation, approval, and promotion gates.
 
+The learning pipeline also emits confidence ladder assessments and review items for low-confidence learned outputs. These review items are structured handoff records for later Decision Engine, benchmark, approval, or human review flows; they are not automatic promotion decisions.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
