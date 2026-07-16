@@ -128,4 +128,51 @@ describe("Atlas runtime API", () => {
       ]
     });
   });
+
+  it("lists capabilities learned during the MVP flow", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/capabilities", { method: "GET" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      capabilities: [
+        {
+          id: "capability:create-folio",
+          name: "Create folio",
+          level: "L2",
+          confidence: 0.8,
+          graphId: "capability-graph:unknown-business-system",
+          graphStatus: "draft",
+          sourceRefs: ["openapi:POST /folios"]
+        },
+        {
+          id: "capability:allocate-settlement",
+          name: "Allocate settlement",
+          level: "L2",
+          confidence: 0.8,
+          graphId: "capability-graph:unknown-business-system",
+          graphStatus: "draft",
+          sourceRefs: ["openapi:POST /settlements/allocate"]
+        },
+        {
+          id: "capability:dispatch-work-packet",
+          name: "Dispatch work packet",
+          level: "L2",
+          confidence: 0.8,
+          graphId: "capability-graph:unknown-business-system",
+          graphStatus: "draft",
+          sourceRefs: ["openapi:POST /work-packets/dispatch"]
+        }
+      ]
+    });
+  });
 });

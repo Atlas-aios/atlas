@@ -70,6 +70,7 @@ Initial endpoints:
 - `GET /health`
 - `POST /goals`
 - `GET /goals`
+- `GET /capabilities`
 - `POST /mvp/unknown-business/learn-and-execute`
 
 ## Implementation Tracker

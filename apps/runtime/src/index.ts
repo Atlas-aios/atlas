@@ -37,17 +37,40 @@ export interface RuntimeGoalListItem {
   ownerId: string;
 }
 
+export interface RuntimeCapabilityListItem {
+  id: string;
+  name: string;
+  level: string;
+  confidence: number;
+  graphId: string;
+  graphStatus: string;
+  sourceRefs: string[];
+}
+
+interface RuntimeState {
+  goals: Map<string, Goal>;
+  capabilities: RuntimeCapabilityListItem[];
+}
+
+interface UnknownBusinessMvpFlowResult {
+  response: UnknownBusinessMvpResponse;
+  capabilities: RuntimeCapabilityListItem[];
+}
+
 export function createAtlasRuntime(): AtlasRuntime {
-  const goals = new Map<string, Goal>();
+  const state: RuntimeState = {
+    goals: new Map<string, Goal>(),
+    capabilities: []
+  };
 
   return {
-    handle: async (request) => handleRuntimeRequest(request, goals)
+    handle: async (request) => handleRuntimeRequest(request, state)
   };
 }
 
 async function handleRuntimeRequest(
   request: Request,
-  goals: Map<string, Goal>
+  state: RuntimeState
 ): Promise<Response> {
   const url = new URL(request.url);
 
@@ -62,27 +85,36 @@ async function handleRuntimeRequest(
     request.method === "POST" &&
     url.pathname === "/mvp/unknown-business/learn-and-execute"
   ) {
-    return json<UnknownBusinessMvpResponse>(await runUnknownBusinessMvpFlow());
+    const result = await runUnknownBusinessMvpFlow();
+    state.capabilities = result.capabilities;
+
+    return json<UnknownBusinessMvpResponse>(result.response);
   }
 
   if (request.method === "POST" && url.pathname === "/goals") {
     const input = (await request.json()) as CreateRuntimeGoalRequest;
     const result = createGoal(input);
-    goals.set(result.goal.id, result.goal);
+    state.goals.set(result.goal.id, result.goal);
 
     return json(result, { status: 201 });
   }
 
   if (request.method === "GET" && url.pathname === "/goals") {
     return json({
-      goals: [...goals.values()].map(toGoalListItem)
+      goals: [...state.goals.values()].map(toGoalListItem)
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/capabilities") {
+    return json({
+      capabilities: state.capabilities
     });
   }
 
   return json({ error: "not_found" }, { status: 404 });
 }
 
-async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpResponse> {
+async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult> {
   const openApiFixture = createUnknownBusinessSystemOpenApiFixture();
   const learningResult = learnOpenApiCapabilities({
     graphId: openApiFixture.graphId,
@@ -94,18 +126,30 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpResponse> 
   });
   const browserFixture = createUnknownBusinessBrowserUiFixture();
   const benchmark = await createUnknownBusinessCreateResourceBenchmark().run();
+  const capabilities = learningResult.graph.nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    level: node.level,
+    confidence: node.confidence,
+    graphId: learningResult.graph.id,
+    graphStatus: learningResult.graph.status,
+    sourceRefs: node.sourceRefs
+  }));
 
   return {
-    scenario: "Create Resource",
-    learnedCapabilities: learningResult.graph.nodes.map((node) => node.id),
-    providerCandidates: learningResult.providerCandidates.map(
-      (candidate) => candidate.providerId
-    ),
-    browserCapabilities: extractBrowserCapabilities(browserFixture.render()),
-    benchmark: {
-      id: benchmark.id,
-      passed: benchmark.passed,
-      evidence: benchmark.evidence
+    capabilities,
+    response: {
+      scenario: "Create Resource",
+      learnedCapabilities: learningResult.graph.nodes.map((node) => node.id),
+      providerCandidates: learningResult.providerCandidates.map(
+        (candidate) => candidate.providerId
+      ),
+      browserCapabilities: extractBrowserCapabilities(browserFixture.render()),
+      benchmark: {
+        id: benchmark.id,
+        passed: benchmark.passed,
+        evidence: benchmark.evidence
+      }
     }
   };
 }
