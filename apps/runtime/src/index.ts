@@ -1,5 +1,6 @@
 import {
   createGoal,
+  transitionGoal,
   type CreateGoalInput,
   type Goal,
   type GoalLifecycleEvent
@@ -47,6 +48,14 @@ export interface UnknownBusinessMvpResponse {
 }
 
 export type CreateRuntimeGoalRequest = CreateGoalInput;
+
+export interface TransitionRuntimeGoalStatusRequest {
+  eventId: string;
+  toStatus: Goal["status"];
+  occurredAt: string;
+  reason: string;
+  sourceRefs?: string[];
+}
 
 export interface RuntimeGoalListItem {
   id: string;
@@ -209,6 +218,38 @@ async function handleRuntimeRequest(
     return json({
       goals: [...state.goals.values()].map(toGoalListItem)
     });
+  }
+
+  const goalStatusMatch = /^\/goals\/([^/]+)\/status$/.exec(url.pathname);
+  if (request.method === "POST" && goalStatusMatch !== null) {
+    const goalId = decodeURIComponent(goalStatusMatch[1] ?? "");
+    const goal = state.goals.get(goalId);
+
+    if (goal === undefined) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    const input = (await request.json()) as TransitionRuntimeGoalStatusRequest;
+    const result = transitionGoal({
+      goal,
+      eventId: input.eventId,
+      toStatus: input.toStatus,
+      occurredAt: input.occurredAt,
+      reason: input.reason,
+      ...(input.sourceRefs === undefined ? {} : { sourceRefs: input.sourceRefs })
+    });
+
+    if (!result.ok) {
+      return json(result.error, { status: 409 });
+    }
+
+    state.goals.set(goalId, result.goal);
+    state.goalEvents.set(goalId, [
+      ...(state.goalEvents.get(goalId) ?? []),
+      result.event
+    ]);
+
+    return json(result);
   }
 
   const goalExecutionMatch = /^\/goals\/(.+)\/executions$/.exec(url.pathname);

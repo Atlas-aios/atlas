@@ -129,6 +129,93 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("transitions a goal status and records the lifecycle event", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+
+    const transitionResponse = await runtime.handle(
+      new Request("http://atlas.local/goals/goal:runtime-create-resource/status", {
+        method: "POST",
+        body: JSON.stringify({
+          eventId: "goal:runtime-create-resource:event:activated",
+          toStatus: "active",
+          occurredAt: "2026-07-16T12:05:00.000Z",
+          reason: "Begin learning and execution."
+        })
+      })
+    );
+
+    expect(transitionResponse.status).toBe(200);
+    await expect(transitionResponse.json()).resolves.toMatchObject({
+      goal: {
+        id: "goal:runtime-create-resource",
+        status: "active",
+        updatedAt: "2026-07-16T12:05:00.000Z"
+      },
+      event: {
+        id: "goal:runtime-create-resource:event:activated",
+        type: "goal.status_changed",
+        goalId: "goal:runtime-create-resource",
+        occurredAt: "2026-07-16T12:05:00.000Z",
+        fromStatus: "proposed",
+        toStatus: "active",
+        sourceRefs: [],
+        summary: "Begin learning and execution."
+      }
+    });
+
+    const listResponse = await runtime.handle(
+      new Request("http://atlas.local/goals", { method: "GET" })
+    );
+
+    await expect(listResponse.json()).resolves.toEqual({
+      goals: [
+        {
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          status: "active",
+          priority: 95,
+          ownerId: "identity:user:moksh"
+        }
+      ]
+    });
+
+    const timelineResponse = await runtime.handle(
+      new Request("http://atlas.local/goals/goal:runtime-create-resource/timeline", {
+        method: "GET"
+      })
+    );
+
+    await expect(timelineResponse.json()).resolves.toMatchObject({
+      events: [
+        {
+          type: "goal.created",
+          goalId: "goal:runtime-create-resource"
+        },
+        {
+          type: "goal.status_changed",
+          goalId: "goal:runtime-create-resource",
+          fromStatus: "proposed",
+          toStatus: "active"
+        }
+      ]
+    });
+  });
+
   it("gets goal details with linked runtime executions", async () => {
     const runtime = createAtlasRuntime();
 
