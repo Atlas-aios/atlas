@@ -905,6 +905,69 @@ The question is:
 Which provider helps Atlas complete governed work correctly, cheaply, quickly, and safely?
 ```
 
+### Adaptive Interface Specialists
+
+Atlas should become faster and cheaper on systems it has already learned.
+
+If a user asks Atlas to work on `abc.com`, Atlas should not fine-tune a model immediately. First it should gather evidence:
+
+```text
+abc.com docs, UI, API, SDK, workflows, screenshots, DOM, and errors
+-> Site Knowledge Pack
+-> Semantic World Model entities
+-> Capability Graph
+-> Interface Driver mappings
+-> Capability Provider candidates
+-> tests and benchmarks
+-> Memory events
+-> Experience artifacts
+```
+
+After repeated successful and failed tasks, Atlas can build a specialist dataset:
+
+```text
+interface observations
++ successful workflows
++ failed workflows
++ user corrections
++ approvals and rejections
++ field mappings
++ navigation paths
++ API schemas
++ test cases
+```
+
+A training provider such as Tinker/Inkling could then fine-tune or adapt a smaller specialist model:
+
+```text
+abc.com specialist model
++ abc.com interface driver mappings
++ abc.com capability provider
++ abc.com tests
++ abc.com benchmarks
++ abc.com experience pack
+```
+
+The specialist helps with future tasks on that site, but it does not become the source of truth. The source of truth remains ACR, Memory, Experience, Capability Graph, interface maps, and tests.
+
+The specialist must be:
+
+- benchmarked before promotion
+- approved by governance before private-data training
+- routed through Capability Kernel
+- validated by deterministic checks
+- monitored for drift
+- demoted or retired when stale
+
+This gives Atlas compounding learning:
+
+```text
+First task on a site = research and learning
+Repeated tasks = provider and workflow reuse
+Frequent task family = specialist fine-tuning
+Future work = faster, cheaper, more reliable execution
+```
+
 ## Current Implementation State
 
 The current implementation lives in the `atlas` TypeScript monorepo.

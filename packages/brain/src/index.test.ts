@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { CapabilityGraph } from "@atlas-aios/capability-graph";
 import type { ExperienceArtifact } from "@atlas-aios/experience";
 import type { IdentityResolution, IdentitySubject } from "@atlas-aios/identity";
 import type { MemoryEvent } from "@atlas-aios/memory";
@@ -12,6 +13,7 @@ import {
   createClarificationNeededOutput,
   createThought,
   explainPlan,
+  lookupCapabilityGraphPlanningContext,
   lookupExperiencePlanningContext,
   lookupIdentityPlanningContext,
   lookupMemoryPlanningContext,
@@ -751,6 +753,103 @@ describe("lookupIdentityPlanningContext", () => {
         }
       ],
       droppedItemIds: ["identity:provider:uncertain"]
+    });
+  });
+});
+
+describe("lookupCapabilityGraphPlanningContext", () => {
+  it("returns requested capabilities and dependency edges as Brain context", () => {
+    const graph: CapabilityGraph = {
+      id: "capability-graph:unknown-system",
+      schemaVersion: "0.1",
+      status: "draft",
+      generatedAt: "2026-07-06T10:00:00.000Z",
+      nodes: [
+        {
+          id: "capability:create-resource",
+          schemaVersion: "0.1",
+          name: "Create Resource",
+          level: "L2",
+          confidence: 0.84,
+          sourceRefs: ["evidence:openapi:create-resource"]
+        },
+        {
+          id: "capability:authenticate",
+          schemaVersion: "0.1",
+          name: "Authenticate",
+          level: "L1",
+          confidence: 0.92,
+          sourceRefs: ["evidence:openapi:auth"]
+        },
+        {
+          id: "capability:delete-resource",
+          schemaVersion: "0.1",
+          name: "Delete Resource",
+          level: "L2",
+          confidence: 0.45,
+          sourceRefs: ["evidence:weak-delete"]
+        }
+      ],
+      edges: [
+        {
+          fromCapabilityId: "capability:create-resource",
+          toCapabilityId: "capability:authenticate",
+          relationship: "requires"
+        },
+        {
+          fromCapabilityId: "capability:delete-resource",
+          toCapabilityId: "capability:authenticate",
+          relationship: "requires"
+        }
+      ]
+    };
+
+    expect(
+      lookupCapabilityGraphPlanningContext({
+        graph,
+        capabilityIds: ["capability:create-resource", "capability:delete-resource"],
+        minimumConfidence: 0.7,
+        includeDependencyEdges: true,
+        permissionScope: ["project:atlas"]
+      })
+    ).toEqual({
+      source: "capability-graph",
+      items: [
+        {
+          id: "capability-graph-context:node:capability:create-resource",
+          source: "capability-graph",
+          summary: "L2 capability Create Resource",
+          content:
+            "Capability capability:create-resource is named Create Resource, has level L2, graph status draft, and confidence 0.84.",
+          confidence: 0.84,
+          relevance: 1,
+          estimatedTokens: 23,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "capability-graph:unknown-system",
+            "capability:create-resource",
+            "evidence:openapi:create-resource"
+          ]
+        },
+        {
+          id: "capability-graph-context:edge:capability:create-resource:requires:capability:authenticate",
+          source: "capability-graph",
+          summary:
+            "requires edge from capability:create-resource to capability:authenticate",
+          content:
+            "Capability capability:create-resource requires capability:authenticate.",
+          confidence: 0.84,
+          relevance: 0.9,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "capability-graph:unknown-system",
+            "capability:create-resource",
+            "capability:authenticate"
+          ]
+        }
+      ],
+      droppedItemIds: ["capability:delete-resource"]
     });
   });
 });

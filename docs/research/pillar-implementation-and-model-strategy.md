@@ -353,6 +353,63 @@ Atlas planning benchmark
 -> measure structured-output validity, plan correctness, tool-use validity, latency, cost, and governance explanation quality
 ```
 
+### Inkling And Tinker For Adaptive Specialist Models
+
+Research status: open, high priority.
+
+Initial read: Inkling/Tinker is relevant to Atlas because it is aimed at open-weight customization and fine-tuning rather than only renting a frozen general model. That matches Atlas's plan to create smaller specialists for repeated sites, domains, and task families.
+
+Atlas should not treat Inkling as the default Brain. The stronger fit is a specialist training provider:
+
+```text
+Site or domain usage
+-> interface observations
+-> Memory and Experience
+-> Capability Graph
+-> provider execution traces
+-> curated specialist dataset
+-> Tinker/Inkling or similar training provider
+-> benchmarked Interface Specialist
+-> specialist provider registered in Atlas
+```
+
+Potential Atlas uses:
+
+- fine-tune an `abc.com` Interface Specialist after Atlas has repeatedly operated that site;
+- fine-tune an OpenAPI-to-provider synthesis specialist;
+- fine-tune an ACR/AtlasFlow structured-output specialist;
+- fine-tune a user cognitive-style specialist for communication and planning preferences;
+- fine-tune task-family specialists such as code review, deployment planning, document ingestion, or browser workflow mapping.
+
+Governance rule:
+
+```text
+No private data enters a training job without explicit policy approval.
+No specialist is promoted without benchmark evidence.
+No specialist bypasses deterministic validators, tests, or provider ranking.
+```
+
+Research questions:
+
+- Can Inkling/Tinker produce strict ACR, AtlasFlow, and AtlasIR examples more reliably than prompting plus retrieval?
+- Does fine-tuning a site specialist reduce cost and latency enough to justify training?
+- Can Atlas export or self-host resulting adapters or weights?
+- What data governance controls exist for hosted fine-tuning?
+- How should Atlas detect site/API drift and retire stale specialists?
+- Which tasks benefit from fine-tuning, and which are better served by retrieval plus deterministic interface maps?
+- Can specialist models improve UI grounding or field mapping without memorizing sensitive data?
+
+Evaluation plan:
+
+```text
+Build a synthetic unknown system
+-> collect 50-200 task traces
+-> create specialist dataset
+-> train/fine-tune candidate specialist
+-> compare against general local model + retrieval
+-> compare cost, latency, success rate, structured-output validity, and drift behavior
+```
+
 ### TurboQuant For Long-Context KV-Cache And Memory Compression
 
 Research status: open.
@@ -465,6 +522,7 @@ Atlas should not adopt a desktop vision model because it is impressive in isolat
 | Governance/safety             | Constitutional AI                                                | Critic/Defender/Judge inspiration          |
 | Prompt injection              | Indirect prompt-injection research                               | Interface driver security                  |
 | Agentic open models           | NVIDIA Nemotron 3                                                | Private/self-hosted reasoning provider     |
+| Specialist fine-tuning        | Inkling / Tinker                                                 | Adaptive Interface Specialist candidate    |
 | KV-cache compression          | TurboQuant                                                       | Long-context inference and vector memory   |
 | Desktop vision grounding      | LocateAnything                                                   | Fast UI element localization candidate     |
 | GUI grounding                 | SeeClick, ScreenSpot-Pro, Agent S2, GroundCUA/GroundNext         | Desktop control provider comparison        |

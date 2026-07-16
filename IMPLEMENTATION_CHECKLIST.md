@@ -108,7 +108,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Add Experience lookup.
 - [x] Add Self Model lookup.
 - [x] Add Identity lookup.
-- [ ] Add Capability Graph lookup.
+- [x] Add Capability Graph lookup.
 - [ ] Add Governance constraint lookup.
 - [x] Implement plan explanation output.
 - [x] Implement clarification-needed output.
@@ -423,6 +423,25 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement waiting-time detection.
 - [ ] Implement Reputation Engine provider scoring.
 - [ ] Feed reputation into Capability Kernel.
+
+---
+
+## 18A. Adaptive Specialist Engine
+
+- [ ] Define Adaptive Specialist Engine service boundary.
+- [ ] Define Interface Specialist artifact schema.
+- [ ] Define Site Knowledge Pack schema.
+- [ ] Define specialist dataset schema from Memory, Experience, interface observations, workflows, tests, and corrections.
+- [ ] Define specialist training provider contract.
+- [ ] Add Tinker/Inkling research track as a candidate training provider.
+- [ ] Add specialist model registry.
+- [ ] Add specialist provider registration flow.
+- [ ] Add governance gate before training on private data.
+- [ ] Add benchmark gate before specialist promotion.
+- [ ] Add drift detection for stale site/interface specialists.
+- [ ] Add retirement workflow for unsafe or stale specialists.
+- [ ] Route repeated site/domain tasks to specialist providers through Capability Kernel.
+- [ ] Add tests for specialist promotion only after benchmark and governance approval.
 
 ---
 

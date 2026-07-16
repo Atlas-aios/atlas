@@ -1,3 +1,9 @@
+import type {
+  CapabilityEdge,
+  CapabilityGraph,
+  CapabilityGraphStatus,
+  CapabilityNode
+} from "@atlas-aios/capability-graph";
 import {
   routeModelRequest,
   type ModelRoutingDecision,
@@ -205,7 +211,14 @@ export interface PlanningExperienceLookupResult {
 
 export interface BrainContextItem {
   id: string;
-  source: "swm" | "world-state" | "memory" | "self-model" | "identity" | "experience";
+  source:
+    | "swm"
+    | "world-state"
+    | "memory"
+    | "self-model"
+    | "identity"
+    | "experience"
+    | "capability-graph";
   summary: string;
   content: string;
   confidence: number;
@@ -302,6 +315,20 @@ export interface ExperiencePlanningContextLookupResult {
   droppedItemIds: string[];
 }
 
+export interface CapabilityGraphPlanningContextLookupInput {
+  graph: CapabilityGraph;
+  capabilityIds: string[];
+  minimumConfidence: number;
+  includeDependencyEdges: boolean;
+  permissionScope: string[];
+}
+
+export interface CapabilityGraphPlanningContextLookupResult {
+  source: "capability-graph";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
 export const THOUGHT_LIFECYCLE_MODEL: ThoughtLifecycleModel = {
   initialStatus: "draft",
   terminalStatuses: ["resolved", "discarded"],
@@ -369,6 +396,55 @@ export function lookupExperiencePlanningContext(
   return {
     source: "experience",
     items: limitedItems,
+    droppedItemIds
+  };
+}
+
+export function lookupCapabilityGraphPlanningContext(
+  input: CapabilityGraphPlanningContextLookupInput
+): CapabilityGraphPlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const selectedNodes = input.graph.nodes.flatMap((node): CapabilityNode[] => {
+    if (!input.capabilityIds.includes(node.id)) {
+      return [];
+    }
+
+    if (node.confidence < input.minimumConfidence) {
+      droppedItemIds.push(node.id);
+      return [];
+    }
+
+    return [node];
+  });
+  const selectedNodeIds = new Set(selectedNodes.map((node) => node.id));
+  const nodeItems = selectedNodes.map((node) =>
+    createCapabilityNodeContextItem({
+      graphId: input.graph.id,
+      graphStatus: input.graph.status,
+      node,
+      permissionScope: input.permissionScope
+    })
+  );
+  const edgeItems = input.includeDependencyEdges
+    ? input.graph.edges.flatMap((edge): BrainContextItem[] => {
+        if (!selectedNodeIds.has(edge.fromCapabilityId)) {
+          return [];
+        }
+
+        return [
+          createCapabilityEdgeContextItem({
+            graphId: input.graph.id,
+            edge,
+            confidence: findCapabilityConfidence(selectedNodes, edge.fromCapabilityId),
+            permissionScope: input.permissionScope
+          })
+        ];
+      })
+    : [];
+
+  return {
+    source: "capability-graph",
+    items: [...nodeItems, ...edgeItems],
     droppedItemIds
   };
 }
@@ -843,4 +919,51 @@ function calculateApplicabilityRelevance(
   );
 
   return matchingScopes.length / artifactApplicability.length;
+}
+
+function createCapabilityNodeContextItem(input: {
+  graphId: string;
+  graphStatus: CapabilityGraphStatus;
+  node: CapabilityNode;
+  permissionScope: string[];
+}): BrainContextItem {
+  const content = `Capability ${input.node.id} is named ${input.node.name}, has level ${input.node.level}, graph status ${input.graphStatus}, and confidence ${input.node.confidence}.`;
+  return {
+    id: `capability-graph-context:node:${input.node.id}`,
+    source: "capability-graph",
+    summary: `${input.node.level} capability ${input.node.name}`,
+    content,
+    confidence: input.node.confidence,
+    relevance: 1,
+    estimatedTokens: estimateContextTokens(content),
+    permissionScope: input.permissionScope,
+    sourceRefs: [input.graphId, input.node.id, ...input.node.sourceRefs]
+  };
+}
+
+function createCapabilityEdgeContextItem(input: {
+  graphId: string;
+  edge: CapabilityEdge;
+  confidence: number;
+  permissionScope: string[];
+}): BrainContextItem {
+  const content = `Capability ${input.edge.fromCapabilityId} ${input.edge.relationship} ${input.edge.toCapabilityId}.`;
+  return {
+    id: `capability-graph-context:edge:${input.edge.fromCapabilityId}:${input.edge.relationship}:${input.edge.toCapabilityId}`,
+    source: "capability-graph",
+    summary: `${input.edge.relationship} edge from ${input.edge.fromCapabilityId} to ${input.edge.toCapabilityId}`,
+    content,
+    confidence: input.confidence,
+    relevance: 0.9,
+    estimatedTokens: estimateContextTokens(content),
+    permissionScope: input.permissionScope,
+    sourceRefs: [input.graphId, input.edge.fromCapabilityId, input.edge.toCapabilityId]
+  };
+}
+
+function findCapabilityConfidence(
+  nodes: CapabilityNode[],
+  capabilityId: string
+): number {
+  return nodes.find((node) => node.id === capabilityId)?.confidence ?? 0;
 }

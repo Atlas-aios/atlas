@@ -66,3 +66,50 @@ Brain planning request
 -> local or remote lane decision
 -> Brain execution path calls the selected model provider
 ```
+
+## Adaptive Specialist Lane
+
+Atlas should eventually train or fine-tune smaller specialist models for repeated sites, domains, and task families. These specialists are accelerators, not sources of truth.
+
+Example:
+
+```text
+Repeated abc.com work
+-> background interface learning
+-> Site Knowledge Pack
+-> Capability Graph and provider candidates
+-> successful and failed executions
+-> Memory and Experience artifacts
+-> curated specialist dataset
+-> fine-tuning provider such as Tinker/Inkling, when approved
+-> benchmarked Interface Specialist
+-> registered specialist provider
+-> routed by Capability Kernel for future abc.com tasks
+```
+
+The specialist lane must obey these gates:
+
+- do not train on private data without governance approval;
+- do not promote a specialist without benchmark evidence;
+- do not let a specialist bypass deterministic validation;
+- keep ACR, Memory, Experience, Capability Graph, interface maps, and tests as the source of truth;
+- monitor specialists for drift when the target site, API, or workflow changes;
+- retire or demote stale specialists.
+
+Specialists should help Atlas avoid relearning the same interface from scratch. They should not replace retrieval, evidence, tests, or provider ranking.
+
+## Candidate Specialist Training Providers
+
+Tinker/Inkling should be tracked as a candidate training provider for Atlas-specific specialists. The likely fit is not general default reasoning, but governed customization:
+
+```text
+ACR examples
+AtlasFlow examples
+provider synthesis examples
+interface mapping examples
+successful execution traces
+corrections and rejected plans
+-> fine-tuned specialist
+```
+
+Before adoption, Atlas needs benchmarks for strict structured output, provider generation, interface mapping, cost, latency, export/self-hosting options, privacy controls, and whether fine-tuning beats retrieval plus prompting for a specific task family.

@@ -33,6 +33,9 @@ importers:
 
   packages/brain:
     dependencies:
+      "@atlas-aios/capability-graph":
+        specifier: workspace:*
+        version: link:../capability-graph
       "@atlas-aios/core":
         specifier: workspace:*
         version: link:../core
