@@ -45,6 +45,27 @@ export interface CapabilityKernelInput {
   maxFallbacks?: number;
 }
 
+export type ProviderManifestLifecycle =
+  | "draft"
+  | "registered"
+  | "healthy"
+  | "degraded"
+  | "disabled"
+  | "failed";
+
+export interface ProviderManifestCandidateSource {
+  id: string;
+  lifecycle: ProviderManifestLifecycle;
+  capabilityIds: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateProviderCandidatesFromManifestsInput {
+  manifests: ProviderManifestCandidateSource[];
+  defaultEstimatedCost: number;
+  defaultEstimatedLatencyMs: number;
+}
+
 export interface ProviderExperienceLookupInput {
   artifacts: ExperienceArtifact[];
   request: CapabilityResolutionRequest;
@@ -104,6 +125,20 @@ export function lookupProviderExperience(
       })
     }))
     .filter((guidance) => guidance.artifacts.length > 0);
+}
+
+export function createProviderCandidatesFromManifests(
+  input: CreateProviderCandidatesFromManifestsInput
+): ProviderCandidate[] {
+  return input.manifests.flatMap((manifest) =>
+    manifest.capabilityIds.map((capabilityId) => ({
+      providerId: manifest.id,
+      capabilityId,
+      ...candidateDefaultsForManifest(manifest),
+      estimatedCost: input.defaultEstimatedCost,
+      estimatedLatencyMs: input.defaultEstimatedLatencyMs
+    }))
+  );
 }
 
 function createProviderExperienceQuery(
@@ -388,4 +423,42 @@ function clampRawScore(value: number): number {
 
 function roundScore(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function candidateDefaultsForManifest(
+  manifest: ProviderManifestCandidateSource
+): Pick<
+  ProviderCandidate,
+  "confidence" | "riskScore" | "permissionFit" | "policyRiskScore" | "reputationScore"
+> {
+  if (
+    manifest.lifecycle === "draft" &&
+    manifest.metadata?.providerKind === "generated_openapi"
+  ) {
+    return {
+      confidence: 0.62,
+      riskScore: 0.6,
+      permissionFit: 0.7,
+      policyRiskScore: 0.2,
+      reputationScore: 0.5
+    };
+  }
+
+  if (manifest.lifecycle === "healthy") {
+    return {
+      confidence: 0.85,
+      riskScore: 0.15,
+      permissionFit: 1,
+      policyRiskScore: 0,
+      reputationScore: 0.8
+    };
+  }
+
+  return {
+    confidence: 0.7,
+    riskScore: 0.3,
+    permissionFit: 0.9,
+    policyRiskScore: 0.1,
+    reputationScore: 0.7
+  };
 }

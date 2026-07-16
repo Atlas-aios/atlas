@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCodingProviderManifest,
+  createOpenApiProviderManifests,
   createProviderRegistry,
   executeProvider,
   getLatestProviderVersion,
@@ -10,6 +11,45 @@ import {
 } from "./index.js";
 
 describe("Capability Provider Runtime", () => {
+  it("creates draft OpenAPI provider manifests from driver mappings", () => {
+    expect(
+      createOpenApiProviderManifests({
+        version: "0.1.0",
+        sourceGraphId: "capability-graph:unknown-api",
+        mappings: [
+          {
+            capabilityId: "capability:create-invoice",
+            driverId: "driver:rest",
+            operationId: "createInvoice",
+            method: "POST",
+            path: "/invoices",
+            requiredPermissions: ["network"]
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        id: "provider:openapi:create-invoice",
+        name: "OpenAPI createInvoice Provider",
+        version: "0.1.0",
+        lifecycle: "draft",
+        capabilityIds: ["capability:create-invoice"],
+        interfaceDriverIds: ["driver:rest"],
+        requiredPermissions: ["network"],
+        inputSchema: [{ name: "request", type: "object", required: true }],
+        outputSchema: [{ name: "response", type: "object", required: true }],
+        retryPolicy: { maxAttempts: 2, initialDelayMs: 100, backoffMultiplier: 2 },
+        metadata: {
+          providerKind: "generated_openapi",
+          sourceGraphId: "capability-graph:unknown-api",
+          operationId: "createInvoice",
+          method: "POST",
+          path: "/invoices"
+        }
+      }
+    ]);
+  });
+
   it("creates coding provider manifests for external AI coding platforms", () => {
     expect(
       createCodingProviderManifest({

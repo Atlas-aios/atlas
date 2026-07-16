@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ExperienceArtifact } from "@atlas-aios/experience";
 import {
   createCapabilityKernel,
+  createProviderCandidatesFromManifests,
   lookupProviderExperience,
   rankProviderCandidates,
   selectProviderCandidates
@@ -55,6 +56,39 @@ describe("lookupProviderExperience", () => {
         providerId: "provider:billing-api",
         capabilityId: "capability:create-resource",
         artifacts: [artifacts[0]]
+      }
+    ]);
+  });
+});
+
+describe("createProviderCandidatesFromManifests", () => {
+  it("converts draft generated provider manifests into rankable candidates", () => {
+    expect(
+      createProviderCandidatesFromManifests({
+        manifests: [
+          {
+            id: "provider:openapi:create-invoice",
+            lifecycle: "draft",
+            capabilityIds: ["capability:create-invoice"],
+            metadata: {
+              providerKind: "generated_openapi"
+            }
+          }
+        ],
+        defaultEstimatedCost: 0.05,
+        defaultEstimatedLatencyMs: 800
+      })
+    ).toEqual([
+      {
+        providerId: "provider:openapi:create-invoice",
+        capabilityId: "capability:create-invoice",
+        confidence: 0.62,
+        riskScore: 0.6,
+        estimatedCost: 0.05,
+        estimatedLatencyMs: 800,
+        permissionFit: 0.7,
+        policyRiskScore: 0.2,
+        reputationScore: 0.5
       }
     ]);
   });

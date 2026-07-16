@@ -116,6 +116,21 @@ export interface CreateCodingProviderManifestInput {
   maxEstimatedCostUsd: number;
 }
 
+export interface OpenApiProviderMapping {
+  capabilityId: string;
+  driverId: "driver:rest";
+  operationId: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  requiredPermissions: string[];
+}
+
+export interface CreateOpenApiProviderManifestsInput {
+  version: string;
+  sourceGraphId: string;
+  mappings: OpenApiProviderMapping[];
+}
+
 export interface RegisteredCapabilityProvider {
   manifest: CapabilityProviderManifest;
   handler: ProviderHandler;
@@ -171,6 +186,30 @@ export function createCodingProviderManifest(
       maxEstimatedCostUsd: input.maxEstimatedCostUsd
     }
   };
+}
+
+export function createOpenApiProviderManifests(
+  input: CreateOpenApiProviderManifestsInput
+): CapabilityProviderManifest[] {
+  return input.mappings.map((mapping) => ({
+    id: `provider:openapi:${capabilitySlug(mapping.capabilityId)}`,
+    name: `OpenAPI ${mapping.operationId} Provider`,
+    version: input.version,
+    lifecycle: "draft",
+    capabilityIds: [mapping.capabilityId],
+    interfaceDriverIds: [mapping.driverId],
+    requiredPermissions: mapping.requiredPermissions,
+    inputSchema: [{ name: "request", type: "object", required: true }],
+    outputSchema: [{ name: "response", type: "object", required: true }],
+    retryPolicy: { maxAttempts: 2, initialDelayMs: 100, backoffMultiplier: 2 },
+    metadata: {
+      providerKind: "generated_openapi",
+      sourceGraphId: input.sourceGraphId,
+      operationId: mapping.operationId,
+      method: mapping.method,
+      path: mapping.path
+    }
+  }));
 }
 
 export function registerProvider(
@@ -484,4 +523,8 @@ function semverParts(version: string): number[] {
     .split(".")
     .map((part) => Number.parseInt(part, 10))
     .map((part) => (Number.isFinite(part) ? part : 0));
+}
+
+function capabilitySlug(capabilityId: string): string {
+  return capabilityId.replace(/^capability:/, "");
 }

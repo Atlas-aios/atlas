@@ -457,7 +457,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Extract candidate relationships.
 - [x] Extract candidate capabilities.
 - [x] Generate Draft Capability Graph.
-- [ ] Generate Draft Capability Providers.
+- [x] Generate Draft Capability Providers.
 - [x] Generate Draft Interface Driver mappings.
 - [ ] Add confidence ladder.
 - [ ] Add review workflow for low-confidence outputs.
