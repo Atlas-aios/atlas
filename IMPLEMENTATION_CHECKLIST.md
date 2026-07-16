@@ -105,7 +105,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Add SWM context lookup.
 - [x] Add World State lookup.
 - [x] Add Memory lookup.
-- [ ] Add Experience lookup.
+- [x] Add Experience lookup.
 - [x] Add Self Model lookup.
 - [x] Add Identity lookup.
 - [ ] Add Capability Graph lookup.

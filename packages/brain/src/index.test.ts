@@ -12,6 +12,7 @@ import {
   createClarificationNeededOutput,
   createThought,
   explainPlan,
+  lookupExperiencePlanningContext,
   lookupIdentityPlanningContext,
   lookupMemoryPlanningContext,
   lookupSelfModelPlanningContext,
@@ -58,6 +59,66 @@ describe("lookupPlanningExperience", () => {
           artifacts: [artifacts[0]]
         }
       ]
+    });
+  });
+});
+
+describe("lookupExperiencePlanningContext", () => {
+  it("returns applicable Experience artifacts as Brain context items", () => {
+    const artifacts: ExperienceArtifact[] = [
+      {
+        id: "experience:anti-pattern:create-resource-weak-fields",
+        type: "anti_pattern",
+        summary:
+          "Avoid live Create Resource execution when required field mappings are inferred only from UI labels.",
+        evidenceMemoryEventIds: [
+          "memory:event:failure:weak-fields",
+          "memory:event:decision:simulate-first"
+        ],
+        applicability: ["capability:create-resource", "provider:browser-ui"],
+        confidence: 0.88
+      },
+      {
+        id: "experience:heuristic:delete-resource",
+        type: "heuristic",
+        summary: "Delete Resource should require explicit human approval.",
+        evidenceMemoryEventIds: ["memory:event:delete-risk"],
+        applicability: ["capability:delete-resource"],
+        confidence: 0.91
+      }
+    ];
+
+    expect(
+      lookupExperiencePlanningContext({
+        artifacts,
+        artifactTypes: ["heuristic", "anti_pattern", "risk_pattern"],
+        applicability: ["capability:create-resource"],
+        minimumConfidence: 0.7,
+        permissionScope: ["project:atlas"],
+        limit: 5
+      })
+    ).toEqual({
+      source: "experience",
+      items: [
+        {
+          id: "experience-context:artifact:experience:anti-pattern:create-resource-weak-fields",
+          source: "experience",
+          summary:
+            "anti_pattern Experience experience:anti-pattern:create-resource-weak-fields",
+          content:
+            "Avoid live Create Resource execution when required field mappings are inferred only from UI labels.",
+          confidence: 0.88,
+          relevance: 0.5,
+          estimatedTokens: 23,
+          permissionScope: ["project:atlas"],
+          sourceRefs: [
+            "experience:anti-pattern:create-resource-weak-fields",
+            "memory:event:failure:weak-fields",
+            "memory:event:decision:simulate-first"
+          ]
+        }
+      ],
+      droppedItemIds: ["experience:heuristic:delete-resource"]
     });
   });
 });

@@ -79,6 +79,8 @@ Brain reads Self Model through a capability-awareness context lookup adapter. Th
 
 Brain reads Identity through a confidence-filtered identity context lookup adapter. The adapter converts identity subjects and external system resolutions into bounded context for planning, preserving aliases, evidence references, and external ids. Brain uses this to reason about humans, systems, organizations, and providers without guessing identity from names alone.
 
+Brain reads Experience through a distilled-knowledge context lookup adapter. The adapter filters heuristics, playbooks, anti-patterns, decision patterns, and risk patterns by applicability and confidence, then converts matching artifacts into compact planning context with evidence Memory event references. Experience remains distilled guidance, not raw fact; Brain consumes it as decision support while preserving dropped artifact ids for auditability.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.

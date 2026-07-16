@@ -6,7 +6,8 @@ import {
 import {
   lookupExperienceArtifacts,
   type ExperienceLookupQuery,
-  type ExperienceArtifact
+  type ExperienceArtifact,
+  type ExperienceArtifactType
 } from "@atlas-aios/experience";
 import type { IdentityResolution, IdentitySubject } from "@atlas-aios/identity";
 import type { MemoryEvent, MemoryEventKind } from "@atlas-aios/memory";
@@ -204,7 +205,7 @@ export interface PlanningExperienceLookupResult {
 
 export interface BrainContextItem {
   id: string;
-  source: "swm" | "world-state" | "memory" | "self-model" | "identity";
+  source: "swm" | "world-state" | "memory" | "self-model" | "identity" | "experience";
   summary: string;
   content: string;
   confidence: number;
@@ -286,6 +287,21 @@ export interface IdentityPlanningContextLookupResult {
   droppedItemIds: string[];
 }
 
+export interface ExperiencePlanningContextLookupInput {
+  artifacts: ExperienceArtifact[];
+  artifactTypes: ExperienceArtifactType[];
+  applicability: string[];
+  minimumConfidence: number;
+  permissionScope: string[];
+  limit: number;
+}
+
+export interface ExperiencePlanningContextLookupResult {
+  source: "experience";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
 export const THOUGHT_LIFECYCLE_MODEL: ThoughtLifecycleModel = {
   initialStatus: "draft",
   terminalStatuses: ["resolved", "discarded"],
@@ -313,6 +329,47 @@ export function lookupPlanningExperience(
         })
       }))
       .filter((guidance) => guidance.artifacts.length > 0)
+  };
+}
+
+export function lookupExperiencePlanningContext(
+  input: ExperiencePlanningContextLookupInput
+): ExperiencePlanningContextLookupResult {
+  const matchingArtifacts = lookupExperienceArtifacts({
+    artifacts: input.artifacts,
+    query: {
+      artifactTypes: input.artifactTypes,
+      applicability: input.applicability,
+      minimumConfidence: input.minimumConfidence
+    }
+  });
+  const matchingArtifactIds = new Set(matchingArtifacts.map((artifact) => artifact.id));
+  const droppedItemIds = input.artifacts
+    .filter((artifact) => !matchingArtifactIds.has(artifact.id))
+    .map((artifact) => artifact.id);
+  const items = matchingArtifacts.map(
+    (artifact): BrainContextItem => ({
+      id: `experience-context:artifact:${artifact.id}`,
+      source: "experience",
+      summary: `${artifact.type} Experience ${artifact.id}`,
+      content: artifact.summary,
+      confidence: artifact.confidence,
+      relevance: calculateApplicabilityRelevance(
+        artifact.applicability,
+        input.applicability
+      ),
+      estimatedTokens: estimateContextTokens(artifact.summary),
+      permissionScope: input.permissionScope,
+      sourceRefs: [artifact.id, ...artifact.evidenceMemoryEventIds]
+    })
+  );
+  const limitedItems = items.slice(0, input.limit);
+  droppedItemIds.push(...items.slice(input.limit).map((item) => item.id));
+
+  return {
+    source: "experience",
+    items: limitedItems,
+    droppedItemIds
   };
 }
 
@@ -771,4 +828,19 @@ function formatSentenceList(items: string[]): string {
 
 function formatList(items: string[]): string {
   return items.length === 0 ? "none" : items.join(", ");
+}
+
+function calculateApplicabilityRelevance(
+  artifactApplicability: string[],
+  requestedApplicability: string[]
+): number {
+  if (artifactApplicability.length === 0) {
+    return 0.5;
+  }
+
+  const matchingScopes = artifactApplicability.filter((scope) =>
+    requestedApplicability.includes(scope)
+  );
+
+  return matchingScopes.length / artifactApplicability.length;
 }
