@@ -47,20 +47,35 @@ export interface RuntimeCapabilityListItem {
   sourceRefs: string[];
 }
 
+export interface RuntimeProviderListItem {
+  providerId: string;
+  capabilityId: string;
+  confidence: number;
+  riskScore: number;
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  permissionFit?: number;
+  policyRiskScore?: number;
+  reputationScore?: number;
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
   capabilities: RuntimeCapabilityListItem[];
+  providers: RuntimeProviderListItem[];
 }
 
 interface UnknownBusinessMvpFlowResult {
   response: UnknownBusinessMvpResponse;
   capabilities: RuntimeCapabilityListItem[];
+  providers: RuntimeProviderListItem[];
 }
 
 export function createAtlasRuntime(): AtlasRuntime {
   const state: RuntimeState = {
     goals: new Map<string, Goal>(),
-    capabilities: []
+    capabilities: [],
+    providers: []
   };
 
   return {
@@ -87,6 +102,7 @@ async function handleRuntimeRequest(
   ) {
     const result = await runUnknownBusinessMvpFlow();
     state.capabilities = result.capabilities;
+    state.providers = result.providers;
 
     return json<UnknownBusinessMvpResponse>(result.response);
   }
@@ -108,6 +124,12 @@ async function handleRuntimeRequest(
   if (request.method === "GET" && url.pathname === "/capabilities") {
     return json({
       capabilities: state.capabilities
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/providers") {
+    return json({
+      providers: state.providers
     });
   }
 
@@ -138,6 +160,23 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult
 
   return {
     capabilities,
+    providers: learningResult.providerCandidates.map((candidate) => ({
+      providerId: candidate.providerId,
+      capabilityId: candidate.capabilityId,
+      confidence: candidate.confidence,
+      riskScore: candidate.riskScore,
+      estimatedCost: candidate.estimatedCost,
+      estimatedLatencyMs: candidate.estimatedLatencyMs,
+      ...(candidate.permissionFit === undefined
+        ? {}
+        : { permissionFit: candidate.permissionFit }),
+      ...(candidate.policyRiskScore === undefined
+        ? {}
+        : { policyRiskScore: candidate.policyRiskScore }),
+      ...(candidate.reputationScore === undefined
+        ? {}
+        : { reputationScore: candidate.reputationScore })
+    })),
     response: {
       scenario: "Create Resource",
       learnedCapabilities: learningResult.graph.nodes.map((node) => node.id),

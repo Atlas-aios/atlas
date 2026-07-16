@@ -175,4 +175,57 @@ describe("Atlas runtime API", () => {
       ]
     });
   });
+
+  it("lists provider candidates learned during the MVP flow", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/providers", { method: "GET" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      providers: [
+        {
+          providerId: "provider:openapi:create-folio",
+          capabilityId: "capability:create-folio",
+          confidence: 0.62,
+          riskScore: 0.6,
+          estimatedCost: 0.05,
+          estimatedLatencyMs: 900,
+          permissionFit: 0.7,
+          policyRiskScore: 0.2,
+          reputationScore: 0.5
+        },
+        {
+          providerId: "provider:openapi:allocate-settlement",
+          capabilityId: "capability:allocate-settlement",
+          confidence: 0.62,
+          riskScore: 0.6,
+          estimatedCost: 0.05,
+          estimatedLatencyMs: 900,
+          permissionFit: 0.7,
+          policyRiskScore: 0.2,
+          reputationScore: 0.5
+        },
+        {
+          providerId: "provider:openapi:dispatch-work-packet",
+          capabilityId: "capability:dispatch-work-packet",
+          confidence: 0.62,
+          riskScore: 0.6,
+          estimatedCost: 0.05,
+          estimatedLatencyMs: 900,
+          permissionFit: 0.7,
+          policyRiskScore: 0.2,
+          reputationScore: 0.5
+        }
+      ]
+    });
+  });
 });

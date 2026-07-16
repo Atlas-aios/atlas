@@ -71,6 +71,7 @@ Initial endpoints:
 - `POST /goals`
 - `GET /goals`
 - `GET /capabilities`
+- `GET /providers`
 - `POST /mvp/unknown-business/learn-and-execute`
 
 ## Implementation Tracker
