@@ -468,11 +468,11 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 20. MVP Unknown Business System
 
 - [x] Design synthetic domain model.
-- [ ] Implement REST API fixture.
+- [x] Implement REST API fixture.
 - [x] Implement OpenAPI fixture.
 - [ ] Implement browser UI fixture.
 - [ ] Implement authentication fixture.
-- [ ] Add sample data.
+- [x] Add sample data.
 - [ ] Add example workflows.
 - [x] Add unknown terminology.
 - [ ] Add benchmark scenario for `Create Resource`.

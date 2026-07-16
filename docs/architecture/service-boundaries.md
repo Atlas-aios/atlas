@@ -103,6 +103,8 @@ The learning pipeline also emits confidence ladder assessments and review items 
 
 The MVP unknown-business-system fixture lives in the learning package as a synthetic OpenAPI document with unfamiliar domain terms. It is used to verify that Atlas can derive draft capabilities and providers from interface evidence without hardcoded application-specific logic.
 
+The fixture also includes an in-memory REST surface for `folio`, `settlement`, and `work packet` operations. This is a deterministic test fixture for learning and benchmarking; it is not a deployed HTTP service yet.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.

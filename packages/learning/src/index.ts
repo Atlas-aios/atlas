@@ -77,6 +77,48 @@ export interface UnknownBusinessSystemOpenApiFixture {
   document: OpenApiDocument;
 }
 
+export interface UnknownBusinessRestRequest {
+  method: "POST";
+  path: "/folios" | "/settlements/allocate" | "/work-packets/dispatch";
+  body: Record<string, unknown>;
+}
+
+export interface UnknownBusinessRestResponse {
+  status: number;
+  body: UnknownBusinessFolio | UnknownBusinessSettlement | UnknownBusinessWorkPacket;
+}
+
+export interface UnknownBusinessFolio {
+  id: string;
+  name: string;
+  state: "open";
+}
+
+export interface UnknownBusinessSettlement {
+  id: string;
+  folioId: string;
+  amount: number;
+  state: "allocated";
+}
+
+export interface UnknownBusinessWorkPacket {
+  id: string;
+  folioId: string;
+  settlementId: string;
+  state: "dispatched";
+}
+
+export interface UnknownBusinessSystemSnapshot {
+  folios: UnknownBusinessFolio[];
+  settlements: UnknownBusinessSettlement[];
+  workPackets: UnknownBusinessWorkPacket[];
+}
+
+export interface UnknownBusinessSystemRestFixture {
+  handle(request: UnknownBusinessRestRequest): Promise<UnknownBusinessRestResponse>;
+  snapshot(): UnknownBusinessSystemSnapshot;
+}
+
 export function learnOpenApiCapabilities(
   input: LearnOpenApiCapabilitiesInput
 ): LearnOpenApiCapabilitiesResult {
@@ -154,6 +196,23 @@ export function createUnknownBusinessSystemOpenApiFixture(): UnknownBusinessSyst
   };
 }
 
+export function createUnknownBusinessSystemRestFixture(): UnknownBusinessSystemRestFixture {
+  const state: UnknownBusinessSystemSnapshot = {
+    folios: [],
+    settlements: [],
+    workPackets: []
+  };
+
+  return {
+    handle: async (request) => handleUnknownBusinessRequest(state, request),
+    snapshot: () => ({
+      folios: [...state.folios],
+      settlements: [...state.settlements],
+      workPackets: [...state.workPackets]
+    })
+  };
+}
+
 function assessCapabilityConfidence(
   capabilityId: string,
   score: number
@@ -167,6 +226,73 @@ function assessCapabilityConfidence(
       score < 0.8
         ? "Confidence is below evidence-ready threshold."
         : "Capability has enough interface evidence for benchmark validation."
+  };
+}
+
+function handleUnknownBusinessRequest(
+  state: UnknownBusinessSystemSnapshot,
+  request: UnknownBusinessRestRequest
+): UnknownBusinessRestResponse {
+  switch (request.path) {
+    case "/folios":
+      return createFolio(state, request.body);
+    case "/settlements/allocate":
+      return allocateSettlement(state, request.body);
+    case "/work-packets/dispatch":
+      return dispatchWorkPacket(state, request.body);
+  }
+}
+
+function createFolio(
+  state: UnknownBusinessSystemSnapshot,
+  body: Record<string, unknown>
+): UnknownBusinessRestResponse {
+  const folio: UnknownBusinessFolio = {
+    id: `folio:${state.folios.length + 1}`,
+    name: String(body.name),
+    state: "open"
+  };
+  state.folios.push(folio);
+
+  return {
+    status: 201,
+    body: folio
+  };
+}
+
+function allocateSettlement(
+  state: UnknownBusinessSystemSnapshot,
+  body: Record<string, unknown>
+): UnknownBusinessRestResponse {
+  const settlement: UnknownBusinessSettlement = {
+    id: `settlement:${state.settlements.length + 1}`,
+    folioId: String(body.folioId),
+    amount: Number(body.amount),
+    state: "allocated"
+  };
+  state.settlements.push(settlement);
+
+  return {
+    status: 201,
+    body: settlement
+  };
+}
+
+function dispatchWorkPacket(
+  state: UnknownBusinessSystemSnapshot,
+  body: Record<string, unknown>
+): UnknownBusinessRestResponse {
+  const workPacket: UnknownBusinessWorkPacket = {
+    id: `work-packet:${state.workPackets.length + 1}`,
+    folioId: String(body.folioId),
+    settlementId: String(body.settlementId),
+    state: "dispatched"
+  };
+  state.workPackets.push(workPacket);
+
+  return {
+    status: 201,
+    body: workPacket
   };
 }
 

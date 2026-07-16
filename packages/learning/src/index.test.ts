@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
   learnOpenApiCapabilities
 } from "./index.js";
@@ -175,5 +176,83 @@ describe("learnOpenApiCapabilities", () => {
     ]);
     expect(result.providerCandidates).toHaveLength(3);
     expect(result.reviewItems.map((item) => item.subjectType)).toContain("provider");
+  });
+
+  it("executes the synthetic unknown business REST fixture in memory", async () => {
+    const fixture = createUnknownBusinessSystemRestFixture();
+
+    const createFolio = await fixture.handle({
+      method: "POST",
+      path: "/folios",
+      body: { name: "Quarterly close" }
+    });
+    const allocateSettlement = await fixture.handle({
+      method: "POST",
+      path: "/settlements/allocate",
+      body: {
+        folioId: "folio:1",
+        amount: 1250
+      }
+    });
+    const dispatchWorkPacket = await fixture.handle({
+      method: "POST",
+      path: "/work-packets/dispatch",
+      body: {
+        folioId: "folio:1",
+        settlementId: "settlement:1"
+      }
+    });
+
+    expect(createFolio).toEqual({
+      status: 201,
+      body: {
+        id: "folio:1",
+        name: "Quarterly close",
+        state: "open"
+      }
+    });
+    expect(allocateSettlement).toEqual({
+      status: 201,
+      body: {
+        id: "settlement:1",
+        folioId: "folio:1",
+        amount: 1250,
+        state: "allocated"
+      }
+    });
+    expect(dispatchWorkPacket).toEqual({
+      status: 201,
+      body: {
+        id: "work-packet:1",
+        folioId: "folio:1",
+        settlementId: "settlement:1",
+        state: "dispatched"
+      }
+    });
+    expect(fixture.snapshot()).toEqual({
+      folios: [
+        {
+          id: "folio:1",
+          name: "Quarterly close",
+          state: "open"
+        }
+      ],
+      settlements: [
+        {
+          id: "settlement:1",
+          folioId: "folio:1",
+          amount: 1250,
+          state: "allocated"
+        }
+      ],
+      workPackets: [
+        {
+          id: "work-packet:1",
+          folioId: "folio:1",
+          settlementId: "settlement:1",
+          state: "dispatched"
+        }
+      ]
+    });
   });
 });
