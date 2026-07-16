@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createCodingProviderManifest,
   createProviderRegistry,
   executeProvider,
   getLatestProviderVersion,
@@ -9,6 +10,49 @@ import {
 } from "./index.js";
 
 describe("Capability Provider Runtime", () => {
+  it("creates coding provider manifests for external AI coding platforms", () => {
+    expect(
+      createCodingProviderManifest({
+        id: "provider:code:codex",
+        name: "Codex Coding Provider",
+        version: "0.1.0",
+        platform: "codex",
+        lifecycle: "registered",
+        requiredPermissions: ["repo:read", "repo:branch", "repo:commit"],
+        interfaceDriverIds: ["driver:ai-coding-platform"],
+        maxEstimatedCostUsd: 2.5
+      })
+    ).toEqual({
+      id: "provider:code:codex",
+      name: "Codex Coding Provider",
+      version: "0.1.0",
+      lifecycle: "registered",
+      capabilityIds: ["capability:modify-code"],
+      interfaceDriverIds: ["driver:ai-coding-platform"],
+      requiredPermissions: ["repo:read", "repo:branch", "repo:commit"],
+      inputSchema: [
+        { name: "repository", type: "string", required: true },
+        { name: "branch", type: "string", required: true },
+        { name: "task", type: "string", required: true },
+        { name: "constraints", type: "array" },
+        { name: "maxEstimatedCostUsd", type: "number" }
+      ],
+      outputSchema: [
+        { name: "summary", type: "string", required: true },
+        { name: "changedFiles", type: "array", required: true },
+        { name: "commitId", type: "string" },
+        { name: "pullRequestUrl", type: "string" },
+        { name: "estimatedCostUsd", type: "number" }
+      ],
+      retryPolicy: { maxAttempts: 1 },
+      metadata: {
+        providerKind: "ai_coding_platform",
+        platform: "codex",
+        maxEstimatedCostUsd: 2.5
+      }
+    });
+  });
+
   it("registers a provider and executes it with validated inputs and outputs", async () => {
     const registry = createProviderRegistry();
     registerProvider(registry, {

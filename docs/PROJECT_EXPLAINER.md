@@ -599,6 +599,25 @@ Other possible interface drivers:
 
 This is why Atlas can stay universal. The core does not need to know every application. It needs stable contracts for capabilities, providers, drivers, and governance.
 
+### Coding Providers
+
+Atlas should be able to code, but it should not become a second expensive AI IDE.
+
+Coding is modeled as a capability:
+
+```text
+Capability: Modify Code
+Provider options:
+- Codex-style coding provider
+- Claude-Code-style coding provider
+- local code agent
+- human code review provider
+```
+
+The Capability Kernel chooses among those providers using cost, latency, repository permissions, privacy, task difficulty, prior success, and governance rules.
+
+This means Atlas can ask a coding platform to perform implementation work without putting every coding task through the most expensive general reasoning lane. Simple tasks can use cheaper/local providers. Difficult architecture or risky repo changes can use stronger providers or require human review.
+
 ## Memory, Experience, And Cost Control
 
 One of the biggest problems with large AI systems is cost.

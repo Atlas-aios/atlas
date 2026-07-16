@@ -161,17 +161,17 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [x] Define layered capability ontology: L0 through L4.
 - [ ] Implement Capability Registry storage.
-- [ ] Implement Capability Graph storage.
-- [ ] Implement capability dependency edges.
-- [ ] Implement capability composition.
-- [ ] Implement capability confidence fields.
-- [ ] Implement capability source tracking.
+- [x] Implement Capability Graph storage.
+- [x] Implement capability dependency edges.
+- [x] Implement capability composition.
+- [x] Implement capability confidence fields.
+- [x] Implement capability source tracking.
 - [ ] Implement Draft Capability Graph status.
 - [ ] Implement Trusted Capability Graph status.
 - [ ] Implement Production Capability Graph status.
-- [ ] Implement graph traversal API.
-- [ ] Implement capability search API.
-- [ ] Add tests for capability graph resolution.
+- [x] Implement graph traversal API.
+- [x] Implement capability search API.
+- [x] Add tests for capability graph resolution.
 
 ---
 
@@ -210,6 +210,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement provider event emissions.
 - [x] Implement provider retry policy.
 - [x] Implement rollback/compensation hooks.
+- [x] Define AI coding platform provider manifest.
 - [ ] Implement Human Provider contract.
 - [ ] Implement provider health monitoring.
 - [ ] Add provider contract tests.

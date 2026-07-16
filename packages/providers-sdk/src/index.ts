@@ -30,6 +30,7 @@ export interface CapabilityProviderManifest {
   inputSchema: ProviderSchemaField[];
   outputSchema: ProviderSchemaField[];
   retryPolicy?: ProviderRetryPolicy;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProviderRetryPolicy {
@@ -98,6 +99,23 @@ export interface RegisterProviderInput {
   registeredAt?: string;
 }
 
+export type CodingProviderPlatform =
+  | "codex"
+  | "claude_code"
+  | "local_code_agent"
+  | "human_code_review";
+
+export interface CreateCodingProviderManifestInput {
+  id: string;
+  name: string;
+  version: string;
+  platform: CodingProviderPlatform;
+  lifecycle: ProviderLifecycleState;
+  requiredPermissions: string[];
+  interfaceDriverIds: string[];
+  maxEstimatedCostUsd: number;
+}
+
 export interface RegisteredCapabilityProvider {
   manifest: CapabilityProviderManifest;
   handler: ProviderHandler;
@@ -118,6 +136,40 @@ export function createProviderRegistry(): ProviderRegistry {
   return {
     providers: new Map(),
     providerVersions: new Map()
+  };
+}
+
+export function createCodingProviderManifest(
+  input: CreateCodingProviderManifestInput
+): CapabilityProviderManifest {
+  return {
+    id: input.id,
+    name: input.name,
+    version: input.version,
+    lifecycle: input.lifecycle,
+    capabilityIds: ["capability:modify-code"],
+    interfaceDriverIds: input.interfaceDriverIds,
+    requiredPermissions: input.requiredPermissions,
+    inputSchema: [
+      { name: "repository", type: "string", required: true },
+      { name: "branch", type: "string", required: true },
+      { name: "task", type: "string", required: true },
+      { name: "constraints", type: "array" },
+      { name: "maxEstimatedCostUsd", type: "number" }
+    ],
+    outputSchema: [
+      { name: "summary", type: "string", required: true },
+      { name: "changedFiles", type: "array", required: true },
+      { name: "commitId", type: "string" },
+      { name: "pullRequestUrl", type: "string" },
+      { name: "estimatedCostUsd", type: "number" }
+    ],
+    retryPolicy: { maxAttempts: 1 },
+    metadata: {
+      providerKind: "ai_coding_platform",
+      platform: input.platform,
+      maxEstimatedCostUsd: input.maxEstimatedCostUsd
+    }
   };
 }
 

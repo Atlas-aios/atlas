@@ -89,6 +89,8 @@ Brain reads Governance through evaluated policy-decision and approval-requiremen
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.
 
+Coding is represented as a capability, not as Atlas becoming another AI IDE. For `capability:modify-code`, the Kernel may rank providers such as external AI coding platforms, local code agents, or human code review workflows by cost, latency, privacy, repository permissions, reliability, and prior Experience. This lets Atlas delegate coding work to Codex-style or Claude-Code-style providers when useful, while still enforcing budgets, approval gates, branch/commit policy, and auditability.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
@@ -118,6 +120,8 @@ The Experience Engine distills raw memory into reusable heuristics, playbooks, a
 ### Capability Graph
 
 The Capability Graph represents what Atlas can do and how capabilities compose. It carries confidence and maturity state from draft to production.
+
+The current implementation provides an MVP in-memory graph repository plus deterministic traversal and search APIs. It is suitable for local planning and tests; durable PostgreSQL/vector-backed persistence remains the production storage target defined by the service boundary.
 
 ### Identity Engine
 
