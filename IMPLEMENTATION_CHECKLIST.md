@@ -146,7 +146,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define Goal status model.
 - [x] Define Goal dependency model.
 - [x] Implement goal creation.
-- [ ] Implement goal decomposition.
+- [x] Implement goal decomposition.
 - [x] Implement goal priority fields.
 - [x] Implement goal waiting states.
 - [ ] Implement goal monitoring loop.

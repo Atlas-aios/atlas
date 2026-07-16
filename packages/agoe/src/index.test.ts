@@ -5,6 +5,7 @@ import {
   addGoalDependency,
   addGoalWaitingState,
   createGoal,
+  decomposeGoal,
   satisfyGoalCompletionCriterion,
   transitionGoal
 } from "./index.js";
@@ -52,6 +53,7 @@ describe("Goal lifecycle", () => {
           }
         ],
         dependencyIds: [],
+        childGoalIds: [],
         waitingStates: [],
         createdAt: "2026-07-16T10:00:00.000Z",
         updatedAt: "2026-07-16T10:00:00.000Z"
@@ -189,6 +191,107 @@ describe("Goal lifecycle", () => {
       event: {
         type: "goal.completion_criterion_satisfied",
         sourceRefs: ["goal:create-resource:criterion:1", "approval:event:approved"]
+      }
+    });
+  });
+
+  it("decomposes a parent Goal into ordered child Goals with provenance", () => {
+    const { goal } = createGoal({
+      id: "goal:learn-unknown-system",
+      title: "Learn unknown system and create resource",
+      ownerId: "identity:user:moksh",
+      priority: 95,
+      successCriteria: ["Atlas creates the requested resource safely."],
+      createdAt: "2026-07-16T10:20:00.000Z"
+    });
+
+    expect(
+      decomposeGoal({
+        goal,
+        eventId: "event:goal-decomposed",
+        occurredAt: "2026-07-16T10:21:00.000Z",
+        childGoals: [
+          {
+            id: "goal:collect-interface-evidence",
+            title: "Collect interface evidence",
+            successCriteria: ["Docs, API, and UI evidence are collected."]
+          },
+          {
+            id: "goal:execute-create-resource",
+            title: "Execute Create Resource",
+            successCriteria: ["Create Resource is executed or safely blocked."]
+          }
+        ],
+        sourceRefs: ["plan:initial"]
+      })
+    ).toEqual({
+      parentGoal: {
+        ...goal,
+        childGoalIds: [
+          "goal:collect-interface-evidence",
+          "goal:execute-create-resource"
+        ],
+        updatedAt: "2026-07-16T10:21:00.000Z"
+      },
+      childGoals: [
+        {
+          id: "goal:collect-interface-evidence",
+          title: "Collect interface evidence",
+          description: "",
+          status: "proposed",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          parentGoalId: "goal:learn-unknown-system",
+          successCriteria: ["Docs, API, and UI evidence are collected."],
+          completionCriteria: [
+            {
+              id: "goal:collect-interface-evidence:criterion:1",
+              description: "Docs, API, and UI evidence are collected.",
+              satisfied: false,
+              evidenceRefs: []
+            }
+          ],
+          dependencyIds: [],
+          childGoalIds: [],
+          waitingStates: [],
+          createdAt: "2026-07-16T10:21:00.000Z",
+          updatedAt: "2026-07-16T10:21:00.000Z"
+        },
+        {
+          id: "goal:execute-create-resource",
+          title: "Execute Create Resource",
+          description: "",
+          status: "proposed",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          parentGoalId: "goal:learn-unknown-system",
+          successCriteria: ["Create Resource is executed or safely blocked."],
+          completionCriteria: [
+            {
+              id: "goal:execute-create-resource:criterion:1",
+              description: "Create Resource is executed or safely blocked.",
+              satisfied: false,
+              evidenceRefs: []
+            }
+          ],
+          dependencyIds: [],
+          childGoalIds: [],
+          waitingStates: [],
+          createdAt: "2026-07-16T10:21:00.000Z",
+          updatedAt: "2026-07-16T10:21:00.000Z"
+        }
+      ],
+      event: {
+        id: "event:goal-decomposed",
+        type: "goal.decomposed",
+        goalId: "goal:learn-unknown-system",
+        occurredAt: "2026-07-16T10:21:00.000Z",
+        sourceRefs: [
+          "plan:initial",
+          "goal:collect-interface-evidence",
+          "goal:execute-create-resource"
+        ],
+        summary: "Goal goal:learn-unknown-system was decomposed into 2 child goals."
       }
     });
   });

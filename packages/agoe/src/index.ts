@@ -45,6 +45,7 @@ export interface Goal {
   successCriteria: string[];
   completionCriteria: GoalCompletionCriterion[];
   dependencyIds: string[];
+  childGoalIds: string[];
   waitingStates: GoalWaitingState[];
   createdAt: string;
   updatedAt: string;
@@ -53,6 +54,7 @@ export interface Goal {
 export type GoalLifecycleEventType =
   | "goal.created"
   | "goal.status_changed"
+  | "goal.decomposed"
   | "goal.dependency_added"
   | "goal.waiting_state_added"
   | "goal.completion_criterion_satisfied";
@@ -122,6 +124,28 @@ export interface AddGoalDependencyInput {
   occurredAt: string;
 }
 
+export interface DecomposeGoalChildInput {
+  id: string;
+  title: string;
+  description?: string;
+  priority?: number;
+  successCriteria: string[];
+}
+
+export interface DecomposeGoalInput {
+  goal: Goal;
+  childGoals: DecomposeGoalChildInput[];
+  eventId: string;
+  occurredAt: string;
+  sourceRefs?: string[];
+}
+
+export interface DecomposeGoalResult {
+  parentGoal: Goal;
+  childGoals: Goal[];
+  event: GoalLifecycleEvent;
+}
+
 export interface AddGoalWaitingStateInput {
   goal: Goal;
   waitingState: GoalWaitingState;
@@ -177,6 +201,7 @@ export function createGoal(input: CreateGoalInput): CreateGoalResult {
       evidenceRefs: []
     })),
     dependencyIds: [],
+    childGoalIds: [],
     waitingStates: [],
     createdAt: input.createdAt,
     updatedAt: input.createdAt
@@ -226,6 +251,41 @@ export function transitionGoal(input: TransitionGoalInput): TransitionGoalResult
       toStatus: input.toStatus,
       sourceRefs: input.sourceRefs ?? [],
       summary: input.reason
+    }
+  };
+}
+
+export function decomposeGoal(input: DecomposeGoalInput): DecomposeGoalResult {
+  const childGoals = input.childGoals.map(
+    (child) =>
+      createGoal({
+        id: child.id,
+        title: child.title,
+        ...(child.description === undefined ? {} : { description: child.description }),
+        ownerId: input.goal.ownerId,
+        priority: child.priority ?? input.goal.priority,
+        successCriteria: child.successCriteria,
+        createdAt: input.occurredAt,
+        parentGoalId: input.goal.id,
+        sourceRefs: [input.goal.id, ...(input.sourceRefs ?? [])]
+      }).goal
+  );
+  const childGoalIds = childGoals.map((goal) => goal.id);
+
+  return {
+    parentGoal: {
+      ...input.goal,
+      childGoalIds: [...input.goal.childGoalIds, ...childGoalIds],
+      updatedAt: input.occurredAt
+    },
+    childGoals,
+    event: {
+      id: input.eventId,
+      type: "goal.decomposed",
+      goalId: input.goal.id,
+      occurredAt: input.occurredAt,
+      sourceRefs: [...(input.sourceRefs ?? []), ...childGoalIds],
+      summary: `Goal ${input.goal.id} was decomposed into ${childGoals.length} child goals.`
     }
   };
 }
