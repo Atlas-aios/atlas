@@ -1,5 +1,6 @@
 import {
   createGoal,
+  satisfyGoalCompletionCriterion,
   transitionGoal,
   type CreateGoalInput,
   type Goal,
@@ -55,6 +56,12 @@ export interface TransitionRuntimeGoalStatusRequest {
   occurredAt: string;
   reason: string;
   sourceRefs?: string[];
+}
+
+export interface SatisfyRuntimeGoalCompletionCriterionRequest {
+  eventId: string;
+  evidenceRef: string;
+  occurredAt: string;
 }
 
 export interface RuntimeGoalListItem {
@@ -241,6 +248,40 @@ async function handleRuntimeRequest(
 
     if (!result.ok) {
       return json(result.error, { status: 409 });
+    }
+
+    state.goals.set(goalId, result.goal);
+    state.goalEvents.set(goalId, [
+      ...(state.goalEvents.get(goalId) ?? []),
+      result.event
+    ]);
+
+    return json(result);
+  }
+
+  const goalCriterionSatisfactionMatch =
+    /^\/goals\/([^/]+)\/completion-criteria\/([^/]+)\/satisfy$/.exec(url.pathname);
+  if (request.method === "POST" && goalCriterionSatisfactionMatch !== null) {
+    const goalId = decodeURIComponent(goalCriterionSatisfactionMatch[1] ?? "");
+    const criterionId = decodeURIComponent(goalCriterionSatisfactionMatch[2] ?? "");
+    const goal = state.goals.get(goalId);
+
+    if (goal === undefined) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    const input =
+      (await request.json()) as SatisfyRuntimeGoalCompletionCriterionRequest;
+    const result = satisfyGoalCompletionCriterion({
+      goal,
+      criterionId,
+      evidenceRef: input.evidenceRef,
+      eventId: input.eventId,
+      occurredAt: input.occurredAt
+    });
+
+    if (!result.ok) {
+      return json(result.error, { status: 404 });
     }
 
     state.goals.set(goalId, result.goal);

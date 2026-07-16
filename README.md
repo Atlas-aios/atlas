@@ -73,6 +73,7 @@ Initial endpoints:
 - `GET /goals/:id`
 - `GET /goals/:id/timeline`
 - `POST /goals/:id/status`
+- `POST /goals/:id/completion-criteria/:criterionId/satisfy`
 - `POST /goals/:id/executions`
 - `POST /goals/:id/capabilities/:capabilityId/resolve`
 - `POST /goals/:id/capabilities/:capabilityId/dispatch`

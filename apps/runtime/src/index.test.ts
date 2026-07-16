@@ -216,6 +216,90 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("satisfies a goal completion criterion with evidence", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/completion-criteria/goal:runtime-create-resource:criterion:1/satisfy",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            eventId: "goal:runtime-create-resource:event:criterion-1-satisfied",
+            evidenceRef: "execution:runtime:create-folio",
+            occurredAt: "2026-07-16T12:40:00.000Z"
+          })
+        }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      goal: {
+        id: "goal:runtime-create-resource",
+        completionCriteria: [
+          {
+            id: "goal:runtime-create-resource:criterion:1",
+            description: "Create Resource is completed or safely blocked.",
+            satisfied: true,
+            evidenceRefs: ["execution:runtime:create-folio"]
+          }
+        ],
+        updatedAt: "2026-07-16T12:40:00.000Z"
+      },
+      event: {
+        id: "goal:runtime-create-resource:event:criterion-1-satisfied",
+        type: "goal.completion_criterion_satisfied",
+        goalId: "goal:runtime-create-resource",
+        occurredAt: "2026-07-16T12:40:00.000Z",
+        sourceRefs: [
+          "goal:runtime-create-resource:criterion:1",
+          "execution:runtime:create-folio"
+        ],
+        summary:
+          "Completion criterion goal:runtime-create-resource:criterion:1 was satisfied."
+      }
+    });
+
+    const timelineResponse = await runtime.handle(
+      new Request("http://atlas.local/goals/goal:runtime-create-resource/timeline", {
+        method: "GET"
+      })
+    );
+
+    await expect(timelineResponse.json()).resolves.toMatchObject({
+      events: [
+        {
+          type: "goal.created",
+          goalId: "goal:runtime-create-resource"
+        },
+        {
+          type: "goal.completion_criterion_satisfied",
+          goalId: "goal:runtime-create-resource",
+          sourceRefs: [
+            "goal:runtime-create-resource:criterion:1",
+            "execution:runtime:create-folio"
+          ]
+        }
+      ]
+    });
+  });
+
   it("gets goal details with linked runtime executions", async () => {
     const runtime = createAtlasRuntime();
 
