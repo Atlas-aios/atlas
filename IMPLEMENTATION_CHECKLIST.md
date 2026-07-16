@@ -221,7 +221,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [x] Define Interface Driver contract.
 - [x] Implement REST driver.
-- [ ] Implement OpenAPI parser/driver.
+- [x] Implement OpenAPI parser/driver.
 - [ ] Implement Browser UI driver.
 - [ ] Implement Filesystem driver.
 - [ ] Implement Local Command Execution driver.
@@ -449,16 +449,16 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 19. Knowledge Engine And Interface Learning
 
 - [ ] Implement document ingestion.
-- [ ] Implement OpenAPI ingestion.
+- [x] Implement OpenAPI ingestion.
 - [ ] Implement Browser UI observation.
 - [ ] Implement source chunking.
 - [ ] Implement embeddings.
 - [ ] Extract candidate SWM entities.
 - [ ] Extract candidate relationships.
-- [ ] Extract candidate capabilities.
-- [ ] Generate Draft Capability Graph.
+- [x] Extract candidate capabilities.
+- [x] Generate Draft Capability Graph.
 - [ ] Generate Draft Capability Providers.
-- [ ] Generate Draft Interface Driver mappings.
+- [x] Generate Draft Interface Driver mappings.
 - [ ] Add confidence ladder.
 - [ ] Add review workflow for low-confidence outputs.
 

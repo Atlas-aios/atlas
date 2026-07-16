@@ -91,6 +91,10 @@ The Capability Kernel converts requested capabilities into ranked provider choic
 
 Coding is represented as a capability, not as Atlas becoming another AI IDE. For `capability:modify-code`, the Kernel may rank providers such as external AI coding platforms, local code agents, or human code review workflows by cost, latency, privacy, repository permissions, reliability, and prior Experience. This lets Atlas delegate coding work to Codex-style or Claude-Code-style providers when useful, while still enforcing budgets, approval gates, branch/commit policy, and auditability.
 
+### Interface Drivers
+
+Interface Drivers translate provider-level intent into interface-specific requests. REST execution is handled through an injected transport and explicit permission checks. OpenAPI ingestion currently extracts draft capability graph nodes plus draft REST driver mappings from an unknown API specification; it does not automatically promote the graph or execute generated provider behavior without later evidence, tests, and governance gates.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
