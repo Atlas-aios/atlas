@@ -779,6 +779,65 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("records human governance approval for learning production promotion", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const approvalResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/learning/promotion-decisions/production/approve",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            governanceApprovalRef:
+              "approval:learning:unknown-business-system:production",
+            decidedBy: "identity:user:moksh",
+            decidedAt: "2026-07-16T13:00:00.000Z",
+            reason: "Approved production promotion gate, pending review cleanup."
+          })
+        }
+      )
+    );
+
+    expect(approvalResponse.status).toBe(200);
+    await expect(approvalResponse.json()).resolves.toEqual({
+      promotionDecision: {
+        subjectId: "learning:unknown-business-system",
+        stage: "production",
+        outcome: "blocked",
+        blockedReasons: ["high_severity_review_items"],
+        requiredActions: [
+          "Resolve high-severity review items before production promotion."
+        ],
+        governanceApprovalRef: "approval:learning:unknown-business-system:production"
+      }
+    });
+
+    const reportsResponse = await runtime.handle(
+      new Request("http://atlas.local/learning/reports", { method: "GET" })
+    );
+
+    await expect(reportsResponse.json()).resolves.toMatchObject({
+      promotionDecisions: [
+        {
+          stage: "development",
+          outcome: "blocked"
+        },
+        {
+          stage: "production",
+          outcome: "blocked",
+          blockedReasons: ["high_severity_review_items"],
+          governanceApprovalRef: "approval:learning:unknown-business-system:production"
+        }
+      ]
+    });
+  });
+
   it("resolves a learned capability through the Capability Kernel", async () => {
     const runtime = createAtlasRuntime();
 

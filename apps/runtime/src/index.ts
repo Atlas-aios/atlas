@@ -169,6 +169,13 @@ export interface DecideRuntimeApprovalRequest {
   reason: string;
 }
 
+export interface ApproveRuntimeLearningPromotionRequest {
+  governanceApprovalRef: string;
+  decidedBy: string;
+  decidedAt: string;
+  reason: string;
+}
+
 export interface DispatchGoalScopedRuntimeCapabilityResponse {
   resolution: CapabilityResolution;
   execution: ExecutionRunResult;
@@ -225,6 +232,7 @@ interface RuntimeState {
   providers: RuntimeProviderListItem[];
   learningReview: LearningGovernanceReview | null;
   learningPromotionDecisions: LearningPromotionDecision[];
+  learningPromotionApprovals: Map<string, ApproveRuntimeLearningPromotionRequest>;
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
@@ -250,6 +258,10 @@ export function createAtlasRuntime(): AtlasRuntime {
     providers: [],
     learningReview: null,
     learningPromotionDecisions: [],
+    learningPromotionApprovals: new Map<
+      string,
+      ApproveRuntimeLearningPromotionRequest
+    >(),
     executions: [],
     approvalRequests: [],
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
@@ -534,6 +546,32 @@ async function handleRuntimeRequest(
       promotionDecisions: state.learningPromotionDecisions,
       reports: state.learningReview?.reports ?? []
     });
+  }
+
+  const learningPromotionApprovalMatch =
+    /^\/learning\/promotion-decisions\/(development|production)\/approve$/.exec(
+      url.pathname
+    );
+  if (request.method === "POST" && learningPromotionApprovalMatch !== null) {
+    if (state.learningReview === null) {
+      return json({ error: "learning_review_not_found" }, { status: 404 });
+    }
+
+    const stage = learningPromotionApprovalMatch[1] as "development" | "production";
+    const input = (await request.json()) as ApproveRuntimeLearningPromotionRequest;
+    state.learningPromotionApprovals.set(stage, input);
+
+    const promotionDecision = decideLearningPromotion({
+      subjectId: "learning:unknown-business-system",
+      stage,
+      review: state.learningReview,
+      governanceApprovalRef: input.governanceApprovalRef
+    });
+    state.learningPromotionDecisions = state.learningPromotionDecisions.map(
+      (decision) => (decision.stage === stage ? promotionDecision : decision)
+    );
+
+    return json({ promotionDecision });
   }
 
   if (request.method === "GET" && url.pathname === "/providers") {
