@@ -6,6 +6,16 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "references": [{ "path": "../experience" }],
+  "references": [
+    { "path": "../capability-graph" },
+    { "path": "../core" },
+    { "path": "../experience" },
+    { "path": "../governance" },
+    { "path": "../identity" },
+    { "path": "../memory" },
+    { "path": "../self-model" },
+    { "path": "../swm" },
+    { "path": "../world-state" }
+  ],
   "include": ["src/**/*.ts"]
 }

@@ -83,6 +83,8 @@ Brain reads Experience through a distilled-knowledge context lookup adapter. The
 
 Brain reads Capability Graph through a capability context lookup adapter. The adapter filters requested capability nodes by confidence and can include dependency, composition, and fallback edges as compact planning context. This lets Brain understand what Atlas can do and what supporting capabilities may be required without mutating the graph or hardcoding application names.
 
+Brain reads Governance through evaluated policy-decision and approval-requirement context. The adapter filters constraints by planned action, drops allowed decisions when the planning pass only needs blockers, and preserves policy or approval references for auditability. Brain may explain or block plans from this context, but policy evaluation and approval authority remain owned by Learning & Governance.
+
 ### Capability Kernel
 
 The Capability Kernel converts requested capabilities into ranked provider choices. It does not know application names; it ranks capability providers through capability fit, policy risk, experience, self-model confidence, cost, and latency.

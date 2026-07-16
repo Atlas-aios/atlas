@@ -109,7 +109,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Add Self Model lookup.
 - [x] Add Identity lookup.
 - [x] Add Capability Graph lookup.
-- [ ] Add Governance constraint lookup.
+- [x] Add Governance constraint lookup.
 - [x] Implement plan explanation output.
 - [x] Implement clarification-needed output.
 - [x] Implement approval-needed output.

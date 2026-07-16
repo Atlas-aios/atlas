@@ -42,6 +42,9 @@ importers:
       "@atlas-aios/experience":
         specifier: workspace:*
         version: link:../experience
+      "@atlas-aios/governance":
+        specifier: workspace:*
+        version: link:../governance
       "@atlas-aios/identity":
         specifier: workspace:*
         version: link:../identity

@@ -15,6 +15,7 @@ import {
   type ExperienceArtifact,
   type ExperienceArtifactType
 } from "@atlas-aios/experience";
+import type { ApprovalRequirement, PolicyDecision } from "@atlas-aios/governance";
 import type { IdentityResolution, IdentitySubject } from "@atlas-aios/identity";
 import type { MemoryEvent, MemoryEventKind } from "@atlas-aios/memory";
 import type { SelfModelSnapshot } from "@atlas-aios/self-model";
@@ -218,7 +219,8 @@ export interface BrainContextItem {
     | "self-model"
     | "identity"
     | "experience"
-    | "capability-graph";
+    | "capability-graph"
+    | "governance";
   summary: string;
   content: string;
   confidence: number;
@@ -325,6 +327,21 @@ export interface CapabilityGraphPlanningContextLookupInput {
 
 export interface CapabilityGraphPlanningContextLookupResult {
   source: "capability-graph";
+  items: BrainContextItem[];
+  droppedItemIds: string[];
+}
+
+export interface GovernancePlanningContextLookupInput {
+  policyDecisions: PolicyDecision[];
+  approvalRequirements: ApprovalRequirement[];
+  actionIds: string[];
+  includeAllowDecisions: boolean;
+  permissionScope: string[];
+  limit: number;
+}
+
+export interface GovernancePlanningContextLookupResult {
+  source: "governance";
   items: BrainContextItem[];
   droppedItemIds: string[];
 }
@@ -445,6 +462,77 @@ export function lookupCapabilityGraphPlanningContext(
   return {
     source: "capability-graph",
     items: [...nodeItems, ...edgeItems],
+    droppedItemIds
+  };
+}
+
+export function lookupGovernancePlanningContext(
+  input: GovernancePlanningContextLookupInput
+): GovernancePlanningContextLookupResult {
+  const droppedItemIds: string[] = [];
+  const policyItems = input.policyDecisions.flatMap(
+    (decision, index): BrainContextItem[] => {
+      const decisionId = createPolicyDecisionContextId(decision, index);
+
+      if (decision.decision === "allow" && !input.includeAllowDecisions) {
+        droppedItemIds.push(decisionId);
+        return [];
+      }
+
+      if (
+        decision.action !== undefined &&
+        input.actionIds.length > 0 &&
+        !input.actionIds.includes(decision.action)
+      ) {
+        droppedItemIds.push(decisionId);
+        return [];
+      }
+
+      return [
+        {
+          id: decisionId,
+          source: "governance",
+          summary: `${decision.decision} governance decision`,
+          content: `Governance decision ${decision.decision} applies from policies ${formatList(decision.policyIds)}: ${decision.reason}`,
+          confidence: decision.decision === "allow" ? 0.85 : 1,
+          relevance: decision.decision === "allow" ? 0.75 : 1,
+          estimatedTokens: estimateContextTokens(decision.reason),
+          permissionScope: input.permissionScope,
+          sourceRefs: decision.policyIds
+        }
+      ];
+    }
+  );
+  const approvalItems = input.approvalRequirements.flatMap(
+    (requirement): BrainContextItem[] => {
+      if (input.actionIds.length > 0 && !input.actionIds.includes(requirement.action)) {
+        droppedItemIds.push(requirement.id);
+        return [];
+      }
+
+      const content = `Action ${requirement.action} requires approval from ${requirement.requiredApproverRole}: ${requirement.reason}`;
+      return [
+        {
+          id: `governance-context:approval:${requirement.id}`,
+          source: "governance",
+          summary: `Approval required for ${requirement.action}`,
+          content,
+          confidence: 1,
+          relevance: 1,
+          estimatedTokens: estimateContextTokens(content),
+          permissionScope: input.permissionScope,
+          sourceRefs: [requirement.id]
+        }
+      ];
+    }
+  );
+  const items = [...policyItems, ...approvalItems];
+  const limitedItems = items.slice(0, input.limit);
+  droppedItemIds.push(...items.slice(input.limit).map((item) => item.id));
+
+  return {
+    source: "governance",
+    items: limitedItems,
     droppedItemIds
   };
 }
@@ -904,6 +992,18 @@ function formatSentenceList(items: string[]): string {
 
 function formatList(items: string[]): string {
   return items.length === 0 ? "none" : items.join(", ");
+}
+
+function createPolicyDecisionContextId(
+  decision: PolicyDecision,
+  index: number
+): string {
+  const policyRef =
+    decision.policyIds.length === 0
+      ? `unattributed-${index}`
+      : decision.policyIds.join("+");
+  const actionRef = decision.action ?? "general";
+  return `governance-context:policy:${actionRef}:${policyRef}`;
 }
 
 function calculateApplicabilityRelevance(

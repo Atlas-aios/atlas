@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CapabilityGraph } from "@atlas-aios/capability-graph";
 import type { ExperienceArtifact } from "@atlas-aios/experience";
+import type { ApprovalRequirement, PolicyDecision } from "@atlas-aios/governance";
 import type { IdentityResolution, IdentitySubject } from "@atlas-aios/identity";
 import type { MemoryEvent } from "@atlas-aios/memory";
 import type { SelfModelSnapshot } from "@atlas-aios/self-model";
@@ -15,6 +16,7 @@ import {
   explainPlan,
   lookupCapabilityGraphPlanningContext,
   lookupExperiencePlanningContext,
+  lookupGovernancePlanningContext,
   lookupIdentityPlanningContext,
   lookupMemoryPlanningContext,
   lookupSelfModelPlanningContext,
@@ -850,6 +852,100 @@ describe("lookupCapabilityGraphPlanningContext", () => {
         }
       ],
       droppedItemIds: ["capability:delete-resource"]
+    });
+  });
+});
+
+describe("lookupGovernancePlanningContext", () => {
+  it("returns planning-relevant policy decisions and approval requirements", () => {
+    const policyDecisions: PolicyDecision[] = [
+      {
+        decision: "requires_approval",
+        action: "external.write",
+        policyIds: ["policy:external-write"],
+        reason: "External writes require approval before execution."
+      },
+      {
+        decision: "allow",
+        action: "docs.read",
+        policyIds: ["policy:read-public-docs"],
+        reason: "Reading public documentation is allowed."
+      },
+      {
+        decision: "deny",
+        action: "production.delete",
+        policyIds: ["policy:no-production-delete"],
+        reason: "Production delete is blocked for this goal."
+      }
+    ];
+    const approvalRequirements: ApprovalRequirement[] = [
+      {
+        id: "approval:req:external-write",
+        action: "external.write",
+        requiredApproverRole: "project_owner",
+        reason: "The action changes external system state."
+      },
+      {
+        id: "approval:req:billing",
+        action: "billing.spend",
+        requiredApproverRole: "owner",
+        reason: "The action spends money."
+      }
+    ];
+
+    expect(
+      lookupGovernancePlanningContext({
+        policyDecisions,
+        approvalRequirements,
+        actionIds: ["external.write", "production.delete"],
+        includeAllowDecisions: false,
+        permissionScope: ["project:atlas"],
+        limit: 5
+      })
+    ).toEqual({
+      source: "governance",
+      items: [
+        {
+          id: "governance-context:policy:external.write:policy:external-write",
+          source: "governance",
+          summary: "requires_approval governance decision",
+          content:
+            "Governance decision requires_approval applies from policies policy:external-write: External writes require approval before execution.",
+          confidence: 1,
+          relevance: 1,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["policy:external-write"]
+        },
+        {
+          id: "governance-context:policy:production.delete:policy:no-production-delete",
+          source: "governance",
+          summary: "deny governance decision",
+          content:
+            "Governance decision deny applies from policies policy:no-production-delete: Production delete is blocked for this goal.",
+          confidence: 1,
+          relevance: 1,
+          estimatedTokens: 12,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["policy:no-production-delete"]
+        },
+        {
+          id: "governance-context:approval:approval:req:external-write",
+          source: "governance",
+          summary: "Approval required for external.write",
+          content:
+            "Action external.write requires approval from project_owner: The action changes external system state.",
+          confidence: 1,
+          relevance: 1,
+          estimatedTokens: 18,
+          permissionScope: ["project:atlas"],
+          sourceRefs: ["approval:req:external-write"]
+        }
+      ],
+      droppedItemIds: [
+        "governance-context:policy:docs.read:policy:read-public-docs",
+        "approval:req:billing"
+      ]
     });
   });
 });

@@ -3,6 +3,7 @@ export type GovernanceDecision = "allow" | "deny" | "requires_approval";
 export interface PolicyDecision {
   decision: GovernanceDecision;
   policyIds: string[];
+  action?: string;
   reason: string;
 }
 
