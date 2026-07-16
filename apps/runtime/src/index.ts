@@ -1,3 +1,4 @@
+import { createGoal, type CreateGoalInput, type Goal } from "@atlas-aios/agoe";
 import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
@@ -26,13 +27,28 @@ export interface UnknownBusinessMvpResponse {
   };
 }
 
+export type CreateRuntimeGoalRequest = CreateGoalInput;
+
+export interface RuntimeGoalListItem {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+  ownerId: string;
+}
+
 export function createAtlasRuntime(): AtlasRuntime {
+  const goals = new Map<string, Goal>();
+
   return {
-    handle: async (request) => handleRuntimeRequest(request)
+    handle: async (request) => handleRuntimeRequest(request, goals)
   };
 }
 
-async function handleRuntimeRequest(request: Request): Promise<Response> {
+async function handleRuntimeRequest(
+  request: Request,
+  goals: Map<string, Goal>
+): Promise<Response> {
   const url = new URL(request.url);
 
   if (request.method === "GET" && url.pathname === "/health") {
@@ -47,6 +63,20 @@ async function handleRuntimeRequest(request: Request): Promise<Response> {
     url.pathname === "/mvp/unknown-business/learn-and-execute"
   ) {
     return json<UnknownBusinessMvpResponse>(await runUnknownBusinessMvpFlow());
+  }
+
+  if (request.method === "POST" && url.pathname === "/goals") {
+    const input = (await request.json()) as CreateRuntimeGoalRequest;
+    const result = createGoal(input);
+    goals.set(result.goal.id, result.goal);
+
+    return json(result, { status: 201 });
+  }
+
+  if (request.method === "GET" && url.pathname === "/goals") {
+    return json({
+      goals: [...goals.values()].map(toGoalListItem)
+    });
   }
 
   return json({ error: "not_found" }, { status: 404 });
@@ -84,6 +114,16 @@ function extractBrowserCapabilities(html: string): string[] {
   return [...html.matchAll(/data-atlas-capability="([^"]+)"/g)].map(
     (match) => match[1] ?? ""
   );
+}
+
+function toGoalListItem(goal: Goal): RuntimeGoalListItem {
+  return {
+    id: goal.id,
+    title: goal.title,
+    status: goal.status,
+    priority: goal.priority,
+    ownerId: goal.ownerId
+  };
 }
 
 function json<TBody>(body: TBody, init: ResponseInit = {}): Response {

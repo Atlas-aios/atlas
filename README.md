@@ -68,6 +68,8 @@ corepack pnpm --filter @atlas-aios/runtime start
 Initial endpoints:
 
 - `GET /health`
+- `POST /goals`
+- `GET /goals`
 - `POST /mvp/unknown-business/learn-and-execute`
 
 ## Implementation Tracker

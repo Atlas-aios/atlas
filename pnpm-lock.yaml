@@ -31,6 +31,9 @@ importers:
 
   apps/runtime:
     dependencies:
+      "@atlas-aios/agoe":
+        specifier: workspace:*
+        version: link:../../packages/agoe
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning

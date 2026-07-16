@@ -485,7 +485,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Create local runtime API app shell.
 - [x] Implement `/health`.
 - [x] Implement `/mvp/unknown-business/learn-and-execute`.
-- [ ] Implement `/goals`.
+- [x] Implement `/goals`.
 - [ ] Implement `/capabilities`.
 - [ ] Implement `/capability-graphs`.
 - [ ] Implement `/providers`.
