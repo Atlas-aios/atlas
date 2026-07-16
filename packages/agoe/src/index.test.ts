@@ -419,4 +419,110 @@ describe("Goal lifecycle", () => {
       }
     });
   });
+
+  it("supports a long-running Goal lifecycle across decomposition, waiting, recovery, and completion", () => {
+    const { goal } = createGoal({
+      id: "goal:long-running-unknown-system",
+      title: "Learn unknown system end to end",
+      ownerId: "identity:user:moksh",
+      priority: 100,
+      successCriteria: ["Unknown system Create Resource is safely completed."],
+      createdAt: "2026-07-16T11:00:00.000Z"
+    });
+    const decomposed = decomposeGoal({
+      goal,
+      eventId: "event:long-running:decomposed",
+      occurredAt: "2026-07-16T11:01:00.000Z",
+      childGoals: [
+        {
+          id: "goal:long-running:discover",
+          title: "Discover interfaces",
+          successCriteria: ["Interface evidence exists."]
+        },
+        {
+          id: "goal:long-running:execute",
+          title: "Execute safely",
+          successCriteria: ["Execution evidence exists."]
+        }
+      ],
+      sourceRefs: ["plan:long-running"]
+    });
+    const active = transitionGoal({
+      goal: decomposed.parentGoal,
+      eventId: "event:long-running:active",
+      toStatus: "active",
+      occurredAt: "2026-07-16T11:02:00.000Z",
+      reason: "Atlas begins owned execution."
+    });
+    if (!active.ok) {
+      throw new Error("Expected long-running goal activation to succeed.");
+    }
+    const waiting = addGoalWaitingState({
+      goal: active.goal,
+      waitingState: {
+        id: "waiting:long-running:approval",
+        goalId: "goal:long-running-unknown-system",
+        reason: "Waiting for external write approval.",
+        waitingOn: "identity:user:moksh",
+        createdAt: "2026-07-16T11:03:00.000Z"
+      },
+      eventId: "event:long-running:waiting",
+      occurredAt: "2026-07-16T11:03:00.000Z"
+    });
+    const recovered = recoverGoal({
+      goal: waiting.goal,
+      eventId: "event:long-running:recovered",
+      occurredAt: "2026-07-16T11:04:00.000Z",
+      strategy: "resume_after_approval",
+      reason: "Approval received.",
+      sourceRefs: ["approval:event:long-running"]
+    });
+    if (!recovered.ok) {
+      throw new Error("Expected long-running goal recovery to succeed.");
+    }
+    const satisfied = satisfyGoalCompletionCriterion({
+      goal: recovered.goal,
+      criterionId: "goal:long-running-unknown-system:criterion:1",
+      evidenceRef: "execution:event:create-resource-complete",
+      eventId: "event:long-running:criterion",
+      occurredAt: "2026-07-16T11:05:00.000Z"
+    });
+    if (!satisfied.ok) {
+      throw new Error("Expected long-running goal criterion to be satisfied.");
+    }
+
+    expect(
+      monitorGoals({
+        goals: [satisfied.goal],
+        checkedAt: "2026-07-16T11:06:00.000Z",
+        eventIdPrefix: "event:long-running:monitor"
+      })
+    ).toMatchObject({
+      updates: [
+        {
+          goal: {
+            id: "goal:long-running-unknown-system",
+            status: "completed",
+            childGoalIds: ["goal:long-running:discover", "goal:long-running:execute"],
+            waitingStates: [
+              {
+                id: "waiting:long-running:approval"
+              }
+            ],
+            recoveryAttempts: [
+              {
+                strategy: "resume_after_approval",
+                sourceRefs: ["approval:event:long-running"]
+              }
+            ]
+          },
+          event: {
+            type: "goal.status_changed",
+            fromStatus: "active",
+            toStatus: "completed"
+          }
+        }
+      ]
+    });
+  });
 });
