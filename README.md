@@ -70,6 +70,7 @@ Initial endpoints:
 - `GET /health`
 - `POST /goals`
 - `GET /goals`
+- `GET /goals/:id`
 - `GET /capabilities`
 - `POST /capabilities/:id/resolve`
 - `GET /providers`

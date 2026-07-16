@@ -22,6 +22,7 @@ The first local runtime surface lives in `apps/runtime`.
 - `GET /health` reports the local runtime status.
 - `POST /goals` creates an AGOE Goal in local runtime memory.
 - `GET /goals` lists locally created Goals.
+- `GET /goals/:id` returns a Goal with linked runtime execution summaries.
 - `GET /capabilities` lists draft capabilities learned into local runtime memory.
 - `POST /capabilities/:id/resolve` asks Capability Kernel to select a provider for a learned capability.
 - `GET /providers` lists generated provider candidates learned into local runtime memory.

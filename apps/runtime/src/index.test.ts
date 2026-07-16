@@ -129,6 +129,75 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("gets goal details with linked runtime executions", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/executions", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "execution:runtime:create-folio",
+          goalId: "goal:runtime-create-resource",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: {
+            name: "Runtime execution folio"
+          },
+          startedAt: "2026-07-16T12:30:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/goals/goal:runtime-create-resource", {
+        method: "GET"
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      goal: {
+        id: "goal:runtime-create-resource",
+        title: "Create Resource in unknown business system",
+        status: "proposed",
+        priority: 95,
+        ownerId: "identity:user:moksh"
+      },
+      executions: [
+        {
+          id: "execution:runtime:create-folio",
+          workflowId: "workflow:runtime:execution:runtime:create-folio",
+          status: "completed",
+          goalId: "goal:runtime-create-resource",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          startedAt: "2026-07-16T12:30:00.000Z",
+          stepCount: 1,
+          eventCount: 4
+        }
+      ]
+    });
+  });
+
   it("lists capabilities learned during the MVP flow", async () => {
     const runtime = createAtlasRuntime();
 

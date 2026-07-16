@@ -80,6 +80,7 @@ export interface ResolveRuntimeCapabilityRequest {
 
 export interface CreateRuntimeExecutionRequest {
   id: string;
+  goalId?: string;
   capabilityId: string;
   providerId: string;
   inputs: Record<string, unknown>;
@@ -95,6 +96,7 @@ export interface RuntimeExecutionListItem {
   id: string;
   workflowId: string;
   status: string;
+  goalId?: string;
   capabilityId: string;
   providerId: string;
   startedAt: string;
@@ -165,6 +167,23 @@ async function handleRuntimeRequest(
   if (request.method === "GET" && url.pathname === "/goals") {
     return json({
       goals: [...state.goals.values()].map(toGoalListItem)
+    });
+  }
+
+  const goalDetailMatch = /^\/goals\/(.+)$/.exec(url.pathname);
+  if (request.method === "GET" && goalDetailMatch !== null) {
+    const goalId = decodeURIComponent(goalDetailMatch[1] ?? "");
+    const goal = state.goals.get(goalId);
+
+    if (goal === undefined) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    return json({
+      goal: toGoalListItem(goal),
+      executions: state.executions
+        .filter((execution) => execution.request.goalId === goalId)
+        .map(toExecutionListItem)
     });
   }
 
@@ -468,6 +487,7 @@ function toExecutionListItem(record: RuntimeExecutionRecord): RuntimeExecutionLi
     id: record.result.session.id,
     workflowId: record.result.session.workflowId,
     status: record.result.status,
+    ...(record.request.goalId === undefined ? {} : { goalId: record.request.goalId }),
     capabilityId: record.request.capabilityId,
     providerId: record.request.providerId,
     startedAt: record.result.session.startedAt,
