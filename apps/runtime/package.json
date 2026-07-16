@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "demo:mvp": "node dist/demo.js",
     "start": "node dist/server.js"
   },
   "dependencies": {

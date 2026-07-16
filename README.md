@@ -65,6 +65,15 @@ corepack pnpm build
 corepack pnpm --filter @atlas-aios/runtime start
 ```
 
+Run the current end-to-end MVP demo:
+
+```powershell
+corepack pnpm build
+corepack pnpm demo:mvp
+```
+
+The demo creates a goal, runs the unknown-business learning fixture, dispatches the learned `Create Resource` capability through the governed provider path, approves the runtime decision, satisfies the goal criterion, and prints the final goal, approval, dispatch, and timeline state.
+
 Initial endpoints:
 
 - `GET /health`
