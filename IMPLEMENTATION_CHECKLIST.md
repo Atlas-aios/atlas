@@ -374,13 +374,13 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement Critic review.
 - [x] Implement Defender review.
 - [x] Implement Judge validation.
-- [ ] Implement development promotion gate.
-- [ ] Implement production promotion gate.
+- [x] Implement development promotion gate.
+- [x] Implement production promotion gate.
 - [ ] Implement human approval workflow.
 - [ ] Implement audit logging.
 - [ ] Implement policy engine.
 - [ ] Implement sensitive action detection.
-- [ ] Implement governance-blocked result type.
+- [x] Implement governance-blocked result type.
 - [ ] Add tests for approval-required actions.
 
 ---

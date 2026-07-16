@@ -6,6 +6,7 @@ import {
   createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
   createLearningGovernanceReview,
+  decideLearningPromotion,
   learnOpenApiCapabilities
 } from "./index.js";
 
@@ -226,6 +227,90 @@ describe("learnOpenApiCapabilities", () => {
       ],
       promotionReady: false,
       blockedReasons: ["high_severity_review_items", "benchmark_not_passed"]
+    });
+  });
+
+  it("gates learned output promotion by stage, benchmark evidence, and governance approval", () => {
+    const cleanReview = createLearningGovernanceReview({
+      subjectId: "learning:unknown-api",
+      reviewItems: [],
+      benchmarkPassed: true,
+      evidenceRefs: ["benchmark:create-resource:v1"]
+    });
+    const blockedReview = createLearningGovernanceReview({
+      subjectId: "learning:unknown-api",
+      reviewItems: [
+        {
+          id: "review:provider:openapi:create-invoice",
+          subjectId: "provider:openapi:create-invoice",
+          subjectType: "provider",
+          severity: "high",
+          reason: "Generated OpenAPI provider requires validation before execution.",
+          requiredAction: "Simulate provider execution and require approval before use."
+        }
+      ],
+      benchmarkPassed: true,
+      evidenceRefs: ["benchmark:create-resource:v1"]
+    });
+
+    expect(
+      decideLearningPromotion({
+        subjectId: "learning:unknown-api",
+        stage: "development",
+        review: cleanReview
+      })
+    ).toEqual({
+      subjectId: "learning:unknown-api",
+      stage: "development",
+      outcome: "approved",
+      blockedReasons: [],
+      requiredActions: [],
+      governanceApprovalRef: undefined
+    });
+    expect(
+      decideLearningPromotion({
+        subjectId: "learning:unknown-api",
+        stage: "production",
+        review: cleanReview
+      })
+    ).toEqual({
+      subjectId: "learning:unknown-api",
+      stage: "production",
+      outcome: "blocked",
+      blockedReasons: ["governance_approval_required"],
+      requiredActions: ["Attach governance approval before production promotion."],
+      governanceApprovalRef: undefined
+    });
+    expect(
+      decideLearningPromotion({
+        subjectId: "learning:unknown-api",
+        stage: "production",
+        review: cleanReview,
+        governanceApprovalRef: "approval:learning:unknown-api:production"
+      })
+    ).toEqual({
+      subjectId: "learning:unknown-api",
+      stage: "production",
+      outcome: "approved",
+      blockedReasons: [],
+      requiredActions: [],
+      governanceApprovalRef: "approval:learning:unknown-api:production"
+    });
+    expect(
+      decideLearningPromotion({
+        subjectId: "learning:unknown-api",
+        stage: "development",
+        review: blockedReview
+      })
+    ).toEqual({
+      subjectId: "learning:unknown-api",
+      stage: "development",
+      outcome: "blocked",
+      blockedReasons: ["high_severity_review_items"],
+      requiredActions: [
+        "Resolve high-severity review items before development promotion."
+      ],
+      governanceApprovalRef: undefined
     });
   });
 

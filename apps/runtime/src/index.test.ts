@@ -732,6 +732,30 @@ describe("Atlas runtime API", () => {
         promotionReady: false,
         blockedReasons: ["high_severity_review_items"]
       },
+      promotionDecisions: [
+        {
+          subjectId: "learning:unknown-business-system",
+          stage: "development",
+          outcome: "blocked",
+          blockedReasons: ["high_severity_review_items"],
+          requiredActions: [
+            "Resolve high-severity review items before development promotion."
+          ]
+        },
+        {
+          subjectId: "learning:unknown-business-system",
+          stage: "production",
+          outcome: "blocked",
+          blockedReasons: [
+            "high_severity_review_items",
+            "governance_approval_required"
+          ],
+          requiredActions: [
+            "Resolve high-severity review items before production promotion.",
+            "Attach governance approval before production promotion."
+          ]
+        }
+      ],
       reports: [
         {
           id: "learning-report:critic:learning:unknown-business-system",

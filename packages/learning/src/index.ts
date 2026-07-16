@@ -36,6 +36,25 @@ export interface LearningGovernanceReview {
   blockedReasons: string[];
 }
 
+export type LearningPromotionStage = "development" | "production";
+export type LearningPromotionOutcome = "approved" | "blocked";
+
+export interface DecideLearningPromotionInput {
+  subjectId: string;
+  stage: LearningPromotionStage;
+  review: LearningGovernanceReview;
+  governanceApprovalRef?: string;
+}
+
+export interface LearningPromotionDecision {
+  subjectId: string;
+  stage: LearningPromotionStage;
+  outcome: LearningPromotionOutcome;
+  blockedReasons: string[];
+  requiredActions: string[];
+  governanceApprovalRef?: string;
+}
+
 export interface LearnOpenApiCapabilitiesInput {
   graphId: string;
   generatedAt: string;
@@ -230,6 +249,28 @@ export function createLearningGovernanceReview(
     ],
     promotionReady: blockedReasons.length === 0,
     blockedReasons
+  };
+}
+
+export function decideLearningPromotion(
+  input: DecideLearningPromotionInput
+): LearningPromotionDecision {
+  const blockedReasons = [
+    ...input.review.blockedReasons,
+    ...(input.stage === "production" && input.governanceApprovalRef === undefined
+      ? ["governance_approval_required"]
+      : [])
+  ];
+
+  return {
+    subjectId: input.subjectId,
+    stage: input.stage,
+    outcome: blockedReasons.length === 0 ? "approved" : "blocked",
+    blockedReasons,
+    requiredActions: requiredPromotionActions(blockedReasons, input.stage),
+    ...(input.governanceApprovalRef === undefined
+      ? {}
+      : { governanceApprovalRef: input.governanceApprovalRef })
   };
 }
 
@@ -504,6 +545,24 @@ function createJudgeReport(
 
 function learningReportId(kind: LearningReportKind, subjectId: string): string {
   return `learning-report:${kind}:${subjectId}`;
+}
+
+function requiredPromotionActions(
+  blockedReasons: string[],
+  stage: LearningPromotionStage
+): string[] {
+  return blockedReasons.map((reason) => {
+    switch (reason) {
+      case "high_severity_review_items":
+        return `Resolve high-severity review items before ${stage} promotion.`;
+      case "benchmark_not_passed":
+        return `Pass benchmark evidence before ${stage} promotion.`;
+      case "governance_approval_required":
+        return "Attach governance approval before production promotion.";
+      default:
+        return `Resolve promotion blocker: ${reason}.`;
+    }
+  });
 }
 
 function uniqueStrings(values: string[]): string[] {
