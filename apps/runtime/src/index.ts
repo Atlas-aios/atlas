@@ -7,6 +7,7 @@ import {
 import {
   createExecutionSession,
   runSequentialWorkflow,
+  type ExecutionRunResult,
   type ExecuteWorkflowNodeResult
 } from "@atlas-aios/execution-engine";
 import {
@@ -85,10 +86,27 @@ export interface CreateRuntimeExecutionRequest {
   startedAt: string;
 }
 
+export interface RuntimeExecutionRecord {
+  request: CreateRuntimeExecutionRequest;
+  result: ExecutionRunResult;
+}
+
+export interface RuntimeExecutionListItem {
+  id: string;
+  workflowId: string;
+  status: string;
+  capabilityId: string;
+  providerId: string;
+  startedAt: string;
+  stepCount: number;
+  eventCount: number;
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
   capabilities: RuntimeCapabilityListItem[];
   providers: RuntimeProviderListItem[];
+  executions: RuntimeExecutionRecord[];
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
@@ -103,6 +121,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     goals: new Map<string, Goal>(),
     capabilities: [],
     providers: [],
+    executions: [],
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
@@ -165,6 +184,12 @@ async function handleRuntimeRequest(
     const input = (await request.json()) as CreateRuntimeExecutionRequest;
 
     return json(await createRuntimeExecution(state, input), { status: 201 });
+  }
+
+  if (request.method === "GET" && url.pathname === "/executions") {
+    return json({
+      executions: state.executions.map(toExecutionListItem)
+    });
   }
 
   const capabilityResolutionMatch = /^\/capabilities\/([^/]+)\/resolve$/.exec(
@@ -278,8 +303,8 @@ async function resolveRuntimeCapability(input: {
 async function createRuntimeExecution(
   state: RuntimeState,
   input: CreateRuntimeExecutionRequest
-): Promise<unknown> {
-  return runSequentialWorkflow({
+): Promise<ExecutionRunResult> {
+  const result = await runSequentialWorkflow({
     session: createExecutionSession({
       id: input.id,
       workflowId: `workflow:runtime:${input.id}`,
@@ -311,6 +336,13 @@ async function createRuntimeExecution(
         )
     }
   });
+
+  state.executions.push({
+    request: input,
+    result
+  });
+
+  return result;
 }
 
 async function executeRuntimeProvider(
@@ -414,6 +446,19 @@ function toProviderCandidate(provider: RuntimeProviderListItem): ProviderCandida
     ...(provider.reputationScore === undefined
       ? {}
       : { reputationScore: provider.reputationScore })
+  };
+}
+
+function toExecutionListItem(record: RuntimeExecutionRecord): RuntimeExecutionListItem {
+  return {
+    id: record.result.session.id,
+    workflowId: record.result.session.workflowId,
+    status: record.result.status,
+    capabilityId: record.request.capabilityId,
+    providerId: record.request.providerId,
+    startedAt: record.result.session.startedAt,
+    stepCount: record.result.steps.length,
+    eventCount: record.result.events.length
   };
 }
 

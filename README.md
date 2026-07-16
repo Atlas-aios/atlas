@@ -74,6 +74,7 @@ Initial endpoints:
 - `POST /capabilities/:id/resolve`
 - `GET /providers`
 - `POST /executions`
+- `GET /executions`
 - `POST /mvp/unknown-business/learn-and-execute`
 
 ## Implementation Tracker
