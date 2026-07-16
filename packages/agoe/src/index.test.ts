@@ -6,6 +6,7 @@ import {
   addGoalWaitingState,
   createGoal,
   decomposeGoal,
+  monitorGoals,
   satisfyGoalCompletionCriterion,
   transitionGoal
 } from "./index.js";
@@ -293,6 +294,65 @@ describe("Goal lifecycle", () => {
         ],
         summary: "Goal goal:learn-unknown-system was decomposed into 2 child goals."
       }
+    });
+  });
+
+  it("monitors active Goals and completes them when all criteria are satisfied", () => {
+    const { goal } = createGoal({
+      id: "goal:complete-resource",
+      title: "Complete Resource",
+      ownerId: "identity:user:moksh",
+      priority: 70,
+      successCriteria: ["Execution evidence is recorded."],
+      createdAt: "2026-07-16T10:30:00.000Z"
+    });
+    const active = transitionGoal({
+      goal,
+      eventId: "event:goal-active",
+      toStatus: "active",
+      occurredAt: "2026-07-16T10:31:00.000Z",
+      reason: "Goal execution started."
+    });
+    if (!active.ok) {
+      throw new Error("Expected active transition to succeed.");
+    }
+    const satisfied = satisfyGoalCompletionCriterion({
+      goal: active.goal,
+      criterionId: "goal:complete-resource:criterion:1",
+      evidenceRef: "execution:completed",
+      eventId: "event:criterion-satisfied",
+      occurredAt: "2026-07-16T10:32:00.000Z"
+    });
+    if (!satisfied.ok) {
+      throw new Error("Expected criterion satisfaction to succeed.");
+    }
+
+    expect(
+      monitorGoals({
+        goals: [satisfied.goal],
+        checkedAt: "2026-07-16T10:33:00.000Z",
+        eventIdPrefix: "event:monitor"
+      })
+    ).toEqual({
+      updates: [
+        {
+          goal: {
+            ...satisfied.goal,
+            status: "completed",
+            updatedAt: "2026-07-16T10:33:00.000Z"
+          },
+          event: {
+            id: "event:monitor:goal:complete-resource:completed",
+            type: "goal.status_changed",
+            goalId: "goal:complete-resource",
+            occurredAt: "2026-07-16T10:33:00.000Z",
+            fromStatus: "active",
+            toStatus: "completed",
+            sourceRefs: ["goal:complete-resource:criterion:1"],
+            summary: "All completion criteria are satisfied."
+          }
+        }
+      ]
     });
   });
 });

@@ -149,7 +149,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement goal decomposition.
 - [x] Implement goal priority fields.
 - [x] Implement goal waiting states.
-- [ ] Implement goal monitoring loop.
+- [x] Implement goal monitoring loop.
 - [ ] Implement goal recovery behavior.
 - [x] Implement goal completion criteria.
 - [x] Add event emissions for goal lifecycle.

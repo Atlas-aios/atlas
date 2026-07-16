@@ -146,6 +146,21 @@ export interface DecomposeGoalResult {
   event: GoalLifecycleEvent;
 }
 
+export interface MonitorGoalsInput {
+  goals: Goal[];
+  checkedAt: string;
+  eventIdPrefix: string;
+}
+
+export interface GoalMonitoringUpdate {
+  goal: Goal;
+  event: GoalLifecycleEvent;
+}
+
+export interface MonitorGoalsResult {
+  updates: GoalMonitoringUpdate[];
+}
+
 export interface AddGoalWaitingStateInput {
   goal: Goal;
   waitingState: GoalWaitingState;
@@ -290,6 +305,39 @@ export function decomposeGoal(input: DecomposeGoalInput): DecomposeGoalResult {
   };
 }
 
+export function monitorGoals(input: MonitorGoalsInput): MonitorGoalsResult {
+  return {
+    updates: input.goals.flatMap((goal): GoalMonitoringUpdate[] => {
+      if (goal.status !== "active" || !areAllCompletionCriteriaSatisfied(goal)) {
+        return [];
+      }
+
+      const satisfiedCriterionIds = goal.completionCriteria.map(
+        (criterion) => criterion.id
+      );
+      return [
+        {
+          goal: {
+            ...goal,
+            status: "completed",
+            updatedAt: input.checkedAt
+          },
+          event: {
+            id: `${input.eventIdPrefix}:${goal.id}:completed`,
+            type: "goal.status_changed",
+            goalId: goal.id,
+            occurredAt: input.checkedAt,
+            fromStatus: goal.status,
+            toStatus: "completed",
+            sourceRefs: satisfiedCriterionIds,
+            summary: "All completion criteria are satisfied."
+          }
+        }
+      ];
+    })
+  };
+}
+
 export function addGoalDependency(input: AddGoalDependencyInput): {
   goal: Goal;
   event: GoalLifecycleEvent;
@@ -309,6 +357,13 @@ export function addGoalDependency(input: AddGoalDependencyInput): {
       summary: input.dependency.reason
     }
   };
+}
+
+function areAllCompletionCriteriaSatisfied(goal: Goal): boolean {
+  return (
+    goal.completionCriteria.length > 0 &&
+    goal.completionCriteria.every((criterion) => criterion.satisfied)
+  );
 }
 
 export function addGoalWaitingState(input: AddGoalWaitingStateInput): {
