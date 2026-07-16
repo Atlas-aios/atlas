@@ -23,6 +23,7 @@ The first local runtime surface lives in `apps/runtime`.
 - `POST /goals` creates an AGOE Goal in local runtime memory.
 - `GET /goals` lists locally created Goals.
 - `GET /goals/:id` returns a Goal with linked runtime execution summaries.
+- `GET /goals/:id/timeline` returns Goal lifecycle events and linked execution events in one view.
 - `POST /goals/:id/executions` creates a runtime execution that is bound to the Goal.
 - `POST /goals/:id/capabilities/:capabilityId/resolve` resolves a learned capability through the Capability Kernel in Goal scope.
 - `POST /goals/:id/capabilities/:capabilityId/dispatch` resolves a learned capability and executes the selected provider in Goal scope.

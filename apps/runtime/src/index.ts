@@ -1,4 +1,9 @@
-import { createGoal, type CreateGoalInput, type Goal } from "@atlas-aios/agoe";
+import {
+  createGoal,
+  type CreateGoalInput,
+  type Goal,
+  type GoalLifecycleEvent
+} from "@atlas-aios/agoe";
 import {
   createCapabilityKernel,
   type CapabilityResolution,
@@ -122,8 +127,24 @@ export interface RuntimeExecutionListItem {
   eventCount: number;
 }
 
+export type RuntimeTimelineEvent =
+  | GoalLifecycleEvent
+  | {
+      type: string;
+      goalId: string;
+      executionId: string;
+      occurredAt: string;
+      nodeId?: string;
+    };
+
+export interface RuntimeGoalTimelineResponse {
+  goalId: string;
+  events: RuntimeTimelineEvent[];
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
+  goalEvents: Map<string, GoalLifecycleEvent[]>;
   capabilities: RuntimeCapabilityListItem[];
   providers: RuntimeProviderListItem[];
   executions: RuntimeExecutionRecord[];
@@ -139,6 +160,7 @@ interface UnknownBusinessMvpFlowResult {
 export function createAtlasRuntime(): AtlasRuntime {
   const state: RuntimeState = {
     goals: new Map<string, Goal>(),
+    goalEvents: new Map<string, GoalLifecycleEvent[]>(),
     capabilities: [],
     providers: [],
     executions: [],
@@ -178,6 +200,7 @@ async function handleRuntimeRequest(
     const input = (await request.json()) as CreateRuntimeGoalRequest;
     const result = createGoal(input);
     state.goals.set(result.goal.id, result.goal);
+    state.goalEvents.set(result.goal.id, [result.event]);
 
     return json(result, { status: 201 });
   }
@@ -261,6 +284,20 @@ async function handleRuntimeRequest(
       { resolution, execution },
       { status: 201 }
     );
+  }
+
+  const goalTimelineMatch = /^\/goals\/([^/]+)\/timeline$/.exec(url.pathname);
+  if (request.method === "GET" && goalTimelineMatch !== null) {
+    const goalId = decodeURIComponent(goalTimelineMatch[1] ?? "");
+
+    if (!state.goals.has(goalId)) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    return json<RuntimeGoalTimelineResponse>({
+      goalId,
+      events: createRuntimeGoalTimeline(state, goalId)
+    });
   }
 
   const goalDetailMatch = /^\/goals\/(.+)$/.exec(url.pathname);
@@ -587,6 +624,24 @@ function toExecutionListItem(record: RuntimeExecutionRecord): RuntimeExecutionLi
     stepCount: record.result.steps.length,
     eventCount: record.result.events.length
   };
+}
+
+function createRuntimeGoalTimeline(
+  state: RuntimeState,
+  goalId: string
+): RuntimeTimelineEvent[] {
+  return [
+    ...(state.goalEvents.get(goalId) ?? []),
+    ...state.executions
+      .filter((execution) => execution.request.goalId === goalId)
+      .flatMap((execution) =>
+        execution.result.events.map((event) => ({
+          ...event,
+          goalId,
+          occurredAt: execution.result.session.startedAt
+        }))
+      )
+  ];
 }
 
 function json<TBody>(body: TBody, init: ResponseInit = {}): Response {
