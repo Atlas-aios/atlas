@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAPABILITY_LEVELS,
+  createCapabilityRegistry,
   createCapabilityGraph,
   createCapabilityNode,
   createInMemoryCapabilityGraphStore,
@@ -264,5 +265,96 @@ describe("Capability Graph schema", () => {
         missingRefs: ["governanceApprovalRef", "benchmarkRefs"]
       }
     });
+  });
+
+  it("stores and resolves capabilities across registered graphs", () => {
+    const registry = createCapabilityRegistry();
+    const draftGraph = createCapabilityGraph({
+      id: "capability-graph:draft",
+      status: "draft",
+      generatedAt: "2026-07-16T13:00:00.000Z",
+      nodes: [
+        createCapabilityNode({
+          id: "capability:create-resource",
+          name: "Create Resource",
+          level: "L2",
+          confidence: 0.7,
+          sourceRefs: ["evidence:draft:create-resource"]
+        })
+      ],
+      edges: []
+    });
+    const trustedGraph = createCapabilityGraph({
+      id: "capability-graph:trusted",
+      status: "trusted",
+      generatedAt: "2026-07-16T13:01:00.000Z",
+      nodes: [
+        createCapabilityNode({
+          id: "capability:create-resource",
+          name: "Create Resource",
+          level: "L2",
+          confidence: 0.9,
+          sourceRefs: ["evidence:trusted:create-resource"]
+        }),
+        createCapabilityNode({
+          id: "capability:update-resource",
+          name: "Update Resource",
+          level: "L2",
+          confidence: 0.82,
+          sourceRefs: ["evidence:trusted:update-resource"]
+        })
+      ],
+      edges: []
+    });
+
+    registry.registerGraph(draftGraph);
+    registry.registerGraph(trustedGraph);
+
+    expect(registry.resolveCapability("capability:create-resource")).toEqual({
+      capability: {
+        id: "capability:create-resource",
+        schemaVersion: "0.1",
+        name: "Create Resource",
+        level: "L2",
+        confidence: 0.9,
+        sourceRefs: ["evidence:trusted:create-resource"]
+      },
+      graphId: "capability-graph:trusted",
+      graphStatus: "trusted"
+    });
+    expect(registry.resolveCapability("capability:missing")).toBeNull();
+    expect(
+      registry.searchCapabilities({
+        query: "resource",
+        levels: ["L2"],
+        minimumConfidence: 0.8,
+        statuses: ["trusted"]
+      })
+    ).toEqual([
+      {
+        capability: {
+          id: "capability:create-resource",
+          schemaVersion: "0.1",
+          name: "Create Resource",
+          level: "L2",
+          confidence: 0.9,
+          sourceRefs: ["evidence:trusted:create-resource"]
+        },
+        graphId: "capability-graph:trusted",
+        graphStatus: "trusted"
+      },
+      {
+        capability: {
+          id: "capability:update-resource",
+          schemaVersion: "0.1",
+          name: "Update Resource",
+          level: "L2",
+          confidence: 0.82,
+          sourceRefs: ["evidence:trusted:update-resource"]
+        },
+        graphId: "capability-graph:trusted",
+        graphStatus: "trusted"
+      }
+    ]);
   });
 });

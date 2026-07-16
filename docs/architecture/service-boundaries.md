@@ -125,6 +125,8 @@ The current implementation provides an MVP in-memory graph repository plus deter
 
 Capability Graph maturity is explicit. Draft graphs may be explored, trusted graphs require evidence and sufficient node confidence, and production graphs additionally require governance approval plus benchmark evidence before they can be used as production-grade capability knowledge.
 
+Capability Registry resolves capability ids across registered graphs, preferring higher maturity and confidence so Brain and Capability Kernel can request a capability without hardcoding which graph produced it.
+
 ### Identity Engine
 
 Identity resolves humans, organizations, systems, providers, aliases, roles, and delegation context without unsafe assumptions.

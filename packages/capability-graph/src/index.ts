@@ -57,6 +57,25 @@ export interface SearchCapabilityGraphInput {
   minimumConfidence: number;
 }
 
+export interface CapabilityRegistryEntry {
+  capability: CapabilityNode;
+  graphId: string;
+  graphStatus: CapabilityGraphStatus;
+}
+
+export interface CapabilityRegistrySearchInput {
+  query: string;
+  levels: CapabilityLevel[];
+  minimumConfidence: number;
+  statuses: CapabilityGraphStatus[];
+}
+
+export interface CapabilityRegistry {
+  registerGraph(graph: CapabilityGraph): void;
+  resolveCapability(capabilityId: string): CapabilityRegistryEntry | null;
+  searchCapabilities(input: CapabilityRegistrySearchInput): CapabilityRegistryEntry[];
+}
+
 export interface PromoteCapabilityGraphInput {
   graph: CapabilityGraph;
   targetStatus: Exclude<CapabilityGraphStatus, "draft">;
@@ -123,6 +142,35 @@ export function createInMemoryCapabilityGraphStore(): CapabilityGraphStore {
     },
     list() {
       return [...graphs.values()];
+    }
+  };
+}
+
+export function createCapabilityRegistry(): CapabilityRegistry {
+  const graphs = new Map<string, CapabilityGraph>();
+
+  return {
+    registerGraph(graph) {
+      graphs.set(graph.id, graph);
+    },
+    resolveCapability(capabilityId) {
+      return (
+        registryEntries([...graphs.values()])
+          .filter((entry) => entry.capability.id === capabilityId)
+          .sort(compareRegistryEntries)[0] ?? null
+      );
+    },
+    searchCapabilities(input) {
+      const normalizedQuery = input.query.trim().toLowerCase();
+      return registryEntries([...graphs.values()])
+        .filter(
+          (entry) =>
+            input.statuses.includes(entry.graphStatus) &&
+            input.levels.includes(entry.capability.level) &&
+            entry.capability.confidence >= input.minimumConfidence &&
+            entry.capability.name.toLowerCase().includes(normalizedQuery)
+        )
+        .sort(compareRegistryEntries);
     }
   };
 }
@@ -251,4 +299,36 @@ function promotionFailureMessage(
   }
 
   return "Trusted Capability Graph promotion requires evidence and sufficient capability confidence.";
+}
+
+function registryEntries(graphs: CapabilityGraph[]): CapabilityRegistryEntry[] {
+  return graphs.flatMap((graph) =>
+    graph.nodes.map((capability) => ({
+      capability,
+      graphId: graph.id,
+      graphStatus: graph.status
+    }))
+  );
+}
+
+function compareRegistryEntries(
+  left: CapabilityRegistryEntry,
+  right: CapabilityRegistryEntry
+): number {
+  return (
+    statusRank(right.graphStatus) - statusRank(left.graphStatus) ||
+    right.capability.confidence - left.capability.confidence ||
+    left.capability.id.localeCompare(right.capability.id)
+  );
+}
+
+function statusRank(status: CapabilityGraphStatus): number {
+  switch (status) {
+    case "production":
+      return 3;
+    case "trusted":
+      return 2;
+    case "draft":
+      return 1;
+  }
 }

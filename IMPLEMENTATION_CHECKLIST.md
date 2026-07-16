@@ -160,7 +160,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 5. Capability Graph And Registry
 
 - [x] Define layered capability ontology: L0 through L4.
-- [ ] Implement Capability Registry storage.
+- [x] Implement Capability Registry storage.
 - [x] Implement Capability Graph storage.
 - [x] Implement capability dependency edges.
 - [x] Implement capability composition.
