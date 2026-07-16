@@ -669,6 +669,50 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("lists interface driver mappings learned during the MVP flow", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/interface-drivers", { method: "GET" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      interfaceDrivers: [
+        {
+          capabilityId: "capability:create-folio",
+          driverId: "driver:rest",
+          operationId: "createFolio",
+          method: "POST",
+          path: "/folios",
+          requiredPermissions: ["network"]
+        },
+        {
+          capabilityId: "capability:allocate-settlement",
+          driverId: "driver:rest",
+          operationId: "allocateSettlement",
+          method: "POST",
+          path: "/settlements/allocate",
+          requiredPermissions: ["network"]
+        },
+        {
+          capabilityId: "capability:dispatch-work-packet",
+          driverId: "driver:rest",
+          operationId: "dispatchWorkPacket",
+          method: "POST",
+          path: "/work-packets/dispatch",
+          requiredPermissions: ["network"]
+        }
+      ]
+    });
+  });
+
   it("resolves a learned capability through the Capability Kernel", async () => {
     const runtime = createAtlasRuntime();
 

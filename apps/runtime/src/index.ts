@@ -103,6 +103,15 @@ export interface RuntimeCapabilityGraph {
   }>;
 }
 
+export interface RuntimeInterfaceDriverMapping {
+  capabilityId: string;
+  driverId: "driver:rest";
+  operationId: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  requiredPermissions: string[];
+}
+
 export interface RuntimeProviderListItem {
   providerId: string;
   capabilityId: string;
@@ -208,6 +217,7 @@ interface RuntimeState {
   goalEvents: Map<string, GoalLifecycleEvent[]>;
   capabilities: RuntimeCapabilityListItem[];
   capabilityGraphs: RuntimeCapabilityGraph[];
+  interfaceDrivers: RuntimeInterfaceDriverMapping[];
   providers: RuntimeProviderListItem[];
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
@@ -218,6 +228,7 @@ interface UnknownBusinessMvpFlowResult {
   response: UnknownBusinessMvpResponse;
   capabilities: RuntimeCapabilityListItem[];
   capabilityGraphs: RuntimeCapabilityGraph[];
+  interfaceDrivers: RuntimeInterfaceDriverMapping[];
   providers: RuntimeProviderListItem[];
 }
 
@@ -227,6 +238,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     goalEvents: new Map<string, GoalLifecycleEvent[]>(),
     capabilities: [],
     capabilityGraphs: [],
+    interfaceDrivers: [],
     providers: [],
     executions: [],
     approvalRequests: [],
@@ -258,6 +270,7 @@ async function handleRuntimeRequest(
     const result = await runUnknownBusinessMvpFlow();
     state.capabilities = result.capabilities;
     state.capabilityGraphs = result.capabilityGraphs;
+    state.interfaceDrivers = result.interfaceDrivers;
     state.providers = result.providers;
 
     return json<UnknownBusinessMvpResponse>(result.response);
@@ -497,6 +510,12 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "GET" && url.pathname === "/interface-drivers") {
+    return json({
+      interfaceDrivers: state.interfaceDrivers
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/providers") {
     return json({
       providers: state.providers
@@ -616,6 +635,7 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult
   return {
     capabilities,
     capabilityGraphs: [learningResult.graph],
+    interfaceDrivers: learningResult.driverMappings,
     providers: learningResult.providerCandidates.map((candidate) => ({
       providerId: candidate.providerId,
       capabilityId: candidate.capabilityId,
