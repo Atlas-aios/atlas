@@ -5,6 +5,7 @@ import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
+  createLearningGovernanceReview,
   learnOpenApiCapabilities
 } from "./index.js";
 
@@ -147,6 +148,85 @@ describe("learnOpenApiCapabilities", () => {
         requiredAction: "Simulate provider execution and require approval before use."
       }
     ]);
+  });
+
+  it("creates critic, defender, and judge reports for self-improvement review", () => {
+    const learning = learnOpenApiCapabilities({
+      graphId: "capability-graph:unknown-api",
+      generatedAt: "2026-07-16T16:05:00.000Z",
+      providerVersion: "0.1.0",
+      defaultEstimatedCost: 0.05,
+      defaultEstimatedLatencyMs: 800,
+      document: {
+        openapi: "3.1.0",
+        info: {
+          title: "Unknown API",
+          version: "1.0.0"
+        },
+        paths: {
+          "/invoices": {
+            get: {
+              operationId: "listInvoices",
+              summary: "List invoices"
+            }
+          }
+        }
+      }
+    });
+
+    expect(
+      createLearningGovernanceReview({
+        subjectId: "learning:unknown-api",
+        reviewItems: learning.reviewItems,
+        benchmarkPassed: false,
+        evidenceRefs: ["openapi:GET /invoices"]
+      })
+    ).toEqual({
+      reports: [
+        {
+          id: "learning-report:critic:learning:unknown-api",
+          kind: "critic",
+          subjectId: "learning:unknown-api",
+          findings: [
+            "capability:list-invoices (capability) requires review: Confidence is below evidence-ready threshold.",
+            "provider:openapi:list-invoices (provider) requires review: Generated OpenAPI provider requires validation before execution.",
+            "Benchmark evidence has not passed yet."
+          ],
+          recommendedChanges: [
+            "Review source evidence and add tests or benchmark traces.",
+            "Simulate provider execution and require approval before use.",
+            "Add or rerun benchmark evidence before promotion."
+          ],
+          requiresGovernanceReview: true
+        },
+        {
+          id: "learning-report:defender:learning:unknown-api",
+          kind: "defender",
+          subjectId: "learning:unknown-api",
+          findings: [
+            "High severity review item: provider:openapi:list-invoices.",
+            "Evidence refs: openapi:GET /invoices."
+          ],
+          recommendedChanges: [
+            "Keep high-severity outputs in draft until simulation and approval evidence exist."
+          ],
+          requiresGovernanceReview: true
+        },
+        {
+          id: "learning-report:judge:learning:unknown-api",
+          kind: "judge",
+          subjectId: "learning:unknown-api",
+          findings: ["2 review items remain.", "Benchmark failed or has not been run."],
+          recommendedChanges: [
+            "Block promotion until all high-severity review items are resolved.",
+            "Block promotion until benchmark evidence passes."
+          ],
+          requiresGovernanceReview: true
+        }
+      ],
+      promotionReady: false,
+      blockedReasons: ["high_severity_review_items", "benchmark_not_passed"]
+    });
   });
 
   it("learns a synthetic unknown business system from its OpenAPI fixture", () => {

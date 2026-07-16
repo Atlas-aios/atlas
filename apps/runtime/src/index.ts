@@ -24,6 +24,8 @@ import {
   createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
+  createLearningGovernanceReview,
+  type LearningGovernanceReview,
   type UnknownBusinessSystemRestFixture,
   learnOpenApiCapabilities
 } from "@atlas-aios/learning";
@@ -219,6 +221,7 @@ interface RuntimeState {
   capabilityGraphs: RuntimeCapabilityGraph[];
   interfaceDrivers: RuntimeInterfaceDriverMapping[];
   providers: RuntimeProviderListItem[];
+  learningReview: LearningGovernanceReview | null;
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
@@ -230,6 +233,7 @@ interface UnknownBusinessMvpFlowResult {
   capabilityGraphs: RuntimeCapabilityGraph[];
   interfaceDrivers: RuntimeInterfaceDriverMapping[];
   providers: RuntimeProviderListItem[];
+  learningReview: LearningGovernanceReview;
 }
 
 export function createAtlasRuntime(): AtlasRuntime {
@@ -240,6 +244,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     capabilityGraphs: [],
     interfaceDrivers: [],
     providers: [],
+    learningReview: null,
     executions: [],
     approvalRequests: [],
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
@@ -272,6 +277,7 @@ async function handleRuntimeRequest(
     state.capabilityGraphs = result.capabilityGraphs;
     state.interfaceDrivers = result.interfaceDrivers;
     state.providers = result.providers;
+    state.learningReview = result.learningReview;
 
     return json<UnknownBusinessMvpResponse>(result.response);
   }
@@ -516,6 +522,13 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "GET" && url.pathname === "/learning/reports") {
+    return json({
+      learningReview: state.learningReview,
+      reports: state.learningReview?.reports ?? []
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/providers") {
     return json({
       providers: state.providers
@@ -622,6 +635,12 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult
   });
   const browserFixture = createUnknownBusinessBrowserUiFixture();
   const benchmark = await createUnknownBusinessCreateResourceBenchmark().run();
+  const learningReview = createLearningGovernanceReview({
+    subjectId: "learning:unknown-business-system",
+    reviewItems: learningResult.reviewItems,
+    benchmarkPassed: benchmark.passed,
+    evidenceRefs: benchmark.evidence
+  });
   const capabilities = learningResult.graph.nodes.map((node) => ({
     id: node.id,
     name: node.name,
@@ -653,6 +672,7 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult
         ? {}
         : { reputationScore: candidate.reputationScore })
     })),
+    learningReview,
     response: {
       scenario: "Create Resource",
       learnedCapabilities: learningResult.graph.nodes.map((node) => node.id),

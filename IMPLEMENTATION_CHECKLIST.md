@@ -370,10 +370,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 16. Learning & Governance
 
-- [ ] Define Learning report schema.
-- [ ] Implement Critic review.
-- [ ] Implement Defender review.
-- [ ] Implement Judge validation.
+- [x] Define Learning report schema.
+- [x] Implement Critic review.
+- [x] Implement Defender review.
+- [x] Implement Judge validation.
 - [ ] Implement development promotion gate.
 - [ ] Implement production promotion gate.
 - [ ] Implement human approval workflow.
@@ -503,7 +503,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement `/self-model`.
 - [ ] Implement `/thoughts`.
 - [ ] Implement `/simulations`.
-- [ ] Implement `/learning/reports`.
+- [x] Implement `/learning/reports`.
 - [ ] Implement `/governance/policies`.
 - [ ] Add API auth and audit checks.
 

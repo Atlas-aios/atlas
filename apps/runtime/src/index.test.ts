@@ -713,6 +713,48 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("lists learning governance reports from the MVP flow", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/learning/reports", { method: "GET" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      learningReview: {
+        promotionReady: false,
+        blockedReasons: ["high_severity_review_items"]
+      },
+      reports: [
+        {
+          id: "learning-report:critic:learning:unknown-business-system",
+          kind: "critic",
+          subjectId: "learning:unknown-business-system",
+          requiresGovernanceReview: true
+        },
+        {
+          id: "learning-report:defender:learning:unknown-business-system",
+          kind: "defender",
+          subjectId: "learning:unknown-business-system",
+          requiresGovernanceReview: true
+        },
+        {
+          id: "learning-report:judge:learning:unknown-business-system",
+          kind: "judge",
+          subjectId: "learning:unknown-business-system",
+          requiresGovernanceReview: true
+        }
+      ]
+    });
+  });
+
   it("resolves a learned capability through the Capability Kernel", async () => {
     const runtime = createAtlasRuntime();
 

@@ -23,6 +23,19 @@ export interface LearningReport {
   requiresGovernanceReview: boolean;
 }
 
+export interface CreateLearningGovernanceReviewInput {
+  subjectId: string;
+  reviewItems: LearningReviewItem[];
+  benchmarkPassed: boolean;
+  evidenceRefs: string[];
+}
+
+export interface LearningGovernanceReview {
+  reports: LearningReport[];
+  promotionReady: boolean;
+  blockedReasons: string[];
+}
+
 export interface LearnOpenApiCapabilitiesInput {
   graphId: string;
   generatedAt: string;
@@ -196,6 +209,27 @@ export function learnOpenApiCapabilities(
     providerCandidates,
     confidenceAssessments,
     reviewItems: confidenceAssessments.flatMap(reviewItemForAssessment)
+  };
+}
+
+export function createLearningGovernanceReview(
+  input: CreateLearningGovernanceReviewInput
+): LearningGovernanceReview {
+  const hasHighSeverity = input.reviewItems.some((item) => item.severity === "high");
+  const blockedReasons = [
+    ...(hasHighSeverity ? ["high_severity_review_items"] : []),
+    ...(input.benchmarkPassed ? [] : ["benchmark_not_passed"])
+  ];
+  const requiresGovernanceReview = blockedReasons.length > 0;
+
+  return {
+    reports: [
+      createCriticReport(input, requiresGovernanceReview),
+      createDefenderReport(input, requiresGovernanceReview),
+      createJudgeReport(input, requiresGovernanceReview)
+    ],
+    promotionReady: blockedReasons.length === 0,
+    blockedReasons
   };
 }
 
@@ -383,6 +417,97 @@ function assessCapabilityConfidence(
         ? "Confidence is below evidence-ready threshold."
         : "Capability has enough interface evidence for benchmark validation."
   };
+}
+
+function createCriticReport(
+  input: CreateLearningGovernanceReviewInput,
+  requiresGovernanceReview: boolean
+): LearningReport {
+  return {
+    id: learningReportId("critic", input.subjectId),
+    kind: "critic",
+    subjectId: input.subjectId,
+    findings: [
+      ...input.reviewItems.map(
+        (item) =>
+          `${item.subjectId} (${item.subjectType}) requires review: ${item.reason}`
+      ),
+      ...(input.benchmarkPassed ? [] : ["Benchmark evidence has not passed yet."])
+    ],
+    recommendedChanges: uniqueStrings([
+      ...input.reviewItems.map((item) => item.requiredAction),
+      ...(input.benchmarkPassed
+        ? []
+        : ["Add or rerun benchmark evidence before promotion."])
+    ]),
+    requiresGovernanceReview
+  };
+}
+
+function createDefenderReport(
+  input: CreateLearningGovernanceReviewInput,
+  requiresGovernanceReview: boolean
+): LearningReport {
+  const highSeverityItems = input.reviewItems.filter(
+    (item) => item.severity === "high"
+  );
+
+  return {
+    id: learningReportId("defender", input.subjectId),
+    kind: "defender",
+    subjectId: input.subjectId,
+    findings: [
+      ...highSeverityItems.map(
+        (item) => `High severity review item: ${item.subjectId}.`
+      ),
+      `Evidence refs: ${input.evidenceRefs.join(", ")}.`
+    ],
+    recommendedChanges:
+      highSeverityItems.length === 0
+        ? ["Allow promotion after benchmark evidence is verified."]
+        : [
+            "Keep high-severity outputs in draft until simulation and approval evidence exist."
+          ],
+    requiresGovernanceReview
+  };
+}
+
+function createJudgeReport(
+  input: CreateLearningGovernanceReviewInput,
+  requiresGovernanceReview: boolean
+): LearningReport {
+  const highSeverityItems = input.reviewItems.filter(
+    (item) => item.severity === "high"
+  );
+
+  return {
+    id: learningReportId("judge", input.subjectId),
+    kind: "judge",
+    subjectId: input.subjectId,
+    findings: [
+      `${input.reviewItems.length} review items remain.`,
+      input.benchmarkPassed
+        ? "Benchmark evidence passed."
+        : "Benchmark failed or has not been run."
+    ],
+    recommendedChanges: [
+      ...(highSeverityItems.length === 0
+        ? []
+        : ["Block promotion until all high-severity review items are resolved."]),
+      ...(input.benchmarkPassed
+        ? []
+        : ["Block promotion until benchmark evidence passes."])
+    ],
+    requiresGovernanceReview
+  };
+}
+
+function learningReportId(kind: LearningReportKind, subjectId: string): string {
+  return `learning-report:${kind}:${subjectId}`;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function handleUnknownBusinessRequest(

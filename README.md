@@ -97,6 +97,7 @@ Initial endpoints:
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`
+- `GET /learning/reports`
 - `POST /mvp/unknown-business/learn-and-execute`
 
 ## Implementation Tracker
