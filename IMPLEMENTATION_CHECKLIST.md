@@ -142,17 +142,17 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 4. Autonomous Goal Ownership Engine
 
-- [ ] Define Goal data model.
-- [ ] Define Goal status model.
-- [ ] Define Goal dependency model.
-- [ ] Implement goal creation.
+- [x] Define Goal data model.
+- [x] Define Goal status model.
+- [x] Define Goal dependency model.
+- [x] Implement goal creation.
 - [ ] Implement goal decomposition.
-- [ ] Implement goal priority fields.
-- [ ] Implement goal waiting states.
+- [x] Implement goal priority fields.
+- [x] Implement goal waiting states.
 - [ ] Implement goal monitoring loop.
 - [ ] Implement goal recovery behavior.
-- [ ] Implement goal completion criteria.
-- [ ] Add event emissions for goal lifecycle.
+- [x] Implement goal completion criteria.
+- [x] Add event emissions for goal lifecycle.
 - [ ] Add tests for long-running goals.
 
 ---

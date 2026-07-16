@@ -93,6 +93,8 @@ The Capability Kernel converts requested capabilities into ranked provider choic
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
 
+AGOE Goal records carry owner, priority, lifecycle status, parent goal reference, dependency ids, waiting states, and explicit completion criteria. Goal lifecycle changes emit typed events such as `goal.created`, `goal.status_changed`, `goal.dependency_added`, `goal.waiting_state_added`, and `goal.completion_criterion_satisfied` so World State, Memory, and the Cognitive Loop can consume goal changes without scraping free-form text.
+
 ### Semantic World Model
 
 The SWM owns the semantic understanding of entities and relationships. It stores meaning, provenance, confidence, and temporal validity.
