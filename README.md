@@ -8,6 +8,7 @@ Atlas is a governed, capability-first cognitive operating system designed to bec
 
 ```text
 apps/
+  runtime/
   web/
   api/
   worker/
@@ -54,6 +55,20 @@ Initial universal capability:
 ```text
 Create Resource
 ```
+
+## Local Runtime
+
+The first runnable API surface is `apps/runtime`.
+
+```powershell
+corepack pnpm build
+corepack pnpm --filter @atlas-aios/runtime start
+```
+
+Initial endpoints:
+
+- `GET /health`
+- `POST /mvp/unknown-business/learn-and-execute`
 
 ## Implementation Tracker
 

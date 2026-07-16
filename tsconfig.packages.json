@@ -21,6 +21,7 @@
     { "path": "./packages/self-model" },
     { "path": "./packages/swm" },
     { "path": "./packages/workflow-dsl" },
-    { "path": "./packages/world-state" }
+    { "path": "./packages/world-state" },
+    { "path": "./apps/runtime" }
   ]
 }
