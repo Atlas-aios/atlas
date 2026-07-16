@@ -170,6 +170,21 @@ async function handleRuntimeRequest(
     });
   }
 
+  const goalExecutionMatch = /^\/goals\/(.+)\/executions$/.exec(url.pathname);
+  if (request.method === "POST" && goalExecutionMatch !== null) {
+    const goalId = decodeURIComponent(goalExecutionMatch[1] ?? "");
+
+    if (!state.goals.has(goalId)) {
+      return json({ error: "goal_not_found", goalId }, { status: 404 });
+    }
+
+    const input = (await request.json()) as CreateRuntimeExecutionRequest;
+
+    return json(await createRuntimeExecution(state, { ...input, goalId }), {
+      status: 201
+    });
+  }
+
   const goalDetailMatch = /^\/goals\/(.+)$/.exec(url.pathname);
   if (request.method === "GET" && goalDetailMatch !== null) {
     const goalId = decodeURIComponent(goalDetailMatch[1] ?? "");
