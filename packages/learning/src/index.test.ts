@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
   learnOpenApiCapabilities
@@ -253,6 +254,73 @@ describe("learnOpenApiCapabilities", () => {
           state: "dispatched"
         }
       ]
+    });
+  });
+
+  it("runs the Create Resource benchmark scenario against the fixture", async () => {
+    const benchmark = createUnknownBusinessCreateResourceBenchmark();
+
+    const result = await benchmark.run();
+
+    expect(result).toEqual({
+      id: "benchmark:unknown-business:create-resource",
+      scenario: "Create Resource",
+      passed: true,
+      evidence: [
+        "fixture:rest:POST /folios",
+        "fixture:rest:POST /settlements/allocate",
+        "fixture:rest:POST /work-packets/dispatch"
+      ],
+      expectedSnapshot: {
+        folios: [
+          {
+            id: "folio:1",
+            name: "Benchmark folio",
+            state: "open"
+          }
+        ],
+        settlements: [
+          {
+            id: "settlement:1",
+            folioId: "folio:1",
+            amount: 1000,
+            state: "allocated"
+          }
+        ],
+        workPackets: [
+          {
+            id: "work-packet:1",
+            folioId: "folio:1",
+            settlementId: "settlement:1",
+            state: "dispatched"
+          }
+        ]
+      },
+      actualSnapshot: {
+        folios: [
+          {
+            id: "folio:1",
+            name: "Benchmark folio",
+            state: "open"
+          }
+        ],
+        settlements: [
+          {
+            id: "settlement:1",
+            folioId: "folio:1",
+            amount: 1000,
+            state: "allocated"
+          }
+        ],
+        workPackets: [
+          {
+            id: "work-packet:1",
+            folioId: "folio:1",
+            settlementId: "settlement:1",
+            state: "dispatched"
+          }
+        ]
+      }
     });
   });
 });

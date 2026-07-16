@@ -473,9 +473,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement browser UI fixture.
 - [ ] Implement authentication fixture.
 - [x] Add sample data.
-- [ ] Add example workflows.
+- [x] Add example workflows.
 - [x] Add unknown terminology.
-- [ ] Add benchmark scenario for `Create Resource`.
+- [x] Add benchmark scenario for `Create Resource`.
 - [x] Test Atlas learns the system without handwritten app-specific code.
 
 ---

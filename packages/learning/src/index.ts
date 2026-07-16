@@ -119,6 +119,19 @@ export interface UnknownBusinessSystemRestFixture {
   snapshot(): UnknownBusinessSystemSnapshot;
 }
 
+export interface UnknownBusinessBenchmarkResult {
+  id: string;
+  scenario: "Create Resource";
+  passed: boolean;
+  evidence: string[];
+  expectedSnapshot: UnknownBusinessSystemSnapshot;
+  actualSnapshot: UnknownBusinessSystemSnapshot;
+}
+
+export interface UnknownBusinessBenchmark {
+  run(): Promise<UnknownBusinessBenchmarkResult>;
+}
+
 export function learnOpenApiCapabilities(
   input: LearnOpenApiCapabilitiesInput
 ): LearnOpenApiCapabilitiesResult {
@@ -213,6 +226,45 @@ export function createUnknownBusinessSystemRestFixture(): UnknownBusinessSystemR
   };
 }
 
+export function createUnknownBusinessCreateResourceBenchmark(): UnknownBusinessBenchmark {
+  return {
+    run: async () => {
+      const fixture = createUnknownBusinessSystemRestFixture();
+      await fixture.handle({
+        method: "POST",
+        path: "/folios",
+        body: { name: "Benchmark folio" }
+      });
+      await fixture.handle({
+        method: "POST",
+        path: "/settlements/allocate",
+        body: { folioId: "folio:1", amount: 1000 }
+      });
+      await fixture.handle({
+        method: "POST",
+        path: "/work-packets/dispatch",
+        body: { folioId: "folio:1", settlementId: "settlement:1" }
+      });
+
+      const expectedSnapshot = createResourceBenchmarkExpectedSnapshot();
+      const actualSnapshot = fixture.snapshot();
+
+      return {
+        id: "benchmark:unknown-business:create-resource",
+        scenario: "Create Resource",
+        passed: snapshotsEqual(actualSnapshot, expectedSnapshot),
+        evidence: [
+          "fixture:rest:POST /folios",
+          "fixture:rest:POST /settlements/allocate",
+          "fixture:rest:POST /work-packets/dispatch"
+        ],
+        expectedSnapshot,
+        actualSnapshot
+      };
+    }
+  };
+}
+
 function assessCapabilityConfidence(
   capabilityId: string,
   score: number
@@ -294,6 +346,41 @@ function dispatchWorkPacket(
     status: 201,
     body: workPacket
   };
+}
+
+function createResourceBenchmarkExpectedSnapshot(): UnknownBusinessSystemSnapshot {
+  return {
+    folios: [
+      {
+        id: "folio:1",
+        name: "Benchmark folio",
+        state: "open"
+      }
+    ],
+    settlements: [
+      {
+        id: "settlement:1",
+        folioId: "folio:1",
+        amount: 1000,
+        state: "allocated"
+      }
+    ],
+    workPackets: [
+      {
+        id: "work-packet:1",
+        folioId: "folio:1",
+        settlementId: "settlement:1",
+        state: "dispatched"
+      }
+    ]
+  };
+}
+
+function snapshotsEqual(
+  left: UnknownBusinessSystemSnapshot,
+  right: UnknownBusinessSystemSnapshot
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function assessProviderConfidence(
