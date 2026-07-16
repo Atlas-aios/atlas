@@ -276,4 +276,78 @@ describe("Atlas runtime API", () => {
       rationale: "Selected provider:openapi:create-folio with 0 fallback providers."
     });
   });
+
+  it("creates an execution session for a learned provider", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/executions", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "execution:runtime:create-folio",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: {
+            name: "Runtime execution folio"
+          },
+          startedAt: "2026-07-16T12:30:00.000Z"
+        })
+      })
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({
+      session: {
+        id: "execution:runtime:create-folio",
+        workflowId: "workflow:runtime:execution:runtime:create-folio",
+        startedAt: "2026-07-16T12:30:00.000Z",
+        status: "completed"
+      },
+      status: "completed",
+      steps: [
+        {
+          nodeId: "node:runtime-provider",
+          status: "completed",
+          outputs: {
+            status: 201,
+            body: {
+              id: "folio:1",
+              name: "Runtime execution folio",
+              state: "open"
+            }
+          },
+          evidenceRefs: [
+            "fixture:rest:POST /folios",
+            "runtime:provider:provider:openapi:create-folio"
+          ]
+        }
+      ],
+      events: [
+        {
+          type: "execution.session.started",
+          executionId: "execution:runtime:create-folio"
+        },
+        {
+          type: "execution.step.started",
+          executionId: "execution:runtime:create-folio",
+          nodeId: "node:runtime-provider"
+        },
+        {
+          type: "execution.step.completed",
+          executionId: "execution:runtime:create-folio",
+          nodeId: "node:runtime-provider"
+        },
+        {
+          type: "execution.session.completed",
+          executionId: "execution:runtime:create-folio"
+        }
+      ]
+    });
+  });
 });

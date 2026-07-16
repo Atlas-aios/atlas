@@ -5,9 +5,16 @@ import {
   type ProviderCandidate
 } from "@atlas-aios/capability-kernel";
 import {
+  createExecutionSession,
+  runSequentialWorkflow,
+  type ExecuteWorkflowNodeResult
+} from "@atlas-aios/execution-engine";
+import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
+  createUnknownBusinessSystemRestFixture,
   createUnknownBusinessSystemOpenApiFixture,
+  type UnknownBusinessSystemRestFixture,
   learnOpenApiCapabilities
 } from "@atlas-aios/learning";
 
@@ -70,10 +77,19 @@ export interface ResolveRuntimeCapabilityRequest {
   governanceContextId: string;
 }
 
+export interface CreateRuntimeExecutionRequest {
+  id: string;
+  capabilityId: string;
+  providerId: string;
+  inputs: Record<string, unknown>;
+  startedAt: string;
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
   capabilities: RuntimeCapabilityListItem[];
   providers: RuntimeProviderListItem[];
+  unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
 interface UnknownBusinessMvpFlowResult {
@@ -86,7 +102,8 @@ export function createAtlasRuntime(): AtlasRuntime {
   const state: RuntimeState = {
     goals: new Map<string, Goal>(),
     capabilities: [],
-    providers: []
+    providers: [],
+    unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
   return {
@@ -142,6 +159,12 @@ async function handleRuntimeRequest(
     return json({
       providers: state.providers
     });
+  }
+
+  if (request.method === "POST" && url.pathname === "/executions") {
+    const input = (await request.json()) as CreateRuntimeExecutionRequest;
+
+    return json(await createRuntimeExecution(state, input), { status: 201 });
   }
 
   const capabilityResolutionMatch = /^\/capabilities\/([^/]+)\/resolve$/.exec(
@@ -250,6 +273,128 @@ async function resolveRuntimeCapability(input: {
   });
 
   return kernel.resolve(input.request);
+}
+
+async function createRuntimeExecution(
+  state: RuntimeState,
+  input: CreateRuntimeExecutionRequest
+): Promise<unknown> {
+  return runSequentialWorkflow({
+    session: createExecutionSession({
+      id: input.id,
+      workflowId: `workflow:runtime:${input.id}`,
+      startedAt: input.startedAt
+    }),
+    workflow: {
+      id: `workflow:runtime:${input.id}`,
+      version: "0.1",
+      nodes: [
+        {
+          id: "node:runtime-provider",
+          type: "capability",
+          inputs: {
+            providerId: input.providerId,
+            capabilityId: input.capabilityId,
+            inputs: input.inputs
+          }
+        }
+      ],
+      edges: []
+    },
+    handlers: {
+      capability: async ({ node }) =>
+        executeRuntimeProvider(
+          state,
+          requiredStringRuntimeInput(node.inputs, "providerId"),
+          requiredStringRuntimeInput(node.inputs, "capabilityId"),
+          requiredRecordRuntimeInput(node.inputs, "inputs")
+        )
+    }
+  });
+}
+
+async function executeRuntimeProvider(
+  state: RuntimeState,
+  providerId: string,
+  capabilityId: string,
+  inputs: Record<string, unknown>
+): Promise<ExecuteWorkflowNodeResult> {
+  if (
+    !state.providers.some(
+      (provider) =>
+        provider.providerId === providerId && provider.capabilityId === capabilityId
+    )
+  ) {
+    throw new Error(`Provider ${providerId} is not registered for ${capabilityId}`);
+  }
+
+  const restRequest = runtimeProviderRestRequest(providerId, inputs);
+  const result = await state.unknownBusinessRest.handle(restRequest);
+
+  return {
+    outputs: {
+      status: result.status,
+      body: result.body
+    },
+    evidenceRefs: [
+      `fixture:rest:${restRequest.method} ${restRequest.path}`,
+      `runtime:provider:${providerId}`
+    ]
+  };
+}
+
+function runtimeProviderRestRequest(
+  providerId: string,
+  inputs: Record<string, unknown>
+) {
+  switch (providerId) {
+    case "provider:openapi:create-folio":
+      return {
+        method: "POST" as const,
+        path: "/folios" as const,
+        body: inputs
+      };
+    case "provider:openapi:allocate-settlement":
+      return {
+        method: "POST" as const,
+        path: "/settlements/allocate" as const,
+        body: inputs
+      };
+    case "provider:openapi:dispatch-work-packet":
+      return {
+        method: "POST" as const,
+        path: "/work-packets/dispatch" as const,
+        body: inputs
+      };
+    default:
+      throw new Error(`Runtime provider is not executable: ${providerId}`);
+  }
+}
+
+function requiredStringRuntimeInput(
+  inputs: Record<string, unknown>,
+  key: string
+): string {
+  const value = inputs[key];
+
+  if (typeof value !== "string") {
+    throw new Error(`Runtime execution missing string input: ${key}`);
+  }
+
+  return value;
+}
+
+function requiredRecordRuntimeInput(
+  inputs: Record<string, unknown>,
+  key: string
+): Record<string, unknown> {
+  const value = inputs[key];
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Runtime execution missing object input: ${key}`);
+  }
+
+  return { ...value };
 }
 
 function toProviderCandidate(provider: RuntimeProviderListItem): ProviderCandidate {

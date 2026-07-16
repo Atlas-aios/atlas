@@ -37,6 +37,9 @@ importers:
       "@atlas-aios/capability-kernel":
         specifier: workspace:*
         version: link:../../packages/capability-kernel
+      "@atlas-aios/execution-engine":
+        specifier: workspace:*
+        version: link:../../packages/execution-engine
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning

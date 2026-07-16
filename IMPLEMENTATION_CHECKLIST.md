@@ -492,7 +492,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/capabilities/:id/resolve`.
 - [ ] Implement `/interface-drivers`.
 - [ ] Implement `/workflows`.
-- [ ] Implement `/executions`.
+- [x] Implement `/executions`.
 - [ ] Implement `/approvals`.
 - [ ] Implement `/world-state`.
 - [ ] Implement `/swm/entities`.

@@ -10,6 +10,7 @@
   "references": [
     { "path": "../../packages/agoe" },
     { "path": "../../packages/capability-kernel" },
+    { "path": "../../packages/execution-engine" },
     { "path": "../../packages/learning" }
   ]
 }
