@@ -80,12 +80,22 @@ export interface UnknownBusinessSystemOpenApiFixture {
 export interface UnknownBusinessRestRequest {
   method: "POST";
   path: "/folios" | "/settlements/allocate" | "/work-packets/dispatch";
+  headers?: Record<string, string>;
   body: Record<string, unknown>;
 }
 
 export interface UnknownBusinessRestResponse {
   status: number;
-  body: UnknownBusinessFolio | UnknownBusinessSettlement | UnknownBusinessWorkPacket;
+  body:
+    | UnknownBusinessFolio
+    | UnknownBusinessSettlement
+    | UnknownBusinessWorkPacket
+    | UnknownBusinessAuthError;
+}
+
+export interface UnknownBusinessAuthError {
+  error: "unauthorized";
+  requiredAuth: "bearer";
 }
 
 export interface UnknownBusinessFolio {
@@ -117,6 +127,10 @@ export interface UnknownBusinessSystemSnapshot {
 export interface UnknownBusinessSystemRestFixture {
   handle(request: UnknownBusinessRestRequest): Promise<UnknownBusinessRestResponse>;
   snapshot(): UnknownBusinessSystemSnapshot;
+}
+
+export interface UnknownBusinessSystemRestFixtureOptions {
+  authToken?: string;
 }
 
 export interface UnknownBusinessBenchmarkResult {
@@ -209,7 +223,9 @@ export function createUnknownBusinessSystemOpenApiFixture(): UnknownBusinessSyst
   };
 }
 
-export function createUnknownBusinessSystemRestFixture(): UnknownBusinessSystemRestFixture {
+export function createUnknownBusinessSystemRestFixture(
+  options: UnknownBusinessSystemRestFixtureOptions = {}
+): UnknownBusinessSystemRestFixture {
   const state: UnknownBusinessSystemSnapshot = {
     folios: [],
     settlements: [],
@@ -217,7 +233,13 @@ export function createUnknownBusinessSystemRestFixture(): UnknownBusinessSystemR
   };
 
   return {
-    handle: async (request) => handleUnknownBusinessRequest(state, request),
+    handle: async (request) => {
+      if (!isAuthorized(options, request)) {
+        return unauthorizedResponse();
+      }
+
+      return handleUnknownBusinessRequest(state, request);
+    },
     snapshot: () => ({
       folios: [...state.folios],
       settlements: [...state.settlements],
@@ -345,6 +367,27 @@ function dispatchWorkPacket(
   return {
     status: 201,
     body: workPacket
+  };
+}
+
+function isAuthorized(
+  options: UnknownBusinessSystemRestFixtureOptions,
+  request: UnknownBusinessRestRequest
+): boolean {
+  if (options.authToken === undefined) {
+    return true;
+  }
+
+  return request.headers?.authorization === `Bearer ${options.authToken}`;
+}
+
+function unauthorizedResponse(): UnknownBusinessRestResponse {
+  return {
+    status: 401,
+    body: {
+      error: "unauthorized",
+      requiredAuth: "bearer"
+    }
   };
 }
 

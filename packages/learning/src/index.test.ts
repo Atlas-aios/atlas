@@ -257,6 +257,42 @@ describe("learnOpenApiCapabilities", () => {
     });
   });
 
+  it("requires fixture authentication for protected REST operations", async () => {
+    const fixture = createUnknownBusinessSystemRestFixture({
+      authToken: "fixture-token"
+    });
+
+    expect(
+      await fixture.handle({
+        method: "POST",
+        path: "/folios",
+        body: { name: "Quarterly close" }
+      })
+    ).toEqual({
+      status: 401,
+      body: {
+        error: "unauthorized",
+        requiredAuth: "bearer"
+      }
+    });
+
+    expect(
+      await fixture.handle({
+        method: "POST",
+        path: "/folios",
+        headers: { authorization: "Bearer fixture-token" },
+        body: { name: "Quarterly close" }
+      })
+    ).toEqual({
+      status: 201,
+      body: {
+        id: "folio:1",
+        name: "Quarterly close",
+        state: "open"
+      }
+    });
+  });
+
   it("runs the Create Resource benchmark scenario against the fixture", async () => {
     const benchmark = createUnknownBusinessCreateResourceBenchmark();
 

@@ -471,7 +471,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement REST API fixture.
 - [x] Implement OpenAPI fixture.
 - [ ] Implement browser UI fixture.
-- [ ] Implement authentication fixture.
+- [x] Implement authentication fixture.
 - [x] Add sample data.
 - [x] Add example workflows.
 - [x] Add unknown terminology.

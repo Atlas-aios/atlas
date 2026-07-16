@@ -107,6 +107,8 @@ The fixture also includes an in-memory REST surface for `folio`, `settlement`, a
 
 The first benchmark scenario is `Create Resource`, which drives the fixture through folio creation, settlement allocation, and work-packet dispatch, then compares the final state snapshot against expected evidence.
 
+The REST fixture supports opt-in bearer authentication for protected fixture operations. This is test authentication for provider/driver validation, not production identity or tenant security.
+
 ### AGOE
 
 The Autonomous Goal Ownership Engine owns goals from creation to completion. It tracks waiting states, blockers, decompositions, recovery attempts, and completion criteria.
