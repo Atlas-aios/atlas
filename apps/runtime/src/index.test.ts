@@ -784,6 +784,85 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("records approval requests for approval-gated dispatches", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const dispatchResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/capabilities/capability:create-folio/dispatch",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            executionId: "execution:runtime:create-folio",
+            inputs: {
+              name: "Approval gated folio"
+            },
+            governanceContextId: "governance:runtime:mvp",
+            startedAt: "2026-07-16T12:30:00.000Z"
+          })
+        }
+      )
+    );
+
+    expect(dispatchResponse.status).toBe(201);
+    await expect(dispatchResponse.json()).resolves.toMatchObject({
+      approvalRequest: {
+        id: "approval:runtime:execution:runtime:create-folio",
+        status: "requested",
+        goalId: "goal:runtime-create-resource",
+        capabilityId: "capability:create-folio",
+        providerId: "provider:openapi:create-folio",
+        executionId: "execution:runtime:create-folio",
+        governanceContextId: "governance:runtime:mvp",
+        requestedAt: "2026-07-16T12:30:00.000Z",
+        reason:
+          "Selected provider requires approval because permission fit or policy risk is not fully safe."
+      }
+    });
+
+    const approvalListResponse = await runtime.handle(
+      new Request("http://atlas.local/approval-requests", { method: "GET" })
+    );
+
+    expect(approvalListResponse.status).toBe(200);
+    await expect(approvalListResponse.json()).resolves.toEqual({
+      approvalRequests: [
+        {
+          id: "approval:runtime:execution:runtime:create-folio",
+          status: "requested",
+          goalId: "goal:runtime-create-resource",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          executionId: "execution:runtime:create-folio",
+          governanceContextId: "governance:runtime:mvp",
+          requestedAt: "2026-07-16T12:30:00.000Z",
+          reason:
+            "Selected provider requires approval because permission fit or policy risk is not fully safe."
+        }
+      ]
+    });
+  });
+
   it("returns a goal timeline with goal and execution events", async () => {
     const runtime = createAtlasRuntime();
 

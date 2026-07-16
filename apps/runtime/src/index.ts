@@ -113,9 +113,24 @@ export interface DispatchGoalScopedRuntimeCapabilityRequest {
   startedAt: string;
 }
 
+export type RuntimeApprovalRequestStatus = "requested" | "approved" | "rejected";
+
+export interface RuntimeApprovalRequest {
+  id: string;
+  status: RuntimeApprovalRequestStatus;
+  goalId: string;
+  capabilityId: string;
+  providerId: string;
+  executionId: string;
+  governanceContextId: string;
+  requestedAt: string;
+  reason: string;
+}
+
 export interface DispatchGoalScopedRuntimeCapabilityResponse {
   resolution: CapabilityResolution;
   execution: ExecutionRunResult;
+  approvalRequest?: RuntimeApprovalRequest;
 }
 
 export interface CreateRuntimeExecutionRequest {
@@ -165,6 +180,7 @@ interface RuntimeState {
   capabilities: RuntimeCapabilityListItem[];
   providers: RuntimeProviderListItem[];
   executions: RuntimeExecutionRecord[];
+  approvalRequests: RuntimeApprovalRequest[];
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
@@ -181,6 +197,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     capabilities: [],
     providers: [],
     executions: [],
+    approvalRequests: [],
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
@@ -377,9 +394,29 @@ async function handleRuntimeRequest(
       inputs: input.inputs,
       startedAt: input.startedAt
     });
+    const approvalRequest =
+      resolution.approvalRequired === false
+        ? undefined
+        : createRuntimeApprovalRequest({
+            goalId,
+            capabilityId,
+            providerId: resolution.selectedProviderId,
+            executionId: input.executionId,
+            governanceContextId: input.governanceContextId,
+            requestedAt: input.startedAt,
+            reason: resolution.approvalReason ?? "Provider execution requires approval."
+          });
+
+    if (approvalRequest !== undefined) {
+      state.approvalRequests.push(approvalRequest);
+    }
 
     return json<DispatchGoalScopedRuntimeCapabilityResponse>(
-      { resolution, execution },
+      {
+        resolution,
+        execution,
+        ...(approvalRequest === undefined ? {} : { approvalRequest })
+      },
       { status: 201 }
     );
   }
@@ -424,6 +461,12 @@ async function handleRuntimeRequest(
   if (request.method === "GET" && url.pathname === "/providers") {
     return json({
       providers: state.providers
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/approval-requests") {
+    return json({
+      approvalRequests: state.approvalRequests
     });
   }
 
@@ -721,6 +764,28 @@ function toExecutionListItem(record: RuntimeExecutionRecord): RuntimeExecutionLi
     startedAt: record.result.session.startedAt,
     stepCount: record.result.steps.length,
     eventCount: record.result.events.length
+  };
+}
+
+function createRuntimeApprovalRequest(input: {
+  goalId: string;
+  capabilityId: string;
+  providerId: string;
+  executionId: string;
+  governanceContextId: string;
+  requestedAt: string;
+  reason: string;
+}): RuntimeApprovalRequest {
+  return {
+    id: `approval:runtime:${input.executionId}`,
+    status: "requested",
+    goalId: input.goalId,
+    capabilityId: input.capabilityId,
+    providerId: input.providerId,
+    executionId: input.executionId,
+    governanceContextId: input.governanceContextId,
+    requestedAt: input.requestedAt,
+    reason: input.reason
   };
 }
 
