@@ -52,6 +52,9 @@ importers:
       "@atlas-aios/identity":
         specifier: workspace:*
         version: link:../../packages/identity
+      "@atlas-aios/interface-drivers":
+        specifier: workspace:*
+        version: link:../../packages/interface-drivers
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning
@@ -64,6 +67,9 @@ importers:
       "@atlas-aios/swm":
         specifier: workspace:*
         version: link:../../packages/swm
+      "@atlas-aios/workflow-dsl":
+        specifier: workspace:*
+        version: link:../../packages/workflow-dsl
       "@atlas-aios/world-state":
         specifier: workspace:*
         version: link:../../packages/world-state

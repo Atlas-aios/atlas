@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas Admin</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar" aria-label="Atlas runtime navigation">
+        <div class="brand">
+          <span class="mark" aria-hidden="true">A</span>
+          <div>
+            <h1>Atlas Admin</h1>
+            <p>Runtime control surface</p>
+          </div>
+        </div>
+        <nav>
+          <a href="#overview">Overview</a>
+          <a href="#goals">Goals</a>
+          <a href="#approvals">Approvals</a>
+          <a href="#simulations">Simulations</a>
+          <a href="#audit">Audit</a>
+        </nav>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <h2>Atlas Runtime</h2>
+            <p id="runtimeStatus">Not connected</p>
+          </div>
+          <div class="connection">
+            <label>
+              Runtime URL
+              <input id="runtimeUrl" value="http://127.0.0.1:3000" />
+            </label>
+            <label>
+              API key
+              <input id="apiKey" type="password" placeholder="optional" />
+            </label>
+            <label>
+              Identity
+              <input id="identityId" value="identity:user:moksh" />
+            </label>
+            <button id="refreshButton" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section id="overview" class="band">
+          <div class="section-title">
+            <h3>Operating Loop</h3>
+            <button id="learnButton" type="button">Run Learn Step</button>
+          </div>
+          <div class="metrics" aria-live="polite">
+            <article>
+              <span>Goals</span>
+              <strong id="goalCount">0</strong>
+            </article>
+            <article>
+              <span>Approvals</span>
+              <strong id="approvalCount">0</strong>
+            </article>
+            <article>
+              <span>Simulations</span>
+              <strong id="simulationCount">0</strong>
+            </article>
+            <article>
+              <span>Audit Events</span>
+              <strong id="auditCount">0</strong>
+            </article>
+          </div>
+        </section>
+
+        <section id="goals" class="band">
+          <div class="section-title">
+            <h3>Goals</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Goal</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Owner</th>
+                </tr>
+              </thead>
+              <tbody id="goalsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="approvals" class="band">
+          <div class="section-title">
+            <h3>Approvals</h3>
+          </div>
+          <div id="approvalsList" class="list"></div>
+        </section>
+
+        <section id="simulations" class="band">
+          <div class="section-title">
+            <h3>Simulations</h3>
+            <button id="simulateButton" type="button">Simulate Create Folio</button>
+          </div>
+          <div id="simulationsList" class="list"></div>
+        </section>
+
+        <section id="audit" class="band">
+          <div class="section-title">
+            <h3>Audit Log</h3>
+          </div>
+          <div id="auditList" class="list"></div>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -139,17 +139,58 @@ export interface RestDriverResult {
   events: InterfaceDriverEvent[];
 }
 
+export type BrowserUiAction = "click" | "fill" | "read";
+
+export interface BrowserUiDriverRequest {
+  operationId: string;
+  action: BrowserUiAction;
+  selector: string;
+  value?: string;
+  requiredPermissions: string[];
+  grantedPermissions: string[];
+  simulation?: boolean;
+}
+
+export interface BrowserUiRequestPreview {
+  action: BrowserUiAction;
+  selector: string;
+  value?: string;
+}
+
+export interface BrowserUiDriverResult {
+  status: InterfaceDriverExecutionStatus;
+  output?: unknown;
+  requestPreview?: BrowserUiRequestPreview;
+  error?: string;
+  events: InterfaceDriverEvent[];
+}
+
 export type RestDriverTransport = (
   request: RestDriverTransportRequest
 ) => Promise<RestDriverResponse> | RestDriverResponse;
+
+export interface BrowserUiSurface {
+  click(selector: string): Promise<unknown> | unknown;
+  fill(selector: string, value: string): Promise<unknown> | unknown;
+  read(selector: string): Promise<unknown> | unknown;
+}
 
 export interface RestInterfaceDriver {
   manifest: InterfaceDriverManifest;
   execute(request: RestDriverRequest): Promise<RestDriverResult>;
 }
 
+export interface BrowserUiInterfaceDriver {
+  manifest: InterfaceDriverManifest;
+  execute(request: BrowserUiDriverRequest): Promise<BrowserUiDriverResult>;
+}
+
 export interface CreateRestInterfaceDriverInput {
   transport: RestDriverTransport;
+}
+
+export interface CreateBrowserUiInterfaceDriverInput {
+  surface: BrowserUiSurface;
 }
 
 export function createRestInterfaceDriver(
@@ -165,6 +206,23 @@ export function createRestInterfaceDriver(
   return {
     manifest,
     execute: async (request) => executeRestRequest(manifest, input.transport, request)
+  };
+}
+
+export function createBrowserUiInterfaceDriver(
+  input: CreateBrowserUiInterfaceDriverInput
+): BrowserUiInterfaceDriver {
+  const manifest: InterfaceDriverManifest = {
+    id: "driver:browser-ui",
+    kind: "browser_ui",
+    permissions: ["browser_ui:read", "browser_ui:write"],
+    supportedOperations: ["click", "fill", "read"]
+  };
+
+  return {
+    manifest,
+    execute: async (request) =>
+      executeBrowserUiRequest(manifest, input.surface, request)
   };
 }
 
@@ -277,6 +335,82 @@ async function executeRestRequest(
   }
 }
 
+async function executeBrowserUiRequest(
+  manifest: InterfaceDriverManifest,
+  surface: BrowserUiSurface,
+  request: BrowserUiDriverRequest
+): Promise<BrowserUiDriverResult> {
+  const startedEvent = createDriverEvent(
+    "interface-driver.request.started",
+    manifest.id,
+    request.operationId
+  );
+  const missingPermissions = request.requiredPermissions.filter(
+    (permission) => !request.grantedPermissions.includes(permission)
+  );
+
+  if (missingPermissions.length > 0) {
+    return {
+      status: "blocked",
+      error: `Missing driver permissions: ${missingPermissions.join(", ")}`,
+      events: [
+        startedEvent,
+        createDriverEvent(
+          "interface-driver.request.blocked",
+          manifest.id,
+          request.operationId
+        )
+      ]
+    };
+  }
+
+  const requestPreview = toBrowserUiRequestPreview(request);
+
+  if (request.simulation === true) {
+    return {
+      status: "simulated",
+      requestPreview,
+      events: [
+        startedEvent,
+        createDriverEvent(
+          "interface-driver.request.simulated",
+          manifest.id,
+          request.operationId
+        )
+      ]
+    };
+  }
+
+  try {
+    return {
+      status: "completed",
+      output: await executeBrowserUiSurfaceAction(surface, request),
+      events: [
+        startedEvent,
+        createDriverEvent(
+          "interface-driver.request.completed",
+          manifest.id,
+          request.operationId
+        )
+      ]
+    };
+  } catch (error) {
+    return {
+      status: "failed",
+      error:
+        error instanceof Error ? error.message : "Browser UI driver request failed",
+      events: [
+        startedEvent,
+        createDriverEvent(
+          "interface-driver.request.failed",
+          manifest.id,
+          request.operationId
+        )
+      ]
+    };
+  }
+}
+
 function toTransportRequest(request: RestDriverRequest): RestDriverTransportRequest {
   return {
     method: request.method,
@@ -284,6 +418,30 @@ function toTransportRequest(request: RestDriverRequest): RestDriverTransportRequ
     headers: request.headers ?? {},
     ...(request.body === undefined ? {} : { body: request.body })
   };
+}
+
+function toBrowserUiRequestPreview(
+  request: BrowserUiDriverRequest
+): BrowserUiRequestPreview {
+  return {
+    action: request.action,
+    selector: request.selector,
+    ...(request.value === undefined ? {} : { value: request.value })
+  };
+}
+
+async function executeBrowserUiSurfaceAction(
+  surface: BrowserUiSurface,
+  request: BrowserUiDriverRequest
+): Promise<unknown> {
+  switch (request.action) {
+    case "click":
+      return surface.click(request.selector);
+    case "fill":
+      return surface.fill(request.selector, request.value ?? "");
+    case "read":
+      return surface.read(request.selector);
+  }
 }
 
 function createDriverEvent(

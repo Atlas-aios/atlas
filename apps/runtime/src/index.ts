@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 import {
   createGoal,
   monitorGoals,
@@ -55,6 +58,13 @@ import {
   type IdentitySubjectInput
 } from "@atlas-aios/identity";
 import {
+  createBrowserUiInterfaceDriver,
+  createRestInterfaceDriver,
+  type BrowserUiDriverRequest,
+  type BrowserUiDriverResult,
+  type RestDriverResult
+} from "@atlas-aios/interface-drivers";
+import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemRestFixture,
@@ -94,6 +104,7 @@ import {
   type SemanticRelationshipInput,
   type SemanticWorldModelStore
 } from "@atlas-aios/swm";
+import { createAtlasFlow, type AtlasFlow } from "@atlas-aios/workflow-dsl";
 import {
   createInMemoryWorldStateStore,
   createWorldStateSnapshot,
@@ -104,6 +115,21 @@ import {
 
 export interface AtlasRuntime {
   handle(request: Request): Promise<Response>;
+}
+
+export interface RuntimeAuthConfig {
+  apiKey: string;
+  requireIdentity?: boolean;
+}
+
+export interface RuntimePersistence {
+  load(): RuntimeStateSnapshot | undefined;
+  save(snapshot: RuntimeStateSnapshot): void;
+}
+
+export interface CreateAtlasRuntimeOptions {
+  auth?: RuntimeAuthConfig;
+  persistence?: RuntimePersistence;
 }
 
 export interface RuntimeHealthResponse {
@@ -179,10 +205,11 @@ export interface RuntimeCapabilityGraph {
 
 export interface RuntimeInterfaceDriverMapping {
   capabilityId: string;
-  driverId: "driver:rest";
+  driverId: "driver:rest" | "driver:browser-ui";
   operationId: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  path: string;
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path?: string;
+  selector?: string;
   requiredPermissions: string[];
 }
 
@@ -316,6 +343,55 @@ export interface EvaluateRuntimeGovernancePolicyRequest extends GovernanceAction
   evaluatedAt?: string;
 }
 
+export interface RuntimeThought {
+  id: string;
+  kind: "observation" | "decision_rationale" | "risk" | "plan" | "reflection";
+  summary: string;
+  createdAt: string;
+  goalId?: string;
+  evidenceRefs: string[];
+}
+
+export interface CreateRuntimeSimulationRequest {
+  id: string;
+  goalId?: string;
+  capabilityId: string;
+  providerId: string;
+  inputs: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface RuntimeSimulationRecord {
+  id: string;
+  status: "simulated" | "blocked" | "failed";
+  goalId?: string;
+  capabilityId: string;
+  providerId: string;
+  inputs: Record<string, unknown>;
+  requestPreview?: RestDriverResult["requestPreview"];
+  events: RestDriverResult["events"];
+  createdAt: string;
+}
+
+export interface RuntimeStateSnapshot {
+  goals: Goal[];
+  goalEvents: Array<[string, GoalLifecycleEvent[]]>;
+  capabilities: RuntimeCapabilityListItem[];
+  capabilityGraphs: RuntimeCapabilityGraph[];
+  interfaceDrivers: RuntimeInterfaceDriverMapping[];
+  providers: RuntimeProviderListItem[];
+  learningReview: LearningGovernanceReview | null;
+  learningPromotionDecisions: LearningPromotionDecision[];
+  learningPromotionApprovals: Array<[string, ApproveRuntimeLearningPromotionRequest]>;
+  executions: RuntimeExecutionRecord[];
+  approvalRequests: RuntimeApprovalRequest[];
+  cognitiveLoopCycles: CognitiveLoopCycle[];
+  auditLogs: RuntimeAuditEvent[];
+  workflows: AtlasFlow[];
+  thoughts: RuntimeThought[];
+  simulations: RuntimeSimulationRecord[];
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
   goalEvents: Map<string, GoalLifecycleEvent[]>;
@@ -330,6 +406,9 @@ interface RuntimeState {
   approvalRequests: RuntimeApprovalRequest[];
   cognitiveLoopCycles: CognitiveLoopCycle[];
   auditLogs: RuntimeAuditEvent[];
+  workflows: AtlasFlow[];
+  thoughts: RuntimeThought[];
+  simulations: RuntimeSimulationRecord[];
   governancePolicyStore: GovernancePolicyStore;
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
@@ -350,7 +429,25 @@ interface UnknownBusinessMvpFlowResult {
   learningPromotionDecisions: LearningPromotionDecision[];
 }
 
-export function createAtlasRuntime(): AtlasRuntime {
+export function createFileRuntimePersistence(filePath: string): RuntimePersistence {
+  return {
+    load: () => {
+      if (!existsSync(filePath)) {
+        return undefined;
+      }
+
+      return JSON.parse(readFileSync(filePath, "utf8")) as RuntimeStateSnapshot;
+    },
+    save: (snapshot) => {
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+    }
+  };
+}
+
+export function createAtlasRuntime(
+  options: CreateAtlasRuntimeOptions = {}
+): AtlasRuntime {
   const state: RuntimeState = {
     goals: new Map<string, Goal>(),
     goalEvents: new Map<string, GoalLifecycleEvent[]>(),
@@ -368,6 +465,9 @@ export function createAtlasRuntime(): AtlasRuntime {
     approvalRequests: [],
     cognitiveLoopCycles: [],
     auditLogs: [],
+    workflows: [],
+    thoughts: [],
+    simulations: [],
     governancePolicyStore: createInMemoryGovernancePolicyStore(
       createDefaultGovernancePolicies()
     ),
@@ -379,9 +479,28 @@ export function createAtlasRuntime(): AtlasRuntime {
     worldStateStore: createInMemoryWorldStateStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
+  const snapshot = options.persistence?.load();
+
+  if (snapshot !== undefined) {
+    restoreRuntimeStateSnapshot(state, snapshot);
+  }
 
   return {
-    handle: async (request) => handleRuntimeRequest(request, state)
+    handle: async (request) => {
+      const authorizationFailure = authorizeRuntimeRequest(request, options.auth);
+
+      if (authorizationFailure !== undefined) {
+        return authorizationFailure;
+      }
+
+      const response = await handleRuntimeRequest(request, state);
+
+      if (shouldPersistRuntimeRequest(request, response)) {
+        options.persistence?.save(createRuntimeStateSnapshot(state));
+      }
+
+      return response;
+    }
   };
 }
 
@@ -395,6 +514,96 @@ async function handleRuntimeRequest(
     return json<RuntimeHealthResponse>({
       service: "atlas-runtime",
       status: "ok"
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/workflows") {
+    try {
+      const workflow = createAtlasFlow((await request.json()) as AtlasFlow);
+      state.workflows = [
+        ...state.workflows.filter((item) => item.id !== workflow.id),
+        workflow
+      ];
+
+      return json({ workflow }, { status: 201 });
+    } catch (error) {
+      return json(
+        {
+          error: "invalid_workflow",
+          reason: error instanceof Error ? error.message : "Workflow validation failed."
+        },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/workflows") {
+    return json({
+      workflows: state.workflows
+    });
+  }
+
+  const workflowDetailMatch = /^\/workflows\/(.+)$/.exec(url.pathname);
+  if (request.method === "GET" && workflowDetailMatch !== null) {
+    const workflowId = decodeURIComponent(workflowDetailMatch[1] ?? "");
+    const workflow = state.workflows.find((item) => item.id === workflowId);
+
+    if (workflow === undefined) {
+      return json({ error: "workflow_not_found", workflowId }, { status: 404 });
+    }
+
+    return json({ workflow });
+  }
+
+  if (request.method === "POST" && url.pathname === "/thoughts") {
+    const thought = (await request.json()) as RuntimeThought;
+    state.thoughts = [
+      ...state.thoughts.filter((item) => item.id !== thought.id),
+      {
+        ...thought,
+        evidenceRefs: [...thought.evidenceRefs]
+      }
+    ];
+
+    return json({ thought }, { status: 201 });
+  }
+
+  if (request.method === "GET" && url.pathname === "/thoughts") {
+    const goalId = url.searchParams.get("goalId");
+
+    return json({
+      thoughts:
+        goalId === null
+          ? state.thoughts
+          : state.thoughts.filter((thought) => thought.goalId === goalId)
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/simulations") {
+    const input = (await request.json()) as CreateRuntimeSimulationRequest;
+    const simulation = await simulateRuntimeProvider(state, input);
+    state.simulations = [
+      ...state.simulations.filter((item) => item.id !== simulation.id),
+      simulation
+    ];
+
+    return json({ simulation }, { status: 201 });
+  }
+
+  if (request.method === "GET" && url.pathname === "/simulations") {
+    return json({
+      simulations: state.simulations
+    });
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/interface-drivers/browser-ui/execute"
+  ) {
+    const input = (await request.json()) as BrowserUiDriverRequest;
+
+    return json({
+      result: await executeRuntimeBrowserUiDriver(input)
     });
   }
 
@@ -917,38 +1126,24 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "GET" && url.pathname === "/approvals") {
+    return json({
+      approvals: state.approvalRequests
+    });
+  }
+
+  const approvalAliasDecisionMatch = /^\/approvals\/(.+)\/(approve|reject)$/.exec(
+    url.pathname
+  );
+  if (request.method === "POST" && approvalAliasDecisionMatch !== null) {
+    return decideRuntimeApprovalRequest(state, approvalAliasDecisionMatch, request);
+  }
+
   const approvalDecisionMatch = /^\/approval-requests\/(.+)\/(approve|reject)$/.exec(
     url.pathname
   );
   if (request.method === "POST" && approvalDecisionMatch !== null) {
-    const approvalRequestId = decodeURIComponent(approvalDecisionMatch[1] ?? "");
-    const decision = approvalDecisionMatch[2] === "approve" ? "approved" : "rejected";
-    const approvalRequest = state.approvalRequests.find(
-      (item) => item.id === approvalRequestId
-    );
-
-    if (approvalRequest === undefined) {
-      return json(
-        { error: "approval_request_not_found", approvalRequestId },
-        { status: 404 }
-      );
-    }
-
-    const input = (await request.json()) as DecideRuntimeApprovalRequest;
-    const decidedRequest: RuntimeApprovalRequest = {
-      ...approvalRequest,
-      status: decision,
-      decidedBy: input.decidedBy,
-      decidedAt: input.decidedAt,
-      decisionReason: input.reason
-    };
-
-    state.approvalRequests = state.approvalRequests.map((item) =>
-      item.id === approvalRequestId ? decidedRequest : item
-    );
-    recordApprovalActorIdentity(state, decidedRequest);
-
-    return json({ approvalRequest: decidedRequest });
+    return decideRuntimeApprovalRequest(state, approvalDecisionMatch, request);
   }
 
   if (request.method === "POST" && url.pathname === "/executions") {
@@ -998,6 +1193,230 @@ async function handleRuntimeRequest(
   }
 
   return json({ error: "not_found" }, { status: 404 });
+}
+
+function authorizeRuntimeRequest(
+  request: Request,
+  auth: RuntimeAuthConfig | undefined
+): Response | undefined {
+  if (auth === undefined || isRuntimeAuthExempt(request)) {
+    return undefined;
+  }
+
+  const bearerToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const apiKey = request.headers.get("x-atlas-api-key") ?? bearerToken;
+
+  if (apiKey !== auth.apiKey) {
+    return json(
+      {
+        error: "unauthorized",
+        reason: "Missing or invalid Atlas runtime API key."
+      },
+      { status: 401 }
+    );
+  }
+
+  if (
+    auth.requireIdentity === true &&
+    request.headers.get("x-atlas-identity-id") === null
+  ) {
+    return json(
+      {
+        error: "unauthorized",
+        reason: "Missing Atlas runtime identity."
+      },
+      { status: 401 }
+    );
+  }
+
+  return undefined;
+}
+
+function isRuntimeAuthExempt(request: Request): boolean {
+  const url = new URL(request.url);
+
+  return request.method === "GET" && url.pathname === "/health";
+}
+
+function shouldPersistRuntimeRequest(request: Request, response: Response): boolean {
+  return request.method !== "GET" && request.method !== "HEAD" && response.status < 500;
+}
+
+function createRuntimeStateSnapshot(state: RuntimeState): RuntimeStateSnapshot {
+  return {
+    goals: [...state.goals.values()],
+    goalEvents: [...state.goalEvents.entries()],
+    capabilities: state.capabilities,
+    capabilityGraphs: state.capabilityGraphs,
+    interfaceDrivers: state.interfaceDrivers,
+    providers: state.providers,
+    learningReview: state.learningReview,
+    learningPromotionDecisions: state.learningPromotionDecisions,
+    learningPromotionApprovals: [...state.learningPromotionApprovals.entries()],
+    executions: state.executions,
+    approvalRequests: state.approvalRequests,
+    cognitiveLoopCycles: state.cognitiveLoopCycles,
+    auditLogs: state.auditLogs,
+    workflows: state.workflows,
+    thoughts: state.thoughts,
+    simulations: state.simulations
+  };
+}
+
+function restoreRuntimeStateSnapshot(
+  state: RuntimeState,
+  snapshot: RuntimeStateSnapshot
+): void {
+  state.goals = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
+  state.goalEvents = new Map(snapshot.goalEvents);
+  state.capabilities = snapshot.capabilities;
+  state.capabilityGraphs = snapshot.capabilityGraphs;
+  state.interfaceDrivers = snapshot.interfaceDrivers;
+  state.providers = snapshot.providers;
+  state.learningReview = snapshot.learningReview;
+  state.learningPromotionDecisions = snapshot.learningPromotionDecisions;
+  state.learningPromotionApprovals = new Map(snapshot.learningPromotionApprovals);
+  state.executions = snapshot.executions;
+  state.approvalRequests = snapshot.approvalRequests;
+  state.cognitiveLoopCycles = snapshot.cognitiveLoopCycles;
+  state.auditLogs = snapshot.auditLogs;
+  state.workflows = snapshot.workflows ?? [];
+  state.thoughts = snapshot.thoughts ?? [];
+  state.simulations = snapshot.simulations ?? [];
+}
+
+async function simulateRuntimeProvider(
+  state: RuntimeState,
+  input: CreateRuntimeSimulationRequest
+): Promise<RuntimeSimulationRecord> {
+  if (
+    !state.providers.some(
+      (provider) =>
+        provider.providerId === input.providerId &&
+        provider.capabilityId === input.capabilityId
+    )
+  ) {
+    return {
+      id: input.id,
+      ...(input.goalId === undefined ? {} : { goalId: input.goalId }),
+      status: "blocked",
+      capabilityId: input.capabilityId,
+      providerId: input.providerId,
+      inputs: input.inputs,
+      events: [],
+      createdAt: input.createdAt
+    };
+  }
+
+  const restRequest = runtimeProviderRestRequest(input.providerId, input.inputs);
+  const driver = createRestInterfaceDriver({
+    transport: async () => ({
+      status: 204,
+      headers: {},
+      body: {}
+    })
+  });
+  const result = await driver.execute({
+    operationId: input.providerId,
+    method: restRequest.method,
+    url: `atlas-fixture://unknown-business${restRequest.path}`,
+    body: restRequest.body,
+    requiredPermissions: ["network"],
+    grantedPermissions: ["network"],
+    simulation: true
+  });
+
+  return {
+    id: input.id,
+    ...(input.goalId === undefined ? {} : { goalId: input.goalId }),
+    status:
+      result.status === "simulated"
+        ? "simulated"
+        : result.status === "blocked"
+          ? "blocked"
+          : "failed",
+    capabilityId: input.capabilityId,
+    providerId: input.providerId,
+    inputs: input.inputs,
+    ...(result.requestPreview === undefined
+      ? {}
+      : { requestPreview: result.requestPreview }),
+    events: result.events,
+    createdAt: input.createdAt
+  };
+}
+
+async function executeRuntimeBrowserUiDriver(
+  request: BrowserUiDriverRequest
+): Promise<BrowserUiDriverResult> {
+  const html = createUnknownBusinessBrowserUiFixture().render();
+  const driver = createBrowserUiInterfaceDriver({
+    surface: {
+      click: (selector) => readRuntimeBrowserElement(html, selector),
+      fill: (selector, value) => ({
+        ...readRuntimeBrowserElement(html, selector),
+        value
+      }),
+      read: (selector) => readRuntimeBrowserElement(html, selector)
+    }
+  });
+
+  return driver.execute(request);
+}
+
+function readRuntimeBrowserElement(html: string, selector: string) {
+  const capabilityMatch = /^\[data-atlas-capability="([^"]+)"\]$/.exec(selector);
+
+  if (capabilityMatch !== null) {
+    const capabilityId = capabilityMatch[1] ?? "";
+
+    return {
+      selector,
+      matched: html.includes(`data-atlas-capability="${capabilityId}"`),
+      capabilityId
+    };
+  }
+
+  return {
+    selector,
+    matched: selector === "main" ? html.includes("<main") : html.includes(selector),
+    html
+  };
+}
+
+async function decideRuntimeApprovalRequest(
+  state: RuntimeState,
+  match: RegExpExecArray,
+  request: Request
+): Promise<Response> {
+  const approvalRequestId = decodeURIComponent(match[1] ?? "");
+  const decision = match[2] === "approve" ? "approved" : "rejected";
+  const approvalRequest = state.approvalRequests.find(
+    (item) => item.id === approvalRequestId
+  );
+
+  if (approvalRequest === undefined) {
+    return json(
+      { error: "approval_request_not_found", approvalRequestId },
+      { status: 404 }
+    );
+  }
+
+  const input = (await request.json()) as DecideRuntimeApprovalRequest;
+  const decidedRequest: RuntimeApprovalRequest = {
+    ...approvalRequest,
+    status: decision,
+    decidedBy: input.decidedBy,
+    decidedAt: input.decidedAt,
+    decisionReason: input.reason
+  };
+
+  state.approvalRequests = state.approvalRequests.map((item) =>
+    item.id === approvalRequestId ? decidedRequest : item
+  );
+  recordApprovalActorIdentity(state, decidedRequest);
+
+  return json({ approvalRequest: decidedRequest });
 }
 
 function recordUnknownBusinessMvpSemanticWorld(

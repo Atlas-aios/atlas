@@ -2,11 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 
-import { createAtlasRuntime } from "./index.js";
+import {
+  createAtlasRuntime,
+  createFileRuntimePersistence,
+  type CreateAtlasRuntimeOptions
+} from "./index.js";
 
 export interface StartAtlasRuntimeServerOptions {
   port: number;
   hostname?: string;
+  runtime?: CreateAtlasRuntimeOptions;
 }
 
 export interface RunningAtlasRuntimeServer {
@@ -17,7 +22,7 @@ export interface RunningAtlasRuntimeServer {
 export async function startAtlasRuntimeServer(
   options: StartAtlasRuntimeServerOptions
 ): Promise<RunningAtlasRuntimeServer> {
-  const runtime = createAtlasRuntime();
+  const runtime = createAtlasRuntime(options.runtime);
   const server = createServer(async (incoming, outgoing) => {
     try {
       const request = await toWebRequest(incoming, options.hostname ?? "127.0.0.1");
@@ -103,6 +108,25 @@ async function writeWebResponse(
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.ATLAS_RUNTIME_PORT ?? 3000);
-  const server = await startAtlasRuntimeServer({ port });
+  const server = await startAtlasRuntimeServer({
+    port,
+    runtime: {
+      ...(process.env.ATLAS_RUNTIME_API_KEY === undefined
+        ? {}
+        : {
+            auth: {
+              apiKey: process.env.ATLAS_RUNTIME_API_KEY,
+              requireIdentity: process.env.ATLAS_RUNTIME_REQUIRE_IDENTITY === "true"
+            }
+          }),
+      ...(process.env.ATLAS_RUNTIME_STATE_PATH === undefined
+        ? {}
+        : {
+            persistence: createFileRuntimePersistence(
+              process.env.ATLAS_RUNTIME_STATE_PATH
+            )
+          })
+    }
+  });
   console.log(`Atlas runtime listening at ${server.url}`);
 }

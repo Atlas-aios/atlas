@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { createAtlasRuntime } from "./index.js";
+import { createAtlasRuntime, createFileRuntimePersistence } from "./index.js";
 
 describe("Atlas runtime API", () => {
   it("reports local runtime health", async () => {
@@ -1990,6 +1994,237 @@ describe("Atlas runtime API", () => {
           }
         }
       ]
+    });
+  });
+
+  it("requires API auth and a runtime identity when auth is enabled", async () => {
+    const runtime = createAtlasRuntime({
+      auth: {
+        apiKey: "atlas-dev-key",
+        requireIdentity: true
+      }
+    });
+
+    await expect(
+      runtime
+        .handle(new Request("http://atlas.local/health", { method: "GET" }))
+        .then((response) => response.json())
+    ).resolves.toEqual({
+      service: "atlas-runtime",
+      status: "ok"
+    });
+
+    const unauthorized = await runtime.handle(
+      new Request("http://atlas.local/goals", { method: "GET" })
+    );
+
+    expect(unauthorized.status).toBe(401);
+    await expect(unauthorized.json()).resolves.toEqual({
+      error: "unauthorized",
+      reason: "Missing or invalid Atlas runtime API key."
+    });
+
+    const missingIdentity = await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "GET",
+        headers: {
+          authorization: "Bearer atlas-dev-key"
+        }
+      })
+    );
+
+    expect(missingIdentity.status).toBe(401);
+    await expect(missingIdentity.json()).resolves.toEqual({
+      error: "unauthorized",
+      reason: "Missing Atlas runtime identity."
+    });
+
+    const authorized = await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "GET",
+        headers: {
+          authorization: "Bearer atlas-dev-key",
+          "x-atlas-identity-id": "identity:user:moksh"
+        }
+      })
+    );
+
+    expect(authorized.status).toBe(200);
+  });
+
+  it("persists runtime state across local durable state restarts", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "atlas-runtime-"));
+    const persistencePath = join(workspace, "runtime-state.json");
+
+    try {
+      const firstRuntime = createAtlasRuntime({
+        persistence: createFileRuntimePersistence(persistencePath)
+      });
+
+      const createResponse = await firstRuntime.handle(
+        new Request("http://atlas.local/goals", {
+          method: "POST",
+          body: JSON.stringify({
+            id: "goal:persisted",
+            title: "Persist an Atlas goal",
+            description: "Verify runtime state survives process restart.",
+            ownerId: "identity:user:moksh",
+            priority: 88,
+            successCriteria: ["The goal is visible after restart."],
+            createdAt: "2026-07-17T08:00:00.000Z"
+          })
+        })
+      );
+
+      expect(createResponse.status).toBe(201);
+
+      const secondRuntime = createAtlasRuntime({
+        persistence: createFileRuntimePersistence(persistencePath)
+      });
+      const listResponse = await secondRuntime.handle(
+        new Request("http://atlas.local/goals", { method: "GET" })
+      );
+
+      await expect(listResponse.json()).resolves.toEqual({
+        goals: [
+          {
+            id: "goal:persisted",
+            title: "Persist an Atlas goal",
+            status: "proposed",
+            priority: 88,
+            ownerId: "identity:user:moksh"
+          }
+        ]
+      });
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it("creates workflows, thoughts, simulations, approvals aliases, and browser UI driver reads", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const workflowResponse = await runtime.handle(
+      new Request("http://atlas.local/workflows", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "workflow:create-resource",
+          version: "0.1",
+          nodes: [
+            {
+              id: "node:create-folio",
+              type: "capability",
+              inputs: {
+                capabilityId: "capability:create-folio"
+              }
+            }
+          ],
+          edges: []
+        })
+      })
+    );
+
+    expect(workflowResponse.status).toBe(201);
+    await expect(workflowResponse.json()).resolves.toMatchObject({
+      workflow: {
+        id: "workflow:create-resource",
+        version: "0.1"
+      }
+    });
+
+    const thoughtResponse = await runtime.handle(
+      new Request("http://atlas.local/thoughts", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "thought:provider-selection:1",
+          kind: "decision_rationale",
+          goalId: "goal:runtime-create-resource",
+          summary:
+            "Prefer the learned REST provider for deterministic execution, but keep browser UI as fallback evidence.",
+          evidenceRefs: ["capability:runtime:capability:create-folio:resolve"],
+          createdAt: "2026-07-17T08:05:00.000Z"
+        })
+      })
+    );
+
+    expect(thoughtResponse.status).toBe(201);
+    await expect(thoughtResponse.json()).resolves.toMatchObject({
+      thought: {
+        id: "thought:provider-selection:1",
+        kind: "decision_rationale",
+        goalId: "goal:runtime-create-resource"
+      }
+    });
+
+    const simulationResponse = await runtime.handle(
+      new Request("http://atlas.local/simulations", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "simulation:create-folio:1",
+          goalId: "goal:runtime-create-resource",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: {
+            name: "Simulation folio"
+          },
+          createdAt: "2026-07-17T08:10:00.000Z"
+        })
+      })
+    );
+
+    expect(simulationResponse.status).toBe(201);
+    await expect(simulationResponse.json()).resolves.toMatchObject({
+      simulation: {
+        id: "simulation:create-folio:1",
+        status: "simulated",
+        providerId: "provider:openapi:create-folio",
+        requestPreview: {
+          method: "POST",
+          url: "atlas-fixture://unknown-business/folios",
+          body: {
+            name: "Simulation folio"
+          }
+        }
+      }
+    });
+
+    const browserResponse = await runtime.handle(
+      new Request("http://atlas.local/interface-drivers/browser-ui/execute", {
+        method: "POST",
+        body: JSON.stringify({
+          operationId: "read-create-folio-form",
+          action: "read",
+          selector: '[data-atlas-capability="capability:create-folio"]',
+          requiredPermissions: ["browser_ui:read"],
+          grantedPermissions: ["browser_ui:read"]
+        })
+      })
+    );
+
+    expect(browserResponse.status).toBe(200);
+    await expect(browserResponse.json()).resolves.toMatchObject({
+      result: {
+        status: "completed",
+        output: {
+          matched: true,
+          capabilityId: "capability:create-folio"
+        }
+      }
+    });
+
+    const approvalsResponse = await runtime.handle(
+      new Request("http://atlas.local/approvals", { method: "GET" })
+    );
+
+    expect(approvalsResponse.status).toBe(200);
+    await expect(approvalsResponse.json()).resolves.toEqual({
+      approvals: []
     });
   });
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createRestInterfaceDriver, ingestOpenApiDocument } from "./index.js";
+import {
+  createBrowserUiInterfaceDriver,
+  createRestInterfaceDriver,
+  ingestOpenApiDocument
+} from "./index.js";
 
 describe("REST Interface Driver", () => {
   it("executes REST requests through an injected transport", async () => {
@@ -212,5 +216,149 @@ describe("OpenAPI ingestion", () => {
         requiredPermissions: ["network"]
       }
     ]);
+  });
+});
+
+describe("Browser UI Interface Driver", () => {
+  it("executes browser UI actions through an injected surface", async () => {
+    const actions: unknown[] = [];
+    const driver = createBrowserUiInterfaceDriver({
+      surface: {
+        click: async (selector) => {
+          actions.push({ action: "click", selector });
+          return { clicked: selector };
+        },
+        fill: async (selector, value) => {
+          actions.push({ action: "fill", selector, value });
+          return { filled: selector, value };
+        },
+        read: async (selector) => {
+          actions.push({ action: "read", selector });
+          return { text: "Create folio" };
+        }
+      }
+    });
+
+    const result = await driver.execute({
+      operationId: "read-create-folio-button",
+      action: "read",
+      selector: "[data-atlas-action='submit']",
+      requiredPermissions: ["browser_ui:read"],
+      grantedPermissions: ["browser_ui:read"]
+    });
+
+    expect(actions).toEqual([
+      { action: "read", selector: "[data-atlas-action='submit']" }
+    ]);
+    expect(result).toEqual({
+      status: "completed",
+      output: { text: "Create folio" },
+      events: [
+        {
+          type: "interface-driver.request.started",
+          driverId: "driver:browser-ui",
+          operationId: "read-create-folio-button"
+        },
+        {
+          type: "interface-driver.request.completed",
+          driverId: "driver:browser-ui",
+          operationId: "read-create-folio-button"
+        }
+      ]
+    });
+  });
+
+  it("simulates browser UI actions without touching the surface", async () => {
+    let callCount = 0;
+    const driver = createBrowserUiInterfaceDriver({
+      surface: {
+        click: async () => {
+          callCount += 1;
+          return {};
+        },
+        fill: async () => {
+          callCount += 1;
+          return {};
+        },
+        read: async () => {
+          callCount += 1;
+          return {};
+        }
+      }
+    });
+
+    const result = await driver.execute({
+      operationId: "fill-folio-name",
+      action: "fill",
+      selector: "[data-atlas-field='folio.name']",
+      value: "Runtime folio",
+      requiredPermissions: ["browser_ui:write"],
+      grantedPermissions: ["browser_ui:write"],
+      simulation: true
+    });
+
+    expect(callCount).toBe(0);
+    expect(result).toEqual({
+      status: "simulated",
+      requestPreview: {
+        action: "fill",
+        selector: "[data-atlas-field='folio.name']",
+        value: "Runtime folio"
+      },
+      events: [
+        {
+          type: "interface-driver.request.started",
+          driverId: "driver:browser-ui",
+          operationId: "fill-folio-name"
+        },
+        {
+          type: "interface-driver.request.simulated",
+          driverId: "driver:browser-ui",
+          operationId: "fill-folio-name"
+        }
+      ]
+    });
+  });
+
+  it("blocks browser UI control when permissions are missing", async () => {
+    let callCount = 0;
+    const driver = createBrowserUiInterfaceDriver({
+      surface: {
+        click: async () => {
+          callCount += 1;
+          return {};
+        },
+        fill: async () => {
+          callCount += 1;
+          return {};
+        },
+        read: async () => {
+          callCount += 1;
+          return {};
+        }
+      }
+    });
+
+    const result = await driver.execute({
+      operationId: "click-create-folio",
+      action: "click",
+      selector: "[data-atlas-action='submit']",
+      requiredPermissions: ["browser_ui:write"],
+      grantedPermissions: []
+    });
+
+    expect(callCount).toBe(0);
+    expect(result).toMatchObject({
+      status: "blocked",
+      error: "Missing driver permissions: browser_ui:write",
+      events: [
+        {
+          type: "interface-driver.request.started"
+        },
+        {
+          type: "interface-driver.request.blocked"
+        }
+      ]
+    });
   });
 });

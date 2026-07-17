@@ -15,10 +15,12 @@
     { "path": "../../packages/experience" },
     { "path": "../../packages/governance" },
     { "path": "../../packages/identity" },
+    { "path": "../../packages/interface-drivers" },
     { "path": "../../packages/learning" },
     { "path": "../../packages/memory" },
     { "path": "../../packages/self-model" },
     { "path": "../../packages/swm" },
+    { "path": "../../packages/workflow-dsl" },
     { "path": "../../packages/world-state" }
   ]
 }

@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "demo:e2e": "node dist/e2e-demo.js",
     "demo:mvp": "node dist/demo.js",
     "start": "node dist/server.js"
   },
@@ -23,10 +24,12 @@
     "@atlas-aios/experience": "workspace:*",
     "@atlas-aios/governance": "workspace:*",
     "@atlas-aios/identity": "workspace:*",
+    "@atlas-aios/interface-drivers": "workspace:*",
     "@atlas-aios/learning": "workspace:*",
     "@atlas-aios/memory": "workspace:*",
     "@atlas-aios/self-model": "workspace:*",
     "@atlas-aios/swm": "workspace:*",
+    "@atlas-aios/workflow-dsl": "workspace:*",
     "@atlas-aios/world-state": "workspace:*"
   }
 }

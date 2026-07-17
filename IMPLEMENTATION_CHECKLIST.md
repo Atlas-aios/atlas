@@ -222,7 +222,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define Interface Driver contract.
 - [x] Implement REST driver.
 - [x] Implement OpenAPI parser/driver.
-- [ ] Implement Browser UI driver.
+- [x] Implement Browser UI driver.
 - [ ] Implement Filesystem driver.
 - [ ] Implement Local Command Execution driver.
 - [ ] Add GraphQL driver placeholder.
@@ -454,7 +454,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 - [ ] Implement document ingestion.
 - [x] Implement OpenAPI ingestion.
-- [ ] Implement Browser UI observation.
+- [x] Implement Browser UI observation.
 - [ ] Implement source chunking.
 - [ ] Implement embeddings.
 - [ ] Extract candidate SWM entities.
@@ -495,9 +495,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/providers`.
 - [x] Implement `/capabilities/:id/resolve`.
 - [x] Implement `/interface-drivers`.
-- [ ] Implement `/workflows`.
+- [x] Implement `/workflows`.
 - [x] Implement `/executions`.
-- [ ] Implement `/approvals`.
+- [x] Implement `/approvals`.
 - [x] Implement `/world-state`.
 - [x] Implement `/swm/entities`.
 - [x] Implement `/swm/relationships`.
@@ -506,23 +506,23 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/identity/entities`.
 - [x] Implement `/self-model`.
 - [x] Implement `/cognitive-loop/cycles`.
-- [ ] Implement `/thoughts`.
-- [ ] Implement `/simulations`.
+- [x] Implement `/thoughts`.
+- [x] Implement `/simulations`.
 - [x] Implement `/learning/reports`.
 - [x] Implement `/learning/promotion-decisions/:stage/approve`.
 - [x] Implement `/governance/policies`.
 - [x] Implement `/governance/evaluate`.
 - [x] Add API audit checks.
-- [ ] Add API auth checks.
+- [x] Add API auth checks.
 
 ---
 
 ## 22. Frontend / Admin UI
 
-- [ ] Create Atlas dashboard shell.
-- [ ] Add goals view.
+- [x] Create Atlas dashboard shell.
+- [x] Add goals view.
 - [ ] Add execution timeline view.
-- [ ] Add approval inbox.
+- [x] Add approval inbox.
 - [ ] Add Capability Graph view.
 - [ ] Add provider registry view.
 - [ ] Add SWM entity explorer.
@@ -530,7 +530,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Add Experience artifact explorer.
 - [ ] Add Self Model view.
 - [ ] Add policy/governance view.
-- [ ] Add logs/traces view.
+- [x] Add logs/traces view.
 - [ ] Add benchmark reports view.
 
 ---
@@ -543,7 +543,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Contract test drivers.
 - [ ] Test workflow state machine.
 - [ ] Test governance gates.
-- [ ] Test simulation outputs.
+- [x] Test simulation outputs.
 - [x] Test ACT atomic commit behavior.
 - [x] Test ACT publication-after-commit behavior.
 - [x] Test ACT compensation replay behavior.
