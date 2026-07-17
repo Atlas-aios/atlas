@@ -344,11 +344,13 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Define role model.
 - [ ] Define permission context model.
 - [ ] Define delegation model.
-- [ ] Implement identity resolution.
+- [x] Implement identity storage.
+- [x] Implement identity resolution.
 - [ ] Implement merge workflow.
 - [ ] Implement split/rollback workflow.
-- [ ] Implement identity confidence.
+- [x] Implement identity confidence.
 - [ ] Implement identity-aware governance checks.
+- [x] Add tests for immutable identity records.
 - [ ] Add tests for unsafe identity assumptions.
 
 ---
@@ -501,7 +503,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/swm/relationships`.
 - [x] Implement `/memory/events`.
 - [x] Implement `/experience/artifacts`.
-- [ ] Implement `/identity/entities`.
+- [x] Implement `/identity/entities`.
 - [ ] Implement `/self-model`.
 - [ ] Implement `/thoughts`.
 - [ ] Implement `/simulations`.

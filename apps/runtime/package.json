@@ -20,6 +20,7 @@
     "@atlas-aios/capability-kernel": "workspace:*",
     "@atlas-aios/execution-engine": "workspace:*",
     "@atlas-aios/experience": "workspace:*",
+    "@atlas-aios/identity": "workspace:*",
     "@atlas-aios/learning": "workspace:*",
     "@atlas-aios/memory": "workspace:*",
     "@atlas-aios/swm": "workspace:*",

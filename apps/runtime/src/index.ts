@@ -28,6 +28,20 @@ import {
   type RecordExperienceArtifactInput
 } from "@atlas-aios/experience";
 import {
+  createIdentityResolution,
+  createIdentitySubject,
+  createInMemoryIdentityStore,
+  recordIdentityResolution,
+  recordIdentitySubject,
+  type IdentityKind,
+  type IdentityLookupQuery,
+  type IdentityResolutionFilter,
+  type IdentityResolutionInput,
+  type IdentityStore,
+  type IdentitySubjectFilter,
+  type IdentitySubjectInput
+} from "@atlas-aios/identity";
+import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemRestFixture,
@@ -284,6 +298,7 @@ interface RuntimeState {
   auditLogs: RuntimeAuditEvent[];
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
+  identityStore: IdentityStore;
   semanticWorldModelStore: SemanticWorldModelStore;
   worldStateStore: WorldStateStore;
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
@@ -318,6 +333,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     auditLogs: [],
     memoryStore: createInMemoryMemoryStore(),
     experienceStore: createInMemoryExperienceStore(),
+    identityStore: createInMemoryIdentityStore(),
     semanticWorldModelStore: createInMemorySemanticWorldModelStore(),
     worldStateStore: createInMemoryWorldStateStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
@@ -685,6 +701,58 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/identity/entities") {
+    const input = (await request.json()) as IdentitySubjectInput;
+
+    return json(
+      {
+        identity: recordIdentitySubject(
+          state.identityStore,
+          createIdentitySubject(input)
+        )
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "GET" && url.pathname === "/identity/entities") {
+    return json({
+      identities: state.identityStore.listSubjects(createIdentitySubjectFilter(url))
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/identity/entities/resolve") {
+    const identity = state.identityStore.findSubject(createIdentityLookupQuery(url));
+
+    if (identity === undefined) {
+      return json({ error: "identity_not_found" }, { status: 404 });
+    }
+
+    return json({ identity });
+  }
+
+  if (request.method === "POST" && url.pathname === "/identity/resolutions") {
+    const input = (await request.json()) as IdentityResolutionInput;
+
+    return json(
+      {
+        resolution: recordIdentityResolution(
+          state.identityStore,
+          createIdentityResolution(input)
+        )
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "GET" && url.pathname === "/identity/resolutions") {
+    return json({
+      resolutions: state.identityStore.listResolutions(
+        createIdentityResolutionFilter(url)
+      )
+    });
+  }
+
   if (request.method === "POST" && url.pathname === "/swm/entities") {
     const input = (await request.json()) as SemanticEntityInput;
 
@@ -787,6 +855,7 @@ async function handleRuntimeRequest(
     state.approvalRequests = state.approvalRequests.map((item) =>
       item.id === approvalRequestId ? decidedRequest : item
     );
+    recordApprovalActorIdentity(state, decidedRequest);
 
     return json({ approvalRequest: decidedRequest });
   }
@@ -1259,6 +1328,27 @@ function createRuntimeApprovalRequest(input: {
   };
 }
 
+function recordApprovalActorIdentity(
+  state: RuntimeState,
+  approvalRequest: RuntimeApprovalRequest
+): void {
+  if (approvalRequest.decidedBy === undefined) {
+    return;
+  }
+
+  recordIdentitySubject(
+    state.identityStore,
+    createIdentitySubject({
+      id: approvalRequest.decidedBy,
+      kind: "human",
+      displayName: approvalRequest.decidedBy,
+      confidence: 0.6,
+      aliases: [approvalRequest.decidedBy],
+      evidenceRefs: [approvalRequest.id]
+    })
+  );
+}
+
 function createLearningPromotionApprovalAuditEvent(input: {
   stage: "development" | "production";
   subjectId: string;
@@ -1325,6 +1415,36 @@ function createExperienceLookupQuery(url: URL): ExperienceLookupQuery {
   };
 }
 
+function createIdentitySubjectFilter(url: URL): IdentitySubjectFilter {
+  const kinds = url.searchParams.getAll("kind").filter(isIdentityKind);
+
+  return {
+    ...(kinds.length === 0 ? {} : { kinds })
+  };
+}
+
+function createIdentityLookupQuery(url: URL): IdentityLookupQuery {
+  const alias = url.searchParams.get("alias") ?? undefined;
+  const externalSystem = url.searchParams.get("externalSystem") ?? undefined;
+  const externalId = url.searchParams.get("externalId") ?? undefined;
+
+  return {
+    ...(alias === undefined ? {} : { alias }),
+    ...(externalSystem === undefined ? {} : { externalSystem }),
+    ...(externalId === undefined ? {} : { externalId })
+  };
+}
+
+function createIdentityResolutionFilter(url: URL): IdentityResolutionFilter {
+  const subjectId = url.searchParams.get("subjectId") ?? undefined;
+  const externalSystem = url.searchParams.get("externalSystem") ?? undefined;
+
+  return {
+    ...(subjectId === undefined ? {} : { subjectId }),
+    ...(externalSystem === undefined ? {} : { externalSystem })
+  };
+}
+
 function createSemanticEntityFilter(url: URL): SemanticEntityFilter {
   const types = nonEmptyQueryValues(url, "type");
   const evidenceRefs = nonEmptyQueryValues(url, "evidenceRef");
@@ -1372,6 +1492,10 @@ function isExperienceArtifactType(value: string): value is ExperienceArtifactTyp
     "decision_pattern",
     "risk_pattern"
   ].includes(value);
+}
+
+function isIdentityKind(value: string): value is IdentityKind {
+  return ["human", "system", "organization", "provider"].includes(value);
 }
 
 function createRuntimeGoalTimeline(

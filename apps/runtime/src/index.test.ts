@@ -1580,6 +1580,158 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("records and resolves runtime identity subjects and external accounts", async () => {
+    const runtime = createAtlasRuntime();
+
+    const subjectResponse = await runtime.handle(
+      new Request("http://atlas.local/identity/entities", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "identity:user:moksh",
+          kind: "human",
+          displayName: "Moksh",
+          confidence: 0.99,
+          aliases: ["Apophis WillTakeOver", "moksh"],
+          evidenceRefs: ["workspace:notion:user"]
+        })
+      })
+    );
+
+    expect(subjectResponse.status).toBe(201);
+    await expect(subjectResponse.json()).resolves.toEqual({
+      identity: {
+        id: "identity:user:moksh",
+        schemaVersion: "0.1",
+        kind: "human",
+        displayName: "Moksh",
+        confidence: 0.99,
+        aliases: ["Apophis WillTakeOver", "moksh"],
+        evidenceRefs: ["workspace:notion:user"]
+      }
+    });
+
+    const resolutionResponse = await runtime.handle(
+      new Request("http://atlas.local/identity/resolutions", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "identity-resolution:github:moksh",
+          subjectId: "identity:user:moksh",
+          externalSystem: "github",
+          externalId: "Atlas-aios",
+          confidence: 0.91,
+          resolvedAt: "2026-06-28T00:00:00.000Z",
+          evidenceRefs: ["github:org:Atlas-aios"]
+        })
+      })
+    );
+
+    expect(resolutionResponse.status).toBe(201);
+
+    const listResponse = await runtime.handle(
+      new Request("http://atlas.local/identity/entities?kind=human", {
+        method: "GET"
+      })
+    );
+    const lookupResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/identity/entities/resolve?externalSystem=github&externalId=Atlas-aios",
+        { method: "GET" }
+      )
+    );
+
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toMatchObject({
+      identities: [
+        {
+          id: "identity:user:moksh",
+          kind: "human"
+        }
+      ]
+    });
+    expect(lookupResponse.status).toBe(200);
+    await expect(lookupResponse.json()).resolves.toMatchObject({
+      identity: {
+        id: "identity:user:moksh",
+        displayName: "Moksh"
+      }
+    });
+  });
+
+  it("records approval decision actors into Identity", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/capabilities/capability:create-folio/dispatch",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            executionId: "execution:runtime:create-folio",
+            inputs: {
+              name: "Identity folio"
+            },
+            governanceContextId: "governance:runtime:mvp",
+            startedAt: "2026-07-16T12:30:00.000Z"
+          })
+        }
+      )
+    );
+    await runtime.handle(
+      new Request(
+        "http://atlas.local/approval-requests/approval:runtime:execution:runtime:create-folio/approve",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            decidedBy: "identity:user:moksh",
+            decidedAt: "2026-07-16T12:35:00.000Z",
+            reason: "Approved for identity capture."
+          })
+        }
+      )
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/identity/entities/resolve?alias=identity%3Auser%3Amoksh",
+        {
+          method: "GET"
+        }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      identity: {
+        id: "identity:user:moksh",
+        schemaVersion: "0.1",
+        kind: "human",
+        displayName: "identity:user:moksh",
+        confidence: 0.6,
+        aliases: ["identity:user:moksh"],
+        evidenceRefs: ["approval:runtime:execution:runtime:create-folio"]
+      }
+    });
+  });
+
   it("returns current World State with active goals and approval blockers", async () => {
     const runtime = createAtlasRuntime();
 

@@ -43,6 +43,9 @@ importers:
       "@atlas-aios/experience":
         specifier: workspace:*
         version: link:../../packages/experience
+      "@atlas-aios/identity":
+        specifier: workspace:*
+        version: link:../../packages/identity
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning

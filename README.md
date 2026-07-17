@@ -104,6 +104,11 @@ Initial endpoints:
 - `GET /swm/entities`
 - `POST /swm/relationships`
 - `GET /swm/relationships`
+- `POST /identity/entities`
+- `GET /identity/entities`
+- `GET /identity/entities/resolve`
+- `POST /identity/resolutions`
+- `GET /identity/resolutions`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`
