@@ -48,6 +48,18 @@ import {
   type RecordMemoryEventInput
 } from "@atlas-aios/memory";
 import {
+  createInMemorySemanticWorldModelStore,
+  createSemanticEntity,
+  createSemanticRelationship,
+  recordSemanticEntity,
+  recordSemanticRelationship,
+  type SemanticEntityFilter,
+  type SemanticEntityInput,
+  type SemanticRelationshipFilter,
+  type SemanticRelationshipInput,
+  type SemanticWorldModelStore
+} from "@atlas-aios/swm";
+import {
   createInMemoryWorldStateStore,
   createWorldStateSnapshot,
   recordWorldStateSnapshot,
@@ -272,6 +284,7 @@ interface RuntimeState {
   auditLogs: RuntimeAuditEvent[];
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
+  semanticWorldModelStore: SemanticWorldModelStore;
   worldStateStore: WorldStateStore;
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
@@ -305,6 +318,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     auditLogs: [],
     memoryStore: createInMemoryMemoryStore(),
     experienceStore: createInMemoryExperienceStore(),
+    semanticWorldModelStore: createInMemorySemanticWorldModelStore(),
     worldStateStore: createInMemoryWorldStateStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
@@ -343,6 +357,7 @@ async function handleRuntimeRequest(
       state.experienceStore,
       createUnknownBusinessMvpExperienceArtifact()
     );
+    recordUnknownBusinessMvpSemanticWorld(state, result);
 
     return json<UnknownBusinessMvpResponse>(result.response);
   }
@@ -670,6 +685,50 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/swm/entities") {
+    const input = (await request.json()) as SemanticEntityInput;
+
+    return json(
+      {
+        entity: recordSemanticEntity(
+          state.semanticWorldModelStore,
+          createSemanticEntity(input)
+        )
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "GET" && url.pathname === "/swm/entities") {
+    return json({
+      entities: state.semanticWorldModelStore.listEntities(
+        createSemanticEntityFilter(url)
+      )
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/swm/relationships") {
+    const input = (await request.json()) as SemanticRelationshipInput;
+
+    return json(
+      {
+        relationship: recordSemanticRelationship(
+          state.semanticWorldModelStore,
+          createSemanticRelationship(input)
+        )
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "GET" && url.pathname === "/swm/relationships") {
+    return json({
+      relationships: state.semanticWorldModelStore.listRelationships(
+        createSemanticRelationshipFilter(url)
+      )
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/world-state") {
     const capturedAt = url.searchParams.get("capturedAt") ?? new Date().toISOString();
 
@@ -779,6 +838,64 @@ async function handleRuntimeRequest(
   }
 
   return json({ error: "not_found" }, { status: 404 });
+}
+
+function recordUnknownBusinessMvpSemanticWorld(
+  state: RuntimeState,
+  result: UnknownBusinessMvpFlowResult
+): void {
+  const systemEntityId = "swm:entity:system:unknown-business";
+  recordSemanticEntity(
+    state.semanticWorldModelStore,
+    createSemanticEntity({
+      id: systemEntityId,
+      type: "software_system",
+      label: "Unknown Business System",
+      attributes: {
+        systemId: "learning:unknown-business-system",
+        capabilityGraphId: "capability-graph:unknown-business-system"
+      },
+      confidence: 0.8,
+      evidenceRefs: ["fixture:unknown-business-system"],
+      observedAt: "2026-07-16T00:00:00.000Z"
+    })
+  );
+
+  for (const capability of result.capabilities) {
+    const entityId = semanticCapabilityEntityId(capability.id);
+    recordSemanticEntity(
+      state.semanticWorldModelStore,
+      createSemanticEntity({
+        id: entityId,
+        type: "capability",
+        label: capability.name,
+        attributes: {
+          capabilityId: capability.id,
+          level: capability.level,
+          graphId: capability.graphId
+        },
+        confidence: capability.confidence,
+        evidenceRefs: capability.sourceRefs,
+        observedAt: "2026-07-16T00:00:00.000Z"
+      })
+    );
+    recordSemanticRelationship(
+      state.semanticWorldModelStore,
+      createSemanticRelationship({
+        id: `swm:relationship:system-has-${capability.id}`,
+        fromEntityId: systemEntityId,
+        toEntityId: entityId,
+        type: "has_capability",
+        confidence: capability.confidence,
+        evidenceRefs: [capability.graphId, ...capability.sourceRefs],
+        observedAt: "2026-07-16T00:00:00.000Z"
+      })
+    );
+  }
+}
+
+function semanticCapabilityEntityId(capabilityId: string): string {
+  return `swm:entity:${capabilityId}`;
 }
 
 function createRuntimeWorldStateSnapshot(state: RuntimeState, capturedAt: string) {
@@ -1205,6 +1322,28 @@ function createExperienceLookupQuery(url: URL): ExperienceLookupQuery {
     applicability,
     ...(artifactTypes.length === 0 ? {} : { artifactTypes }),
     ...(Number.isFinite(minimumConfidence) ? { minimumConfidence } : {})
+  };
+}
+
+function createSemanticEntityFilter(url: URL): SemanticEntityFilter {
+  const types = nonEmptyQueryValues(url, "type");
+  const evidenceRefs = nonEmptyQueryValues(url, "evidenceRef");
+
+  return {
+    ...(types.length === 0 ? {} : { types }),
+    ...(evidenceRefs.length === 0 ? {} : { evidenceRefs })
+  };
+}
+
+function createSemanticRelationshipFilter(url: URL): SemanticRelationshipFilter {
+  const types = nonEmptyQueryValues(url, "type");
+  const evidenceRefs = nonEmptyQueryValues(url, "evidenceRef");
+  const entityId = url.searchParams.get("entityId") ?? undefined;
+
+  return {
+    ...(types.length === 0 ? {} : { types }),
+    ...(evidenceRefs.length === 0 ? {} : { evidenceRefs }),
+    ...(entityId === undefined ? {} : { entityId })
   };
 }
 

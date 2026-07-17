@@ -1095,6 +1095,157 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("records and filters runtime SWM entities and relationships", async () => {
+    const runtime = createAtlasRuntime();
+
+    const entityResponse = await runtime.handle(
+      new Request("http://atlas.local/swm/entities", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "swm:entity:capability:create-folio",
+          type: "capability",
+          label: "Create folio",
+          attributes: {
+            capabilityId: "capability:create-folio"
+          },
+          confidence: 0.8,
+          evidenceRefs: ["openapi:POST /folios"],
+          observedAt: "2026-07-16T00:00:00.000Z"
+        })
+      })
+    );
+
+    expect(entityResponse.status).toBe(201);
+    await expect(entityResponse.json()).resolves.toEqual({
+      entity: {
+        id: "swm:entity:capability:create-folio",
+        schemaVersion: "0.1",
+        type: "capability",
+        label: "Create folio",
+        attributes: {
+          capabilityId: "capability:create-folio"
+        },
+        confidence: 0.8,
+        evidenceRefs: ["openapi:POST /folios"],
+        observedAt: "2026-07-16T00:00:00.000Z"
+      }
+    });
+
+    const relationshipResponse = await runtime.handle(
+      new Request("http://atlas.local/swm/relationships", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "swm:relationship:system-has-create-folio",
+          fromEntityId: "swm:entity:system:unknown-business",
+          toEntityId: "swm:entity:capability:create-folio",
+          type: "has_capability",
+          confidence: 0.8,
+          evidenceRefs: ["capability-graph:unknown-business-system"],
+          observedAt: "2026-07-16T00:00:00.000Z"
+        })
+      })
+    );
+
+    expect(relationshipResponse.status).toBe(201);
+
+    const entitiesResponse = await runtime.handle(
+      new Request("http://atlas.local/swm/entities?type=capability", {
+        method: "GET"
+      })
+    );
+    const relationshipsResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/swm/relationships?entityId=swm%3Aentity%3Acapability%3Acreate-folio&type=has_capability",
+        { method: "GET" }
+      )
+    );
+
+    expect(entitiesResponse.status).toBe(200);
+    await expect(entitiesResponse.json()).resolves.toMatchObject({
+      entities: [
+        {
+          id: "swm:entity:capability:create-folio",
+          type: "capability"
+        }
+      ]
+    });
+    expect(relationshipsResponse.status).toBe(200);
+    await expect(relationshipsResponse.json()).resolves.toMatchObject({
+      relationships: [
+        {
+          id: "swm:relationship:system-has-create-folio",
+          type: "has_capability"
+        }
+      ]
+    });
+  });
+
+  it("projects MVP learning output into SWM entities and relationships", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const entitiesResponse = await runtime.handle(
+      new Request("http://atlas.local/swm/entities?type=capability", {
+        method: "GET"
+      })
+    );
+    const relationshipsResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/swm/relationships?entityId=swm%3Aentity%3Asystem%3Aunknown-business&type=has_capability",
+        { method: "GET" }
+      )
+    );
+
+    expect(entitiesResponse.status).toBe(200);
+    await expect(entitiesResponse.json()).resolves.toMatchObject({
+      entities: [
+        {
+          id: "swm:entity:capability:create-folio",
+          type: "capability",
+          label: "Create folio"
+        },
+        {
+          id: "swm:entity:capability:allocate-settlement",
+          type: "capability",
+          label: "Allocate settlement"
+        },
+        {
+          id: "swm:entity:capability:dispatch-work-packet",
+          type: "capability",
+          label: "Dispatch work packet"
+        }
+      ]
+    });
+    expect(relationshipsResponse.status).toBe(200);
+    await expect(relationshipsResponse.json()).resolves.toMatchObject({
+      relationships: [
+        {
+          id: "swm:relationship:system-has-capability:create-folio",
+          fromEntityId: "swm:entity:system:unknown-business",
+          toEntityId: "swm:entity:capability:create-folio",
+          type: "has_capability"
+        },
+        {
+          id: "swm:relationship:system-has-capability:allocate-settlement",
+          fromEntityId: "swm:entity:system:unknown-business",
+          toEntityId: "swm:entity:capability:allocate-settlement",
+          type: "has_capability"
+        },
+        {
+          id: "swm:relationship:system-has-capability:dispatch-work-packet",
+          fromEntityId: "swm:entity:system:unknown-business",
+          toEntityId: "swm:entity:capability:dispatch-work-packet",
+          type: "has_capability"
+        }
+      ]
+    });
+  });
+
   it("resolves a learned capability through the Capability Kernel", async () => {
     const runtime = createAtlasRuntime();
 

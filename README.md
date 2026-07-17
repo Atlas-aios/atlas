@@ -100,6 +100,10 @@ Initial endpoints:
 - `POST /experience/artifacts`
 - `GET /experience/artifacts`
 - `GET /world-state`
+- `POST /swm/entities`
+- `GET /swm/entities`
+- `POST /swm/relationships`
+- `GET /swm/relationships`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`

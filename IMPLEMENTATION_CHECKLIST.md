@@ -263,18 +263,18 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 10. Semantic World Model
 
-- [ ] Implement entity storage.
-- [ ] Implement relationship storage.
+- [x] Implement entity storage.
+- [x] Implement relationship storage.
 - [ ] Implement ontology type registry.
 - [ ] Implement ontology inheritance.
-- [ ] Implement provenance storage.
-- [ ] Implement confidence scores.
+- [x] Implement provenance storage.
+- [x] Implement confidence scores.
 - [ ] Implement temporal validity.
 - [ ] Implement permission-aware entity reads.
-- [ ] Implement relationship traversal.
+- [x] Implement relationship traversal.
 - [ ] Implement identity links.
 - [ ] Implement SWM update events.
-- [ ] Add tests for entity/relationship updates.
+- [x] Add tests for entity/relationship updates.
 
 ---
 
@@ -497,8 +497,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/executions`.
 - [ ] Implement `/approvals`.
 - [x] Implement `/world-state`.
-- [ ] Implement `/swm/entities`.
-- [ ] Implement `/swm/relationships`.
+- [x] Implement `/swm/entities`.
+- [x] Implement `/swm/relationships`.
 - [x] Implement `/memory/events`.
 - [x] Implement `/experience/artifacts`.
 - [ ] Implement `/identity/entities`.
