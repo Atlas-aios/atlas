@@ -52,6 +52,9 @@ importers:
       "@atlas-aios/memory":
         specifier: workspace:*
         version: link:../../packages/memory
+      "@atlas-aios/self-model":
+        specifier: workspace:*
+        version: link:../../packages/self-model
       "@atlas-aios/swm":
         specifier: workspace:*
         version: link:../../packages/swm

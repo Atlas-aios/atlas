@@ -616,22 +616,38 @@ describe("lookupSelfModelPlanningContext", () => {
   it("returns capability confidence, limitations, and authority as Brain context", () => {
     const snapshot: SelfModelSnapshot = {
       id: "self-model:snapshot:now",
+      schemaVersion: "0.1",
       generatedAt: "2026-07-06T09:30:00.000Z",
+      availableCapabilityIds: [
+        "capability:create-resource",
+        "capability:delete-resource"
+      ],
       grantedAuthority: ["simulate", "read_docs", "execute_reversible"],
+      resourceLimits: {},
       capabilityConfidence: [
         {
           capabilityId: "capability:create-resource",
           providerId: "provider:generated-openapi",
           confidence: 0.78,
-          knownLimitations: ["Field mapping has not been production-validated."]
+          knownLimitations: ["Field mapping has not been production-validated."],
+          knownFailureModes: [],
+          evidenceRefs: ["benchmark:create-resource"],
+          updatedAt: "2026-07-06T09:30:00.000Z"
         },
         {
           capabilityId: "capability:delete-resource",
           providerId: "provider:generated-openapi",
           confidence: 0.42,
-          knownLimitations: ["Destructive actions require human approval."]
+          knownLimitations: ["Destructive actions require human approval."],
+          knownFailureModes: [],
+          evidenceRefs: ["governance:destructive-action-policy"],
+          updatedAt: "2026-07-06T09:30:00.000Z"
         }
-      ]
+      ],
+      interfaceMaturity: [],
+      subsystemMaturity: [],
+      knownLimitations: [],
+      knownFailureModes: []
     };
 
     expect(

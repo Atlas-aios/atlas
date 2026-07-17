@@ -1732,6 +1732,127 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("returns the runtime Self Model after learning an unknown system", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/self-model?generatedAt=2026-07-16T12%3A30%3A00.000Z",
+        {
+          method: "GET"
+        }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      selfModel: {
+        id: "self-model:runtime:2026-07-16T12:30:00.000Z",
+        schemaVersion: "0.1",
+        generatedAt: "2026-07-16T12:30:00.000Z",
+        availableCapabilityIds: [
+          "capability:create-folio",
+          "capability:allocate-settlement",
+          "capability:dispatch-work-packet"
+        ],
+        grantedAuthority: ["authority:execute:simulation"],
+        resourceLimits: {
+          maxEstimatedCostPerExecution: 0.01,
+          maxEstimatedLatencyMs: 500
+        },
+        interfaceMaturity: [
+          {
+            interfaceId: "interface:openapi:unknown-business-system",
+            maturity: "validated",
+            confidence: 0.8,
+            evidenceRefs: ["benchmark:unknown-business:create-resource"],
+            updatedAt: "2026-07-16T12:30:00.000Z"
+          }
+        ],
+        knownLimitations: [
+          "Browser UI driver is available as fixture evidence but is not yet the runtime execution path."
+        ]
+      }
+    });
+  });
+
+  it("updates the runtime Self Model from completed execution outcomes", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/executions", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "execution:runtime:create-folio",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: {
+            name: "Self Model folio"
+          },
+          startedAt: "2026-07-16T12:30:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/self-model?generatedAt=2026-07-16T12%3A35%3A00.000Z",
+        {
+          method: "GET"
+        }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      selfModel: {
+        capabilityConfidence: Array<{
+          capabilityId: string;
+          providerId: string;
+          confidence: number;
+          evidenceRefs: string[];
+          updatedAt: string;
+        }>;
+      };
+    };
+
+    expect(body.selfModel.capabilityConfidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          confidence: 0.72,
+          evidenceRefs: expect.arrayContaining([
+            "openapi:POST /folios",
+            "execution:runtime:create-folio"
+          ]),
+          updatedAt: "2026-07-16T12:30:00.000Z"
+        }),
+        expect.objectContaining({
+          capabilityId: "capability:allocate-settlement",
+          providerId: "provider:openapi:allocate-settlement",
+          confidence: 0.62
+        }),
+        expect.objectContaining({
+          capabilityId: "capability:dispatch-work-packet",
+          providerId: "provider:openapi:dispatch-work-packet",
+          confidence: 0.62
+        })
+      ])
+    );
+  });
+
   it("returns current World State with active goals and approval blockers", async () => {
     const runtime = createAtlasRuntime();
 

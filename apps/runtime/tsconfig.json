@@ -15,6 +15,7 @@
     { "path": "../../packages/identity" },
     { "path": "../../packages/learning" },
     { "path": "../../packages/memory" },
+    { "path": "../../packages/self-model" },
     { "path": "../../packages/swm" },
     { "path": "../../packages/world-state" }
   ]

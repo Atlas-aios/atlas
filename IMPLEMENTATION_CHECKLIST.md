@@ -357,18 +357,18 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 15. Self Model
 
-- [ ] Define Self Model schema.
-- [ ] Track available capabilities.
-- [ ] Track provider confidence.
-- [ ] Track interface maturity.
-- [ ] Track known limitations.
-- [ ] Track known failure modes.
-- [ ] Track granted authority.
-- [ ] Track resource and cost limits.
-- [ ] Track subsystem maturity.
-- [ ] Update Self Model from execution outcomes.
+- [x] Define Self Model schema.
+- [x] Track available capabilities.
+- [x] Track provider confidence.
+- [x] Track interface maturity.
+- [x] Track known limitations.
+- [x] Track known failure modes.
+- [x] Track granted authority.
+- [x] Track resource and cost limits.
+- [x] Track subsystem maturity.
+- [x] Update Self Model from execution outcomes.
 - [ ] Update Self Model from Experience.
-- [ ] Add tests for confidence updates.
+- [x] Add tests for confidence updates.
 
 ---
 
@@ -504,7 +504,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/memory/events`.
 - [x] Implement `/experience/artifacts`.
 - [x] Implement `/identity/entities`.
-- [ ] Implement `/self-model`.
+- [x] Implement `/self-model`.
 - [ ] Implement `/thoughts`.
 - [ ] Implement `/simulations`.
 - [x] Implement `/learning/reports`.

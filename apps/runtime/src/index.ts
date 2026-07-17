@@ -62,6 +62,13 @@ import {
   type RecordMemoryEventInput
 } from "@atlas-aios/memory";
 import {
+  createInMemorySelfModelStore,
+  createSelfModelSnapshot,
+  updateSelfModelFromExecutionOutcome,
+  type SelfModelSnapshot,
+  type SelfModelStore
+} from "@atlas-aios/self-model";
+import {
   createInMemorySemanticWorldModelStore,
   createSemanticEntity,
   createSemanticRelationship,
@@ -299,6 +306,7 @@ interface RuntimeState {
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
   identityStore: IdentityStore;
+  selfModelStore: SelfModelStore;
   semanticWorldModelStore: SemanticWorldModelStore;
   worldStateStore: WorldStateStore;
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
@@ -334,6 +342,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     memoryStore: createInMemoryMemoryStore(),
     experienceStore: createInMemoryExperienceStore(),
     identityStore: createInMemoryIdentityStore(),
+    selfModelStore: createInMemorySelfModelStore(),
     semanticWorldModelStore: createInMemorySemanticWorldModelStore(),
     worldStateStore: createInMemoryWorldStateStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
@@ -374,6 +383,7 @@ async function handleRuntimeRequest(
       createUnknownBusinessMvpExperienceArtifact()
     );
     recordUnknownBusinessMvpSemanticWorld(state, result);
+    recordUnknownBusinessMvpSelfModel(state, result, "2026-07-16T00:00:00.000Z");
 
     return json<UnknownBusinessMvpResponse>(result.response);
   }
@@ -753,6 +763,14 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "GET" && url.pathname === "/self-model") {
+    const generatedAt = url.searchParams.get("generatedAt") ?? new Date().toISOString();
+
+    return json({
+      selfModel: createRuntimeSelfModelSnapshot(state, generatedAt)
+    });
+  }
+
   if (request.method === "POST" && url.pathname === "/swm/entities") {
     const input = (await request.json()) as SemanticEntityInput;
 
@@ -960,6 +978,183 @@ function recordUnknownBusinessMvpSemanticWorld(
         observedAt: "2026-07-16T00:00:00.000Z"
       })
     );
+  }
+}
+
+function recordUnknownBusinessMvpSelfModel(
+  state: RuntimeState,
+  result: UnknownBusinessMvpFlowResult,
+  generatedAt: string
+): void {
+  state.selfModelStore.recordSnapshot(
+    createSelfModelSnapshot({
+      id: `self-model:runtime:${generatedAt}`,
+      generatedAt,
+      availableCapabilityIds: result.capabilities.map((capability) => capability.id),
+      grantedAuthority: ["authority:execute:simulation"],
+      resourceLimits: {
+        maxEstimatedCostPerExecution: 0.01,
+        maxEstimatedLatencyMs: 500
+      },
+      capabilityConfidence: result.providers.map((provider) => ({
+        capabilityId: provider.capabilityId,
+        providerId: provider.providerId,
+        confidence: provider.confidence,
+        knownLimitations: runtimeProviderKnownLimitations(provider.providerId),
+        knownFailureModes: [],
+        evidenceRefs: runtimeProviderEvidenceRefs(provider.providerId),
+        updatedAt: generatedAt
+      })),
+      interfaceMaturity: [
+        {
+          interfaceId: "interface:openapi:unknown-business-system",
+          maturity: "validated",
+          confidence: 0.8,
+          evidenceRefs: ["benchmark:unknown-business:create-resource"],
+          updatedAt: generatedAt
+        }
+      ],
+      subsystemMaturity: [
+        {
+          subsystemId: "subsystem:capability-kernel",
+          maturity: "tested",
+          confidence: 0.8,
+          evidenceRefs: ["test:capability-kernel"],
+          updatedAt: generatedAt
+        },
+        {
+          subsystemId: "subsystem:execution-engine",
+          maturity: "tested",
+          confidence: 0.8,
+          evidenceRefs: ["test:execution-engine"],
+          updatedAt: generatedAt
+        }
+      ],
+      knownLimitations: [
+        "Browser UI driver is available as fixture evidence but is not yet the runtime execution path."
+      ],
+      knownFailureModes: [
+        "Provider execution fails when the learned provider is not registered."
+      ]
+    })
+  );
+}
+
+function createRuntimeSelfModelSnapshot(
+  state: RuntimeState,
+  generatedAt: string
+): SelfModelSnapshot {
+  const currentSnapshot = state.selfModelStore.getCurrentSnapshot();
+
+  if (currentSnapshot === undefined || state.capabilities.length > 0) {
+    const generatedSnapshot = createSelfModelSnapshot({
+      id: `self-model:runtime:${generatedAt}`,
+      generatedAt,
+      availableCapabilityIds: state.capabilities.map((capability) => capability.id),
+      grantedAuthority: ["authority:execute:simulation"],
+      resourceLimits: {
+        maxEstimatedCostPerExecution: 0.01,
+        maxEstimatedLatencyMs: 500
+      },
+      capabilityConfidence:
+        currentSnapshot?.capabilityConfidence ??
+        state.providers.map((provider) => ({
+          capabilityId: provider.capabilityId,
+          providerId: provider.providerId,
+          confidence: provider.confidence,
+          knownLimitations: runtimeProviderKnownLimitations(provider.providerId),
+          knownFailureModes: [],
+          evidenceRefs: runtimeProviderEvidenceRefs(provider.providerId),
+          updatedAt: generatedAt
+        })),
+      interfaceMaturity:
+        state.interfaceDrivers.length === 0
+          ? (currentSnapshot?.interfaceMaturity ?? [])
+          : [
+              {
+                interfaceId: "interface:openapi:unknown-business-system",
+                maturity: "validated",
+                confidence: 0.8,
+                evidenceRefs: ["benchmark:unknown-business:create-resource"],
+                updatedAt: generatedAt
+              }
+            ],
+      subsystemMaturity: currentSnapshot?.subsystemMaturity ?? [
+        {
+          subsystemId: "subsystem:capability-kernel",
+          maturity: "tested",
+          confidence: 0.8,
+          evidenceRefs: ["test:capability-kernel"],
+          updatedAt: generatedAt
+        },
+        {
+          subsystemId: "subsystem:execution-engine",
+          maturity: "tested",
+          confidence: 0.8,
+          evidenceRefs: ["test:execution-engine"],
+          updatedAt: generatedAt
+        }
+      ],
+      knownLimitations: currentSnapshot?.knownLimitations ?? [
+        "Browser UI driver is available as fixture evidence but is not yet the runtime execution path."
+      ],
+      knownFailureModes: currentSnapshot?.knownFailureModes ?? [
+        "Provider execution fails when the learned provider is not registered."
+      ]
+    });
+
+    return state.selfModelStore.recordSnapshot(generatedSnapshot);
+  }
+
+  return state.selfModelStore.recordSnapshot(
+    createSelfModelSnapshot({
+      ...currentSnapshot,
+      id: `self-model:runtime:${generatedAt}`,
+      generatedAt
+    })
+  );
+}
+
+function updateRuntimeSelfModelFromExecution(
+  state: RuntimeState,
+  input: CreateRuntimeExecutionRequest,
+  result: ExecutionRunResult
+): void {
+  updateSelfModelFromExecutionOutcome(state.selfModelStore, {
+    capabilityId: input.capabilityId,
+    providerId: input.providerId,
+    status: result.status === "completed" ? "completed" : "failed",
+    occurredAt: result.session.startedAt,
+    evidenceRefs: [
+      result.session.id,
+      ...result.steps.flatMap((step) => step.evidenceRefs)
+    ],
+    ...(result.status === "completed"
+      ? {}
+      : {
+          failureMode: `Runtime execution ended with status ${result.status}.`,
+          limitation:
+            "Provider execution requires successful runtime workflow completion."
+        })
+  });
+}
+
+function runtimeProviderKnownLimitations(providerId: string): string[] {
+  return providerId.startsWith("provider:openapi:")
+    ? ["Requires OpenAPI-derived provider registration and valid request payloads."]
+    : [];
+}
+
+function runtimeProviderEvidenceRefs(providerId: string): string[] {
+  switch (providerId) {
+    case "provider:openapi:create-folio":
+      return ["openapi:POST /folios"];
+    case "provider:openapi:allocate-settlement":
+      return ["openapi:POST /settlements/allocate"];
+    case "provider:openapi:dispatch-work-packet":
+      return ["openapi:POST /work-packets/dispatch"];
+    default:
+      return [];
   }
 }
 
@@ -1184,6 +1379,7 @@ async function createRuntimeExecution(
     request: input,
     result
   });
+  updateRuntimeSelfModelFromExecution(state, input, result);
 
   return result;
 }

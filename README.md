@@ -109,6 +109,7 @@ Initial endpoints:
 - `GET /identity/entities/resolve`
 - `POST /identity/resolutions`
 - `GET /identity/resolutions`
+- `GET /self-model`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`

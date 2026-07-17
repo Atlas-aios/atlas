@@ -23,6 +23,7 @@
     "@atlas-aios/identity": "workspace:*",
     "@atlas-aios/learning": "workspace:*",
     "@atlas-aios/memory": "workspace:*",
+    "@atlas-aios/self-model": "workspace:*",
     "@atlas-aios/swm": "workspace:*",
     "@atlas-aios/world-state": "workspace:*"
   }
