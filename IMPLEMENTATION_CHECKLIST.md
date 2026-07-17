@@ -316,20 +316,22 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 13. Experience Engine
 
 - [x] Define Experience artifact schema.
-- [ ] Define heuristic artifact type.
-- [ ] Define playbook artifact type.
+- [x] Define heuristic artifact type.
+- [x] Define playbook artifact type.
 - [ ] Define anti-pattern artifact type.
 - [x] Define decision pattern artifact type.
-- [ ] Define risk pattern artifact type.
+- [x] Define risk pattern artifact type.
 - [x] Implement decision Memory-to-Experience distillation pipeline.
 - [x] Implement evidence linking for decision patterns.
 - [x] Implement confidence scoring for decision patterns.
 - [x] Implement scope/applicability conditions for decision patterns.
 - [ ] Implement staleness/review policy.
 - [x] Implement Experience lookup API.
+- [x] Implement Experience artifact storage.
 - [x] Implement Experience lookup API for Brain.
 - [x] Implement Experience lookup API for Kernel.
 - [ ] Add governance review for high-impact artifacts.
+- [x] Add tests for immutable Experience artifacts.
 - [x] Add tests for avoiding overgeneralization.
 
 ---
@@ -498,7 +500,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement `/swm/entities`.
 - [ ] Implement `/swm/relationships`.
 - [x] Implement `/memory/events`.
-- [ ] Implement `/experience/artifacts`.
+- [x] Implement `/experience/artifacts`.
 - [ ] Implement `/identity/entities`.
 - [ ] Implement `/self-model`.
 - [ ] Implement `/thoughts`.

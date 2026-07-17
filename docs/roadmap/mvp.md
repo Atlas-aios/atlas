@@ -36,9 +36,11 @@ The first local runtime surface lives in `apps/runtime`.
 - `POST /approval-requests/:id/approve` and `POST /approval-requests/:id/reject` record governance decisions for runtime approval requests.
 - `POST /memory/events` records a raw append-first Memory event with subject ids, source ids, evidence refs, and metadata.
 - `GET /memory/events` lists Memory events and filters them by `kind`, `subjectId`, and `sourceId`.
+- `POST /experience/artifacts` records a reusable Experience artifact with evidence Memory links and applicability scope.
+- `GET /experience/artifacts` lists Experience artifacts and filters them by `type`, `applicability`, and `minimumConfidence`.
 - `POST /executions` creates a one-node Execution Engine session for a learned provider against the deterministic unknown-business REST fixture.
 - `GET /executions` lists in-memory execution history with status, provider, capability, step, and event counts.
 - `GET /executions/:id` returns the full stored execution request and run result.
 - `POST /mvp/unknown-business/learn-and-execute` learns the synthetic unknown business system from OpenAPI evidence, extracts browser-fixture capabilities, and runs the `Create Resource` benchmark.
 
-This is the first product-shaped orchestration layer. Goal, learned capability, generated provider, execution, approval, audit, and Memory event storage are currently in-memory runtime state. It is not yet a full goal-owning Atlas loop, persistent API, authenticated service, or dashboard.
+This is the first product-shaped orchestration layer. Goal, learned capability, generated provider, execution, approval, audit, Memory event, and Experience artifact storage are currently in-memory runtime state. It is not yet a full goal-owning Atlas loop, persistent API, authenticated service, or dashboard.

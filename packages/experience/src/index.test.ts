@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createInMemoryExperienceStore,
   distillDecisionPatternsFromMemory,
   lookupExperienceArtifacts,
+  recordExperienceArtifact,
   type ExperienceArtifact,
   type DecisionMemoryObservation
 } from "./index.js";
@@ -129,6 +131,107 @@ describe("lookupExperienceArtifacts", () => {
       "experience:heuristic:create-resource",
       "experience:decision-pattern:create-resource:crm",
       "experience:decision-pattern:create-resource:billing"
+    ]);
+  });
+});
+
+describe("experience artifact store", () => {
+  it("records reusable Experience artifacts with evidence and scope", () => {
+    const store = createInMemoryExperienceStore();
+
+    const artifact = recordExperienceArtifact(store, {
+      id: "experience:playbook:unknown-system-openapi-benchmark",
+      type: "playbook",
+      summary:
+        "For unknown software with OpenAPI evidence, generate provider candidates and validate them with a benchmark before promotion.",
+      evidenceMemoryEventIds: ["memory:event:mvp:unknown-business:learn-and-execute"],
+      applicability: [
+        "learning:unknown-business-system",
+        "interface:openapi",
+        "capability:create-resource"
+      ],
+      confidence: 0.7
+    });
+
+    expect(artifact).toEqual({
+      id: "experience:playbook:unknown-system-openapi-benchmark",
+      type: "playbook",
+      summary:
+        "For unknown software with OpenAPI evidence, generate provider candidates and validate them with a benchmark before promotion.",
+      evidenceMemoryEventIds: ["memory:event:mvp:unknown-business:learn-and-execute"],
+      applicability: [
+        "learning:unknown-business-system",
+        "interface:openapi",
+        "capability:create-resource"
+      ],
+      confidence: 0.7
+    });
+    expect(store.list()).toEqual([artifact]);
+  });
+
+  it("filters stored Experience artifacts through the lookup contract", () => {
+    const store = createInMemoryExperienceStore();
+    recordExperienceArtifact(store, {
+      id: "experience:heuristic:create-resource:idempotency",
+      type: "heuristic",
+      summary: "Prefer idempotency keys when creating resources.",
+      evidenceMemoryEventIds: ["memory:event:execution:1"],
+      applicability: ["capability:create-resource"],
+      confidence: 0.8
+    });
+    recordExperienceArtifact(store, {
+      id: "experience:playbook:unknown-system-openapi-benchmark",
+      type: "playbook",
+      summary: "Benchmark generated providers before promotion.",
+      evidenceMemoryEventIds: ["memory:event:mvp:1"],
+      applicability: ["capability:create-resource", "interface:openapi"],
+      confidence: 0.7
+    });
+
+    expect(
+      store.list({
+        artifactTypes: ["playbook"],
+        applicability: ["capability:create-resource", "interface:openapi"],
+        minimumConfidence: 0.7
+      })
+    ).toEqual([
+      {
+        id: "experience:playbook:unknown-system-openapi-benchmark",
+        type: "playbook",
+        summary: "Benchmark generated providers before promotion.",
+        evidenceMemoryEventIds: ["memory:event:mvp:1"],
+        applicability: ["capability:create-resource", "interface:openapi"],
+        confidence: 0.7
+      }
+    ]);
+  });
+
+  it("returns copies so callers cannot mutate stored Experience artifacts", () => {
+    const store = createInMemoryExperienceStore();
+    recordExperienceArtifact(store, {
+      id: "experience:risk-pattern:provider-duplicates",
+      type: "risk_pattern",
+      summary: "Duplicate provider executions can create duplicate resources.",
+      evidenceMemoryEventIds: ["memory:event:failure:duplicate-resource"],
+      applicability: ["provider:openapi:create-folio"],
+      confidence: 0.75
+    });
+
+    const listed = store.list();
+    const listedArtifact = listed[0];
+    expect(listedArtifact).toBeDefined();
+    listedArtifact?.applicability.push("mutated:scope");
+    listedArtifact?.evidenceMemoryEventIds.push("mutated:memory");
+
+    expect(store.list()).toEqual([
+      {
+        id: "experience:risk-pattern:provider-duplicates",
+        type: "risk_pattern",
+        summary: "Duplicate provider executions can create duplicate resources.",
+        evidenceMemoryEventIds: ["memory:event:failure:duplicate-resource"],
+        applicability: ["provider:openapi:create-folio"],
+        confidence: 0.75
+      }
     ]);
   });
 });

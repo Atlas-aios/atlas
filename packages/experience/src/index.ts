@@ -25,6 +25,13 @@ export interface LookupExperienceArtifactsInput {
   query: ExperienceLookupQuery;
 }
 
+export type RecordExperienceArtifactInput = ExperienceArtifact;
+
+export interface ExperienceStore {
+  record(input: RecordExperienceArtifactInput): ExperienceArtifact;
+  list(query?: ExperienceLookupQuery): ExperienceArtifact[];
+}
+
 export type DecisionObservationOutcomeType =
   | "approve"
   | "approve_with_constraints"
@@ -89,6 +96,31 @@ export function lookupExperienceArtifacts(
     );
 }
 
+export function createInMemoryExperienceStore(): ExperienceStore {
+  const artifacts: ExperienceArtifact[] = [];
+
+  return {
+    record: (input) => {
+      const artifact = cloneExperienceArtifact(input);
+      artifacts.push(artifact);
+
+      return cloneExperienceArtifact(artifact);
+    },
+    list: (query = { applicability: [] }) =>
+      lookupExperienceArtifacts({
+        artifacts: artifacts.map(cloneExperienceArtifact),
+        query
+      })
+  };
+}
+
+export function recordExperienceArtifact(
+  store: ExperienceStore,
+  input: RecordExperienceArtifactInput
+): ExperienceArtifact {
+  return store.record(input);
+}
+
 function createDecisionPatternArtifact(
   observations: DecisionMemoryObservation[]
 ): ExperienceArtifact {
@@ -141,4 +173,12 @@ function sortedUnique(values: string[]): string[] {
 
 function slug(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function cloneExperienceArtifact(artifact: ExperienceArtifact): ExperienceArtifact {
+  return {
+    ...artifact,
+    evidenceMemoryEventIds: [...artifact.evidenceMemoryEventIds],
+    applicability: [...artifact.applicability]
+  };
 }

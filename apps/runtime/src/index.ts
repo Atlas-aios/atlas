@@ -20,6 +20,14 @@ import {
   type ExecuteWorkflowNodeResult
 } from "@atlas-aios/execution-engine";
 import {
+  createInMemoryExperienceStore,
+  recordExperienceArtifact,
+  type ExperienceArtifactType,
+  type ExperienceLookupQuery,
+  type ExperienceStore,
+  type RecordExperienceArtifactInput
+} from "@atlas-aios/experience";
+import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemRestFixture,
@@ -256,6 +264,7 @@ interface RuntimeState {
   approvalRequests: RuntimeApprovalRequest[];
   auditLogs: RuntimeAuditEvent[];
   memoryStore: MemoryStore;
+  experienceStore: ExperienceStore;
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
@@ -287,6 +296,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     approvalRequests: [],
     auditLogs: [],
     memoryStore: createInMemoryMemoryStore(),
+    experienceStore: createInMemoryExperienceStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
@@ -320,6 +330,10 @@ async function handleRuntimeRequest(
     state.learningReview = result.learningReview;
     state.learningPromotionDecisions = result.learningPromotionDecisions;
     recordMemoryEvent(state.memoryStore, createUnknownBusinessMvpMemoryEvent(result));
+    recordExperienceArtifact(
+      state.experienceStore,
+      createUnknownBusinessMvpExperienceArtifact()
+    );
 
     return json<UnknownBusinessMvpResponse>(result.response);
   }
@@ -630,6 +644,23 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/experience/artifacts") {
+    const input = (await request.json()) as RecordExperienceArtifactInput;
+
+    return json(
+      {
+        experienceArtifact: recordExperienceArtifact(state.experienceStore, input)
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "GET" && url.pathname === "/experience/artifacts") {
+    return json({
+      experienceArtifacts: state.experienceStore.list(createExperienceLookupQuery(url))
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/audit-logs") {
     return json({
       auditLogs: state.auditLogs
@@ -728,6 +759,23 @@ async function handleRuntimeRequest(
   }
 
   return json({ error: "not_found" }, { status: 404 });
+}
+
+function createUnknownBusinessMvpExperienceArtifact(): RecordExperienceArtifactInput {
+  return {
+    id: "experience:playbook:unknown-business:openapi-browser-benchmark",
+    type: "playbook",
+    summary:
+      "For unknown software with OpenAPI and browser evidence, generate a draft Capability Graph, create provider candidates, and require benchmark evidence before promotion.",
+    evidenceMemoryEventIds: ["memory:event:mvp:unknown-business:learn-and-execute"],
+    applicability: [
+      "learning:unknown-business-system",
+      "interface:openapi",
+      "interface:browser-ui",
+      "capability:create-resource"
+    ],
+    confidence: 0.7
+  };
 }
 
 function createUnknownBusinessMvpMemoryEvent(
@@ -1100,6 +1148,20 @@ function createMemoryEventFilter(url: URL): ListMemoryEventsFilter {
   };
 }
 
+function createExperienceLookupQuery(url: URL): ExperienceLookupQuery {
+  const artifactTypes = url.searchParams
+    .getAll("type")
+    .filter(isExperienceArtifactType);
+  const applicability = nonEmptyQueryValues(url, "applicability");
+  const minimumConfidence = Number(url.searchParams.get("minimumConfidence"));
+
+  return {
+    applicability,
+    ...(artifactTypes.length === 0 ? {} : { artifactTypes }),
+    ...(Number.isFinite(minimumConfidence) ? { minimumConfidence } : {})
+  };
+}
+
 function nonEmptyQueryValues(url: URL, key: string): string[] {
   return url.searchParams.getAll(key).filter((value) => value.length > 0);
 }
@@ -1114,6 +1176,16 @@ function isMemoryEventKind(value: string): value is MemoryEventKind {
     "correction",
     "meeting",
     "failure"
+  ].includes(value);
+}
+
+function isExperienceArtifactType(value: string): value is ExperienceArtifactType {
+  return [
+    "heuristic",
+    "playbook",
+    "anti_pattern",
+    "decision_pattern",
+    "risk_pattern"
   ].includes(value);
 }
 

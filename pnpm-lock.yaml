@@ -40,6 +40,9 @@ importers:
       "@atlas-aios/execution-engine":
         specifier: workspace:*
         version: link:../../packages/execution-engine
+      "@atlas-aios/experience":
+        specifier: workspace:*
+        version: link:../../packages/experience
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning

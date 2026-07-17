@@ -1005,6 +1005,96 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("records and filters runtime Experience artifacts", async () => {
+    const runtime = createAtlasRuntime();
+
+    const createResponse = await runtime.handle(
+      new Request("http://atlas.local/experience/artifacts", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "experience:heuristic:create-resource:idempotency",
+          type: "heuristic",
+          summary: "Prefer idempotency keys when creating resources.",
+          evidenceMemoryEventIds: ["memory:event:execution:create-resource"],
+          applicability: ["capability:create-resource"],
+          confidence: 0.8
+        })
+      })
+    );
+
+    expect(createResponse.status).toBe(201);
+    await expect(createResponse.json()).resolves.toEqual({
+      experienceArtifact: {
+        id: "experience:heuristic:create-resource:idempotency",
+        type: "heuristic",
+        summary: "Prefer idempotency keys when creating resources.",
+        evidenceMemoryEventIds: ["memory:event:execution:create-resource"],
+        applicability: ["capability:create-resource"],
+        confidence: 0.8
+      }
+    });
+
+    const listResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/experience/artifacts?type=heuristic&applicability=capability%3Acreate-resource&minimumConfidence=0.75",
+        { method: "GET" }
+      )
+    );
+
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual({
+      experienceArtifacts: [
+        {
+          id: "experience:heuristic:create-resource:idempotency",
+          type: "heuristic",
+          summary: "Prefer idempotency keys when creating resources.",
+          evidenceMemoryEventIds: ["memory:event:execution:create-resource"],
+          applicability: ["capability:create-resource"],
+          confidence: 0.8
+        }
+      ]
+    });
+  });
+
+  it("distills the MVP learning flow into a reusable Experience playbook", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/experience/artifacts?type=playbook&applicability=learning%3Aunknown-business-system",
+        { method: "GET" }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      experienceArtifacts: [
+        {
+          id: "experience:playbook:unknown-business:openapi-browser-benchmark",
+          type: "playbook",
+          summary:
+            "For unknown software with OpenAPI and browser evidence, generate a draft Capability Graph, create provider candidates, and require benchmark evidence before promotion.",
+          evidenceMemoryEventIds: [
+            "memory:event:mvp:unknown-business:learn-and-execute"
+          ],
+          applicability: [
+            "learning:unknown-business-system",
+            "interface:openapi",
+            "interface:browser-ui",
+            "capability:create-resource"
+          ],
+          confidence: 0.7
+        }
+      ]
+    });
+  });
+
   it("resolves a learned capability through the Capability Kernel", async () => {
     const runtime = createAtlasRuntime();
 

@@ -97,6 +97,8 @@ Initial endpoints:
 - `GET /audit-logs`
 - `POST /memory/events`
 - `GET /memory/events`
+- `POST /experience/artifacts`
+- `GET /experience/artifacts`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`
