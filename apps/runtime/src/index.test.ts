@@ -1894,6 +1894,105 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("lists and evaluates governance policies with audit evidence", async () => {
+    const runtime = createAtlasRuntime();
+
+    const listResponse = await runtime.handle(
+      new Request("http://atlas.local/governance/policies", { method: "GET" })
+    );
+
+    expect(listResponse.status).toBe(200);
+    const listBody = (await listResponse.json()) as {
+      policies: Array<{
+        id: string;
+        decision: string;
+        impactKinds: string[];
+      }>;
+    };
+    expect(listBody.policies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "policy:approval:money",
+          decision: "requires_approval",
+          impactKinds: ["money"]
+        }),
+        expect.objectContaining({
+          id: "policy:approval:production-system",
+          decision: "requires_approval",
+          impactKinds: ["production_system"]
+        })
+      ])
+    );
+
+    const createResponse = await runtime.handle(
+      new Request("http://atlas.local/governance/policies", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "policy:deny:legal-without-human",
+          name: "Deny legal commitments without human signature",
+          description: "Legal commitments cannot be executed autonomously.",
+          impactKinds: ["legal_commitment"],
+          decision: "deny",
+          requiredApproverRole: "owner",
+          reason: "Legal commitments must be handled by a human.",
+          enabled: true
+        })
+      })
+    );
+
+    expect(createResponse.status).toBe(201);
+
+    const evaluateResponse = await runtime.handle(
+      new Request("http://atlas.local/governance/evaluate", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "governance-action:sign-contract",
+          action: "Sign a vendor contract",
+          requesterIdentityId: "identity:user:moksh",
+          externalImpacts: ["legal_commitment"],
+          evidenceRefs: ["contract:draft"],
+          evaluatedAt: "2026-07-16T12:50:00.000Z"
+        })
+      })
+    );
+
+    expect(evaluateResponse.status).toBe(200);
+    await expect(evaluateResponse.json()).resolves.toEqual({
+      policyDecision: {
+        decision: "deny",
+        policyIds: ["policy:deny:legal-without-human"],
+        action: "Sign a vendor contract",
+        reason: "Legal commitments must be handled by a human.",
+        detectedImpacts: ["legal_commitment"],
+        approvalRequirements: []
+      }
+    });
+
+    const auditResponse = await runtime.handle(
+      new Request("http://atlas.local/audit-logs", { method: "GET" })
+    );
+
+    await expect(auditResponse.json()).resolves.toMatchObject({
+      auditLogs: [
+        {
+          id: "audit:governance:governance-action:sign-contract",
+          type: "governance.policy.evaluated",
+          actorId: "identity:user:moksh",
+          subjectId: "governance-action:sign-contract",
+          occurredAt: "2026-07-16T12:50:00.000Z",
+          summary:
+            "Governance decision deny for Sign a vendor contract: Legal commitments must be handled by a human.",
+          evidenceRefs: ["contract:draft"],
+          metadata: {
+            decision: "deny",
+            policyIds: "policy:deny:legal-without-human",
+            detectedImpacts: "legal_commitment"
+          }
+        }
+      ]
+    });
+  });
+
   it("updates the runtime Self Model from completed execution outcomes", async () => {
     const runtime = createAtlasRuntime();
 

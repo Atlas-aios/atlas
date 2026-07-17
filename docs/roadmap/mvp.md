@@ -34,6 +34,9 @@ The first local runtime surface lives in `apps/runtime`.
 - `GET /providers` lists generated provider candidates learned into local runtime memory.
 - `GET /approval-requests` lists runtime approval requests created by approval-gated dispatches.
 - `POST /approval-requests/:id/approve` and `POST /approval-requests/:id/reject` record governance decisions for runtime approval requests.
+- `GET /governance/policies` lists explicit governance policies for high-impact action classes.
+- `POST /governance/policies` records stricter or custom governance policies, including deny rules.
+- `POST /governance/evaluate` evaluates an action against governance policies, detects sensitive impacts, returns approval/deny/allow decisions, and records an audit event.
 - `POST /memory/events` records a raw append-first Memory event with subject ids, source ids, evidence refs, and metadata.
 - `GET /memory/events` lists Memory events and filters them by `kind`, `subjectId`, and `sourceId`.
 - `POST /experience/artifacts` records a reusable Experience artifact with evidence Memory links and applicability scope.
@@ -56,4 +59,4 @@ The first local runtime surface lives in `apps/runtime`.
 - `GET /executions/:id` returns the full stored execution request and run result.
 - `POST /mvp/unknown-business/learn-and-execute` learns the synthetic unknown business system from OpenAPI evidence, extracts browser-fixture capabilities, and runs the `Create Resource` benchmark.
 
-This is the first product-shaped orchestration layer. Goal, learned capability, generated provider, execution, approval, audit, Memory event, Experience artifact, World State snapshot, Semantic World Model, Identity, Self Model, and bounded Cognitive Loop cycle storage are currently in-memory runtime state. It is not yet a full autonomous Atlas loop, persistent API, authenticated service, or dashboard.
+This is the first product-shaped orchestration layer. Goal, learned capability, generated provider, execution, approval, governance policy, audit, Memory event, Experience artifact, World State snapshot, Semantic World Model, Identity, Self Model, and bounded Cognitive Loop cycle storage are currently in-memory runtime state. It is not yet a full autonomous Atlas loop, persistent API, authenticated service, or dashboard.

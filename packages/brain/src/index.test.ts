@@ -879,19 +879,25 @@ describe("lookupGovernancePlanningContext", () => {
         decision: "requires_approval",
         action: "external.write",
         policyIds: ["policy:external-write"],
-        reason: "External writes require approval before execution."
+        reason: "External writes require approval before execution.",
+        detectedImpacts: ["production_system"],
+        approvalRequirements: []
       },
       {
         decision: "allow",
         action: "docs.read",
         policyIds: ["policy:read-public-docs"],
-        reason: "Reading public documentation is allowed."
+        reason: "Reading public documentation is allowed.",
+        detectedImpacts: [],
+        approvalRequirements: []
       },
       {
         decision: "deny",
         action: "production.delete",
         policyIds: ["policy:no-production-delete"],
-        reason: "Production delete is blocked for this goal."
+        reason: "Production delete is blocked for this goal.",
+        detectedImpacts: ["production_system", "destructive_action"],
+        approvalRequirements: []
       }
     ];
     const approvalRequirements: ApprovalRequirement[] = [
@@ -899,13 +905,15 @@ describe("lookupGovernancePlanningContext", () => {
         id: "approval:req:external-write",
         action: "external.write",
         requiredApproverRole: "project_owner",
-        reason: "The action changes external system state."
+        reason: "The action changes external system state.",
+        policyId: "policy:external-write"
       },
       {
         id: "approval:req:billing",
         action: "billing.spend",
         requiredApproverRole: "owner",
-        reason: "The action spends money."
+        reason: "The action spends money.",
+        policyId: "policy:billing"
       }
     ];
 

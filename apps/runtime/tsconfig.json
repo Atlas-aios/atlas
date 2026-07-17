@@ -13,6 +13,7 @@
     { "path": "../../packages/cognitive-loop" },
     { "path": "../../packages/execution-engine" },
     { "path": "../../packages/experience" },
+    { "path": "../../packages/governance" },
     { "path": "../../packages/identity" },
     { "path": "../../packages/learning" },
     { "path": "../../packages/memory" },

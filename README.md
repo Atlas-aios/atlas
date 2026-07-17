@@ -95,6 +95,9 @@ Initial endpoints:
 - `POST /approval-requests/:id/approve`
 - `POST /approval-requests/:id/reject`
 - `GET /audit-logs`
+- `GET /governance/policies`
+- `POST /governance/policies`
+- `POST /governance/evaluate`
 - `POST /memory/events`
 - `GET /memory/events`
 - `POST /experience/artifacts`

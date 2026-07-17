@@ -32,6 +32,15 @@ import {
   type RecordExperienceArtifactInput
 } from "@atlas-aios/experience";
 import {
+  createDefaultGovernancePolicies,
+  createInMemoryGovernancePolicyStore,
+  recordGovernancePolicy,
+  type GovernanceAction,
+  type GovernancePolicy,
+  type GovernancePolicyStore,
+  type PolicyDecision
+} from "@atlas-aios/governance";
+import {
   createIdentityResolution,
   createIdentitySubject,
   createInMemoryIdentityStore,
@@ -302,6 +311,11 @@ export interface CreateRuntimeCognitiveLoopCycleRequest {
   completedAt?: string;
 }
 
+export type CreateRuntimeGovernancePolicyRequest = GovernancePolicy;
+export interface EvaluateRuntimeGovernancePolicyRequest extends GovernanceAction {
+  evaluatedAt?: string;
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
   goalEvents: Map<string, GoalLifecycleEvent[]>;
@@ -316,6 +330,7 @@ interface RuntimeState {
   approvalRequests: RuntimeApprovalRequest[];
   cognitiveLoopCycles: CognitiveLoopCycle[];
   auditLogs: RuntimeAuditEvent[];
+  governancePolicyStore: GovernancePolicyStore;
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
   identityStore: IdentityStore;
@@ -353,6 +368,9 @@ export function createAtlasRuntime(): AtlasRuntime {
     approvalRequests: [],
     cognitiveLoopCycles: [],
     auditLogs: [],
+    governancePolicyStore: createInMemoryGovernancePolicyStore(
+      createDefaultGovernancePolicies()
+    ),
     memoryStore: createInMemoryMemoryStore(),
     experienceStore: createInMemoryExperienceStore(),
     identityStore: createInMemoryIdentityStore(),
@@ -857,6 +875,34 @@ async function handleRuntimeRequest(
     return json({
       auditLogs: state.auditLogs
     });
+  }
+
+  if (request.method === "GET" && url.pathname === "/governance/policies") {
+    return json({
+      policies: state.governancePolicyStore.list()
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/governance/policies") {
+    const input = (await request.json()) as CreateRuntimeGovernancePolicyRequest;
+
+    return json(
+      {
+        policy: recordGovernancePolicy(state.governancePolicyStore, input)
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "POST" && url.pathname === "/governance/evaluate") {
+    const input = (await request.json()) as EvaluateRuntimeGovernancePolicyRequest;
+    const policyDecision = state.governancePolicyStore.evaluate(input);
+
+    state.auditLogs.push(
+      createGovernancePolicyEvaluationAuditEvent(input, policyDecision)
+    );
+
+    return json({ policyDecision });
   }
 
   if (request.method === "GET" && url.pathname === "/providers") {
@@ -1645,6 +1691,26 @@ function recordApprovalActorIdentity(
       evidenceRefs: [approvalRequest.id]
     })
   );
+}
+
+function createGovernancePolicyEvaluationAuditEvent(
+  action: EvaluateRuntimeGovernancePolicyRequest,
+  policyDecision: PolicyDecision
+): RuntimeAuditEvent {
+  return {
+    id: `audit:governance:${action.id}`,
+    type: "governance.policy.evaluated",
+    actorId: action.requesterIdentityId,
+    subjectId: action.id,
+    occurredAt: action.evaluatedAt ?? new Date(0).toISOString(),
+    summary: `Governance decision ${policyDecision.decision} for ${action.action}: ${policyDecision.reason}`,
+    evidenceRefs: [...action.evidenceRefs],
+    metadata: {
+      decision: policyDecision.decision,
+      policyIds: policyDecision.policyIds.join(","),
+      detectedImpacts: policyDecision.detectedImpacts.join(",")
+    }
+  };
 }
 
 function createLearningPromotionApprovalAuditEvent(input: {
