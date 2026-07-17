@@ -31,6 +31,14 @@ import {
   type UnknownBusinessSystemRestFixture,
   learnOpenApiCapabilities
 } from "@atlas-aios/learning";
+import {
+  createInMemoryMemoryStore,
+  recordMemoryEvent,
+  type ListMemoryEventsFilter,
+  type MemoryEventKind,
+  type MemoryStore,
+  type RecordMemoryEventInput
+} from "@atlas-aios/memory";
 
 export interface AtlasRuntime {
   handle(request: Request): Promise<Response>;
@@ -247,6 +255,7 @@ interface RuntimeState {
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
   auditLogs: RuntimeAuditEvent[];
+  memoryStore: MemoryStore;
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
@@ -277,6 +286,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     executions: [],
     approvalRequests: [],
     auditLogs: [],
+    memoryStore: createInMemoryMemoryStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
@@ -309,6 +319,7 @@ async function handleRuntimeRequest(
     state.providers = result.providers;
     state.learningReview = result.learningReview;
     state.learningPromotionDecisions = result.learningPromotionDecisions;
+    recordMemoryEvent(state.memoryStore, createUnknownBusinessMvpMemoryEvent(result));
 
     return json<UnknownBusinessMvpResponse>(result.response);
   }
@@ -590,8 +601,33 @@ async function handleRuntimeRequest(
         subjectId: "learning:unknown-business-system"
       })
     );
+    recordMemoryEvent(
+      state.memoryStore,
+      createLearningPromotionApprovalMemoryEvent({
+        stage,
+        input,
+        subjectId: "learning:unknown-business-system"
+      })
+    );
 
     return json({ promotionDecision });
+  }
+
+  if (request.method === "POST" && url.pathname === "/memory/events") {
+    const input = (await request.json()) as RecordMemoryEventInput;
+
+    return json(
+      {
+        memoryEvent: recordMemoryEvent(state.memoryStore, input)
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === "GET" && url.pathname === "/memory/events") {
+    return json({
+      memoryEvents: state.memoryStore.list(createMemoryEventFilter(url))
+    });
   }
 
   if (request.method === "GET" && url.pathname === "/audit-logs") {
@@ -692,6 +728,32 @@ async function handleRuntimeRequest(
   }
 
   return json({ error: "not_found" }, { status: 404 });
+}
+
+function createUnknownBusinessMvpMemoryEvent(
+  result: UnknownBusinessMvpFlowResult
+): RecordMemoryEventInput {
+  return {
+    id: "memory:event:mvp:unknown-business:learn-and-execute",
+    kind: "execution",
+    occurredAt: "2026-07-16T00:00:00.000Z",
+    summary: `Learned ${result.capabilities.length} capabilities, generated ${result.providers.length} provider candidates, and passed benchmark ${result.response.benchmark.id}.`,
+    subjectIds: [
+      "learning:unknown-business-system",
+      ...result.capabilityGraphs.map((graph) => graph.id),
+      result.response.benchmark.id
+    ],
+    sourceIds: [
+      ...result.capabilities.flatMap((capability) => capability.sourceRefs),
+      ...result.response.benchmark.evidence
+    ],
+    evidenceRefs: result.response.benchmark.evidence,
+    metadata: {
+      benchmarkPassed: String(result.response.benchmark.passed),
+      learnedCapabilities: String(result.capabilities.length),
+      providerCandidates: String(result.providers.length)
+    }
+  };
 }
 
 async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult> {
@@ -1004,6 +1066,55 @@ function createLearningPromotionApprovalAuditEvent(input: {
       governanceApprovalRef: input.input.governanceApprovalRef
     }
   };
+}
+
+function createLearningPromotionApprovalMemoryEvent(input: {
+  stage: "development" | "production";
+  subjectId: string;
+  input: ApproveRuntimeLearningPromotionRequest;
+}): RecordMemoryEventInput {
+  return {
+    id: `memory:event:learning-promotion:${input.stage}:${input.input.decidedAt}`,
+    kind: "approval",
+    occurredAt: input.input.decidedAt,
+    summary: `Approved ${input.stage} learning promotion gate: ${input.input.reason}`,
+    subjectIds: [input.subjectId],
+    sourceIds: [input.input.governanceApprovalRef],
+    evidenceRefs: [input.input.governanceApprovalRef],
+    metadata: {
+      actorId: input.input.decidedBy,
+      stage: input.stage
+    }
+  };
+}
+
+function createMemoryEventFilter(url: URL): ListMemoryEventsFilter {
+  const kinds = url.searchParams.getAll("kind").filter(isMemoryEventKind);
+  const subjectIds = nonEmptyQueryValues(url, "subjectId");
+  const sourceIds = nonEmptyQueryValues(url, "sourceId");
+
+  return {
+    ...(kinds.length === 0 ? {} : { kinds }),
+    ...(subjectIds.length === 0 ? {} : { subjectIds }),
+    ...(sourceIds.length === 0 ? {} : { sourceIds })
+  };
+}
+
+function nonEmptyQueryValues(url: URL, key: string): string[] {
+  return url.searchParams.getAll(key).filter((value) => value.length > 0);
+}
+
+function isMemoryEventKind(value: string): value is MemoryEventKind {
+  return [
+    "conversation",
+    "decision",
+    "execution",
+    "approval",
+    "rejection",
+    "correction",
+    "meeting",
+    "failure"
+  ].includes(value);
 }
 
 function createRuntimeGoalTimeline(

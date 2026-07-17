@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { DecisionOutcome, DecisionRequest } from "@atlas-aios/decision-engine";
 import {
+  createInMemoryMemoryStore,
   createDecisionRequestFromMemoryRejection,
+  recordMemoryEvent,
   recordDecisionOutcomeAsMemoryEvent,
   type MemoryDecisionRejection
 } from "./index.js";
@@ -79,6 +81,133 @@ describe("decision memory", () => {
     expect(reconsiderationRequest.evidenceRefs).toEqual([
       "knowledge:openapi:create-resource",
       "memory:event:failure:duplicate-billing-resource"
+    ]);
+  });
+});
+
+describe("memory event store", () => {
+  it("records raw Memory events with provenance and evidence", () => {
+    const store = createInMemoryMemoryStore();
+
+    const event = recordMemoryEvent(store, {
+      id: "memory:event:execution:create-folio",
+      kind: "execution",
+      occurredAt: "2026-07-16T12:30:00.000Z",
+      summary: "Executed provider:openapi:create-folio for capability:create-folio.",
+      subjectIds: [
+        "execution:runtime:create-folio",
+        "capability:create-folio",
+        "provider:openapi:create-folio"
+      ],
+      sourceIds: [
+        "fixture:rest:POST /folios",
+        "runtime:provider:provider:openapi:create-folio"
+      ],
+      evidenceRefs: ["execution:runtime:create-folio:step:node:runtime-provider"],
+      metadata: {
+        status: "completed"
+      }
+    });
+
+    expect(event).toEqual({
+      id: "memory:event:execution:create-folio",
+      kind: "execution",
+      occurredAt: "2026-07-16T12:30:00.000Z",
+      summary: "Executed provider:openapi:create-folio for capability:create-folio.",
+      subjectIds: [
+        "execution:runtime:create-folio",
+        "capability:create-folio",
+        "provider:openapi:create-folio"
+      ],
+      sourceIds: [
+        "fixture:rest:POST /folios",
+        "runtime:provider:provider:openapi:create-folio"
+      ],
+      evidenceRefs: ["execution:runtime:create-folio:step:node:runtime-provider"],
+      metadata: {
+        status: "completed"
+      }
+    });
+    expect(store.list()).toEqual([event]);
+  });
+
+  it("filters Memory events by kind, subject, and source references", () => {
+    const store = createInMemoryMemoryStore();
+    recordMemoryEvent(store, {
+      id: "memory:event:approval:1",
+      kind: "approval",
+      occurredAt: "2026-07-16T12:35:00.000Z",
+      summary: "Approved runtime execution.",
+      subjectIds: ["approval:runtime:execution:runtime:create-folio"],
+      sourceIds: ["governance:runtime:mvp"],
+      evidenceRefs: [],
+      metadata: {}
+    });
+    recordMemoryEvent(store, {
+      id: "memory:event:execution:1",
+      kind: "execution",
+      occurredAt: "2026-07-16T12:30:00.000Z",
+      summary: "Executed runtime provider.",
+      subjectIds: ["execution:runtime:create-folio"],
+      sourceIds: ["fixture:rest:POST /folios"],
+      evidenceRefs: [],
+      metadata: {}
+    });
+
+    expect(
+      store.list({
+        kinds: ["execution"],
+        subjectIds: ["execution:runtime:create-folio"],
+        sourceIds: ["fixture:rest:POST /folios"]
+      })
+    ).toEqual([
+      {
+        id: "memory:event:execution:1",
+        kind: "execution",
+        occurredAt: "2026-07-16T12:30:00.000Z",
+        summary: "Executed runtime provider.",
+        subjectIds: ["execution:runtime:create-folio"],
+        sourceIds: ["fixture:rest:POST /folios"],
+        evidenceRefs: [],
+        metadata: {}
+      }
+    ]);
+  });
+
+  it("returns copies so callers cannot mutate stored Memory records", () => {
+    const store = createInMemoryMemoryStore();
+    recordMemoryEvent(store, {
+      id: "memory:event:decision:1",
+      kind: "decision",
+      occurredAt: "2026-07-16T12:10:00.000Z",
+      summary: "Decision was approved.",
+      subjectIds: ["decision:runtime:1"],
+      sourceIds: ["decision:req:1"],
+      evidenceRefs: ["evidence:1"],
+      metadata: {
+        outcome: "approve"
+      }
+    });
+
+    const listed = store.list();
+    const listedEvent = listed[0];
+    expect(listedEvent).toBeDefined();
+    listedEvent?.sourceIds.push("mutated:source");
+    listedEvent!.metadata!.outcome = "mutated";
+
+    expect(store.list()).toEqual([
+      {
+        id: "memory:event:decision:1",
+        kind: "decision",
+        occurredAt: "2026-07-16T12:10:00.000Z",
+        summary: "Decision was approved.",
+        subjectIds: ["decision:runtime:1"],
+        sourceIds: ["decision:req:1"],
+        evidenceRefs: ["evidence:1"],
+        metadata: {
+          outcome: "approve"
+        }
+      }
     ]);
   });
 });

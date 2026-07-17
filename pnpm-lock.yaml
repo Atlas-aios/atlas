@@ -43,6 +43,9 @@ importers:
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning
+      "@atlas-aios/memory":
+        specifier: workspace:*
+        version: link:../../packages/memory
 
   packages/agoe: {}
 

@@ -861,6 +861,148 @@ describe("Atlas runtime API", () => {
         }
       ]
     });
+
+    const memoryResponse = await runtime.handle(
+      new Request("http://atlas.local/memory/events?kind=approval", {
+        method: "GET"
+      })
+    );
+
+    expect(memoryResponse.status).toBe(200);
+    await expect(memoryResponse.json()).resolves.toEqual({
+      memoryEvents: [
+        {
+          id: "memory:event:learning-promotion:production:2026-07-16T13:00:00.000Z",
+          kind: "approval",
+          occurredAt: "2026-07-16T13:00:00.000Z",
+          summary:
+            "Approved production learning promotion gate: Approved production promotion gate, pending review cleanup.",
+          subjectIds: ["learning:unknown-business-system"],
+          sourceIds: ["approval:learning:unknown-business-system:production"],
+          evidenceRefs: ["approval:learning:unknown-business-system:production"],
+          metadata: {
+            actorId: "identity:user:moksh",
+            stage: "production"
+          }
+        }
+      ]
+    });
+  });
+
+  it("records and filters raw runtime Memory events", async () => {
+    const runtime = createAtlasRuntime();
+
+    const createResponse = await runtime.handle(
+      new Request("http://atlas.local/memory/events", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "memory:event:conversation:1",
+          kind: "conversation",
+          occurredAt: "2026-07-16T11:00:00.000Z",
+          summary: "User asked Atlas to prioritize MVP runtime usability.",
+          subjectIds: ["goal:atlas-mvp"],
+          sourceIds: ["conversation:codex:runtime-bout-1"],
+          evidenceRefs: ["message:user:runtime-bout-1"],
+          metadata: {
+            channel: "codex"
+          }
+        })
+      })
+    );
+
+    expect(createResponse.status).toBe(201);
+    await expect(createResponse.json()).resolves.toEqual({
+      memoryEvent: {
+        id: "memory:event:conversation:1",
+        kind: "conversation",
+        occurredAt: "2026-07-16T11:00:00.000Z",
+        summary: "User asked Atlas to prioritize MVP runtime usability.",
+        subjectIds: ["goal:atlas-mvp"],
+        sourceIds: ["conversation:codex:runtime-bout-1"],
+        evidenceRefs: ["message:user:runtime-bout-1"],
+        metadata: {
+          channel: "codex"
+        }
+      }
+    });
+
+    const listResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/memory/events?kind=conversation&subjectId=goal%3Aatlas-mvp",
+        { method: "GET" }
+      )
+    );
+
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual({
+      memoryEvents: [
+        {
+          id: "memory:event:conversation:1",
+          kind: "conversation",
+          occurredAt: "2026-07-16T11:00:00.000Z",
+          summary: "User asked Atlas to prioritize MVP runtime usability.",
+          subjectIds: ["goal:atlas-mvp"],
+          sourceIds: ["conversation:codex:runtime-bout-1"],
+          evidenceRefs: ["message:user:runtime-bout-1"],
+          metadata: {
+            channel: "codex"
+          }
+        }
+      ]
+    });
+  });
+
+  it("records MVP learning completion as a Memory event", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/memory/events?kind=execution&subjectId=learning%3Aunknown-business-system",
+        { method: "GET" }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      memoryEvents: [
+        {
+          id: "memory:event:mvp:unknown-business:learn-and-execute",
+          kind: "execution",
+          occurredAt: "2026-07-16T00:00:00.000Z",
+          summary:
+            "Learned 3 capabilities, generated 3 provider candidates, and passed benchmark benchmark:unknown-business:create-resource.",
+          subjectIds: [
+            "learning:unknown-business-system",
+            "capability-graph:unknown-business-system",
+            "benchmark:unknown-business:create-resource"
+          ],
+          sourceIds: [
+            "openapi:POST /folios",
+            "openapi:POST /settlements/allocate",
+            "openapi:POST /work-packets/dispatch",
+            "fixture:rest:POST /folios",
+            "fixture:rest:POST /settlements/allocate",
+            "fixture:rest:POST /work-packets/dispatch"
+          ],
+          evidenceRefs: [
+            "fixture:rest:POST /folios",
+            "fixture:rest:POST /settlements/allocate",
+            "fixture:rest:POST /work-packets/dispatch"
+          ],
+          metadata: {
+            benchmarkPassed: "true",
+            learnedCapabilities: "3",
+            providerCandidates: "3"
+          }
+        }
+      ]
+    });
   });
 
   it("resolves a learned capability through the Capability Kernel", async () => {

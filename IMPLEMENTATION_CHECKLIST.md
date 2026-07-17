@@ -297,19 +297,19 @@ Use this file as the source checklist. Tick items only when the implementation i
 ## 12. Memory
 
 - [x] Define Memory event schema.
-- [ ] Implement raw event recording.
+- [x] Implement raw event recording.
 - [x] Implement decision outcome memory records.
 - [x] Implement memory rejection reconsideration request.
 - [ ] Implement conversation memory.
-- [ ] Implement execution memory.
-- [ ] Implement approval/rejection memory.
+- [x] Implement execution memory.
+- [x] Implement approval/rejection memory.
 - [ ] Implement correction memory.
 - [ ] Implement meeting memory.
 - [ ] Implement failure memory.
-- [ ] Implement source/provenance links.
-- [ ] Implement memory retrieval API.
+- [x] Implement source/provenance links.
+- [x] Implement memory retrieval API.
 - [x] Add tests for decision memory records.
-- [ ] Add tests for immutable memory records.
+- [x] Add tests for immutable memory records.
 
 ---
 
@@ -497,7 +497,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement `/world-state`.
 - [ ] Implement `/swm/entities`.
 - [ ] Implement `/swm/relationships`.
-- [ ] Implement `/memory/events`.
+- [x] Implement `/memory/events`.
 - [ ] Implement `/experience/artifacts`.
 - [ ] Implement `/identity/entities`.
 - [ ] Implement `/self-model`.

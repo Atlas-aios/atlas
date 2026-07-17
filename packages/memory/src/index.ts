@@ -20,6 +20,31 @@ export interface MemoryEvent {
   occurredAt: string;
   summary: string;
   sourceIds: string[];
+  subjectIds?: string[];
+  evidenceRefs?: string[];
+  metadata?: Record<string, string>;
+}
+
+export interface RecordMemoryEventInput {
+  id: string;
+  kind: MemoryEventKind;
+  occurredAt: string;
+  summary: string;
+  subjectIds: string[];
+  sourceIds: string[];
+  evidenceRefs: string[];
+  metadata: Record<string, string>;
+}
+
+export interface ListMemoryEventsFilter {
+  kinds?: MemoryEventKind[];
+  subjectIds?: string[];
+  sourceIds?: string[];
+}
+
+export interface MemoryStore {
+  record(input: RecordMemoryEventInput): MemoryEvent;
+  list(filter?: ListMemoryEventsFilter): MemoryEvent[];
 }
 
 export interface RecordDecisionOutcomeInput {
@@ -57,6 +82,37 @@ export function recordDecisionOutcomeAsMemoryEvent(
   };
 }
 
+export function createInMemoryMemoryStore(): MemoryStore {
+  const events: MemoryEvent[] = [];
+
+  return {
+    record: (input) => {
+      const event = cloneMemoryEvent({
+        id: input.id,
+        kind: input.kind,
+        occurredAt: input.occurredAt,
+        summary: input.summary,
+        subjectIds: uniqueRefs(input.subjectIds),
+        sourceIds: uniqueRefs(input.sourceIds),
+        evidenceRefs: uniqueRefs(input.evidenceRefs),
+        metadata: { ...input.metadata }
+      });
+      events.push(event);
+
+      return cloneMemoryEvent(event);
+    },
+    list: (filter = {}) =>
+      events.filter((event) => matchesMemoryFilter(event, filter)).map(cloneMemoryEvent)
+  };
+}
+
+export function recordMemoryEvent(
+  store: MemoryStore,
+  input: RecordMemoryEventInput
+): MemoryEvent {
+  return store.record(input);
+}
+
 export function createDecisionRequestFromMemoryRejection(
   input: CreateDecisionRequestFromMemoryRejectionInput
 ): DecisionRequest {
@@ -84,4 +140,38 @@ export function createDecisionRequestFromMemoryRejection(
 
 function uniqueRefs(refs: string[]): string[] {
   return [...new Set(refs)];
+}
+
+function matchesMemoryFilter(
+  event: MemoryEvent,
+  filter: ListMemoryEventsFilter
+): boolean {
+  return (
+    matchesAny(event.kind, filter.kinds) &&
+    overlaps(event.subjectIds ?? [], filter.subjectIds) &&
+    overlaps(event.sourceIds, filter.sourceIds)
+  );
+}
+
+function matchesAny<T>(value: T, allowedValues: T[] | undefined): boolean {
+  return allowedValues === undefined || allowedValues.includes(value);
+}
+
+function overlaps(values: string[], filterValues: string[] | undefined): boolean {
+  return (
+    filterValues === undefined ||
+    filterValues.some((filterValue) => values.includes(filterValue))
+  );
+}
+
+function cloneMemoryEvent(event: MemoryEvent): MemoryEvent {
+  return {
+    ...event,
+    sourceIds: [...event.sourceIds],
+    ...(event.subjectIds === undefined ? {} : { subjectIds: [...event.subjectIds] }),
+    ...(event.evidenceRefs === undefined
+      ? {}
+      : { evidenceRefs: [...event.evidenceRefs] }),
+    ...(event.metadata === undefined ? {} : { metadata: { ...event.metadata } })
+  };
 }
