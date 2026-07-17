@@ -99,6 +99,7 @@ Initial endpoints:
 - `GET /memory/events`
 - `POST /experience/artifacts`
 - `GET /experience/artifacts`
+- `GET /world-state`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`

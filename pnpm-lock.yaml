@@ -49,6 +49,9 @@ importers:
       "@atlas-aios/memory":
         specifier: workspace:*
         version: link:../../packages/memory
+      "@atlas-aios/world-state":
+        specifier: workspace:*
+        version: link:../../packages/world-state
 
   packages/agoe: {}
 

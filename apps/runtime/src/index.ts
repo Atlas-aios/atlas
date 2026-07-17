@@ -47,6 +47,13 @@ import {
   type MemoryStore,
   type RecordMemoryEventInput
 } from "@atlas-aios/memory";
+import {
+  createInMemoryWorldStateStore,
+  createWorldStateSnapshot,
+  recordWorldStateSnapshot,
+  type OperationalBlocker,
+  type WorldStateStore
+} from "@atlas-aios/world-state";
 
 export interface AtlasRuntime {
   handle(request: Request): Promise<Response>;
@@ -265,6 +272,7 @@ interface RuntimeState {
   auditLogs: RuntimeAuditEvent[];
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
+  worldStateStore: WorldStateStore;
   unknownBusinessRest: UnknownBusinessSystemRestFixture;
 }
 
@@ -297,6 +305,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     auditLogs: [],
     memoryStore: createInMemoryMemoryStore(),
     experienceStore: createInMemoryExperienceStore(),
+    worldStateStore: createInMemoryWorldStateStore(),
     unknownBusinessRest: createUnknownBusinessSystemRestFixture()
   };
 
@@ -661,6 +670,17 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "GET" && url.pathname === "/world-state") {
+    const capturedAt = url.searchParams.get("capturedAt") ?? new Date().toISOString();
+
+    return json({
+      worldState: recordWorldStateSnapshot(
+        state.worldStateStore,
+        createRuntimeWorldStateSnapshot(state, capturedAt)
+      )
+    });
+  }
+
   if (request.method === "GET" && url.pathname === "/audit-logs") {
     return json({
       auditLogs: state.auditLogs
@@ -759,6 +779,32 @@ async function handleRuntimeRequest(
   }
 
   return json({ error: "not_found" }, { status: 404 });
+}
+
+function createRuntimeWorldStateSnapshot(state: RuntimeState, capturedAt: string) {
+  return createWorldStateSnapshot({
+    id: `world-state:runtime:${capturedAt}`,
+    capturedAt,
+    goals: [...state.goals.values()].map((goal) => ({
+      id: goal.id,
+      status: goal.status
+    })),
+    executions: state.executions.map((execution) => ({
+      id: execution.result.session.id,
+      status: execution.result.status
+    })),
+    blockers: createRuntimeOperationalBlockers(state)
+  });
+}
+
+function createRuntimeOperationalBlockers(state: RuntimeState): OperationalBlocker[] {
+  return state.approvalRequests
+    .filter((approvalRequest) => approvalRequest.status === "requested")
+    .map((approvalRequest) => ({
+      id: `blocker:approval:${approvalRequest.id}`,
+      summary: `Approval requested for ${approvalRequest.providerId} on ${approvalRequest.capabilityId}: ${approvalRequest.reason}`,
+      severity: "high"
+    }));
 }
 
 function createUnknownBusinessMvpExperienceArtifact(): RecordExperienceArtifactInput {

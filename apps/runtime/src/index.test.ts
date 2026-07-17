@@ -1429,6 +1429,82 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("returns current World State with active goals and approval blockers", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/goals/goal:runtime-create-resource/status", {
+        method: "POST",
+        body: JSON.stringify({
+          eventId: "goal:runtime-create-resource:event:activated",
+          toStatus: "active",
+          occurredAt: "2026-07-16T12:05:00.000Z",
+          reason: "Begin learning and execution."
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/capabilities/capability:create-folio/dispatch",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            executionId: "execution:runtime:create-folio",
+            inputs: {
+              name: "World State folio"
+            },
+            governanceContextId: "governance:runtime:mvp",
+            startedAt: "2026-07-16T12:30:00.000Z"
+          })
+        }
+      )
+    );
+
+    const response = await runtime.handle(
+      new Request(
+        "http://atlas.local/world-state?capturedAt=2026-07-16T12%3A45%3A00.000Z",
+        { method: "GET" }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      worldState: {
+        id: "world-state:runtime:2026-07-16T12:45:00.000Z",
+        capturedAt: "2026-07-16T12:45:00.000Z",
+        activeGoalIds: ["goal:runtime-create-resource"],
+        activeExecutionIds: [],
+        blockers: [
+          {
+            id: "blocker:approval:approval:runtime:execution:runtime:create-folio",
+            summary:
+              "Approval requested for provider:openapi:create-folio on capability:create-folio: Selected provider requires approval because permission fit or policy risk is not fully safe.",
+            severity: "high"
+          }
+        ]
+      }
+    });
+  });
+
   it("returns a goal timeline with goal and execution events", async () => {
     const runtime = createAtlasRuntime();
 

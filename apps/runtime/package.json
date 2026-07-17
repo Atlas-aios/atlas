@@ -21,6 +21,7 @@
     "@atlas-aios/execution-engine": "workspace:*",
     "@atlas-aios/experience": "workspace:*",
     "@atlas-aios/learning": "workspace:*",
-    "@atlas-aios/memory": "workspace:*"
+    "@atlas-aios/memory": "workspace:*",
+    "@atlas-aios/world-state": "workspace:*"
   }
 }

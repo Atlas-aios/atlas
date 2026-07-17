@@ -280,10 +280,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 11. World State
 
-- [ ] Define World State snapshot model.
-- [ ] Implement active goal state.
-- [ ] Implement active execution state.
-- [ ] Implement blockers.
+- [x] Define World State snapshot model.
+- [x] Implement active goal state.
+- [x] Implement active execution state.
+- [x] Implement blockers.
 - [ ] Implement deadlines.
 - [ ] Implement waiting states.
 - [ ] Implement incidents.
@@ -496,7 +496,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement `/workflows`.
 - [x] Implement `/executions`.
 - [ ] Implement `/approvals`.
-- [ ] Implement `/world-state`.
+- [x] Implement `/world-state`.
 - [ ] Implement `/swm/entities`.
 - [ ] Implement `/swm/relationships`.
 - [x] Implement `/memory/events`.
