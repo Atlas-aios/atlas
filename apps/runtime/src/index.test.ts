@@ -1782,6 +1782,118 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("runs a bounded Cognitive Loop cycle from runtime state", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:runtime-create-resource",
+          title: "Create Resource in unknown business system",
+          description: "Learn the interface and execute the resource workflow.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["Create Resource is completed or safely blocked."],
+          createdAt: "2026-07-16T12:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/goals/goal:runtime-create-resource/status", {
+        method: "POST",
+        body: JSON.stringify({
+          eventId: "goal:runtime-create-resource:event:activated",
+          toStatus: "active",
+          occurredAt: "2026-07-16T12:05:00.000Z",
+          reason: "Begin learning and execution."
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request(
+        "http://atlas.local/goals/goal:runtime-create-resource/capabilities/capability:create-folio/dispatch",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            executionId: "execution:runtime:create-folio",
+            inputs: {
+              name: "Loop folio"
+            },
+            governanceContextId: "governance:runtime:mvp",
+            startedAt: "2026-07-16T12:30:00.000Z"
+          })
+        }
+      )
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/cognitive-loop/cycles", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "cognitive-loop:cycle:runtime:1",
+          goalId: "goal:runtime-create-resource",
+          startedAt: "2026-07-16T12:45:00.000Z",
+          completedAt: "2026-07-16T12:45:01.000Z"
+        })
+      })
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      cycle: {
+        id: "cognitive-loop:cycle:runtime:1",
+        schemaVersion: "0.1",
+        goalId: "goal:runtime-create-resource",
+        bounded: true,
+        executedAction: false,
+        observations: {
+          activeGoalIds: ["goal:runtime-create-resource"],
+          blockerIds: [
+            "blocker:approval:approval:runtime:execution:runtime:create-folio"
+          ],
+          capabilityIds: [
+            "capability:create-folio",
+            "capability:allocate-settlement",
+            "capability:dispatch-work-packet"
+          ],
+          selfModelSnapshotId: "self-model:runtime:2026-07-16T12:45:00.000Z",
+          worldStateSnapshotId: "world-state:runtime:2026-07-16T12:45:00.000Z"
+        },
+        nextAction: {
+          type: "request_approval",
+          status: "waiting_for_approval"
+        }
+      },
+      memoryEvent: {
+        id: "memory:event:cognitive-loop:cognitive-loop:cycle:runtime:1",
+        kind: "conversation",
+        occurredAt: "2026-07-16T12:45:01.000Z",
+        summary:
+          "Cognitive Loop cycle cognitive-loop:cycle:runtime:1 recommended request_approval."
+      }
+    });
+
+    const listResponse = await runtime.handle(
+      new Request("http://atlas.local/cognitive-loop/cycles", { method: "GET" })
+    );
+    await expect(listResponse.json()).resolves.toMatchObject({
+      cycles: [
+        {
+          id: "cognitive-loop:cycle:runtime:1",
+          nextAction: {
+            type: "request_approval"
+          }
+        }
+      ]
+    });
+  });
+
   it("updates the runtime Self Model from completed execution outcomes", async () => {
     const runtime = createAtlasRuntime();
 

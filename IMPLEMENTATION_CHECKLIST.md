@@ -391,23 +391,23 @@ Use this file as the source checklist. Tick items only when the implementation i
 
 ## 17. Cognitive Loop
 
-- [ ] Define loop cycle schema.
-- [ ] Implement observe phase.
-- [ ] Implement update World State phase.
+- [x] Define loop cycle schema.
+- [x] Implement observe phase.
+- [x] Implement update World State phase.
 - [ ] Implement update SWM phase.
-- [ ] Implement update Memory phase.
-- [ ] Implement distill Experience phase.
-- [ ] Implement update Self Model phase.
-- [ ] Implement review goals phase.
-- [ ] Implement allocate attention phase.
-- [ ] Implement plan phase.
+- [x] Implement update Memory phase.
+- [x] Implement distill Experience phase.
+- [x] Implement update Self Model phase.
+- [x] Implement review goals phase.
+- [x] Implement allocate attention phase.
+- [x] Implement plan phase.
 - [ ] Implement simulate phase.
 - [ ] Implement execute phase.
-- [ ] Implement evaluate phase.
-- [ ] Implement learn phase.
-- [ ] Implement rest/idle phase.
-- [ ] Add loop observability.
-- [ ] Add tests for bounded cycles.
+- [x] Implement evaluate phase.
+- [x] Implement learn phase.
+- [x] Implement rest/idle phase.
+- [x] Add loop observability.
+- [x] Add tests for bounded cycles.
 
 ---
 
@@ -505,6 +505,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/experience/artifacts`.
 - [x] Implement `/identity/entities`.
 - [x] Implement `/self-model`.
+- [x] Implement `/cognitive-loop/cycles`.
 - [ ] Implement `/thoughts`.
 - [ ] Implement `/simulations`.
 - [x] Implement `/learning/reports`.

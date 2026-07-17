@@ -49,9 +49,11 @@ The first local runtime surface lives in `apps/runtime`.
 - `POST /identity/resolutions` records external account mappings for Identity subjects.
 - `GET /identity/resolutions` lists external account mappings and filters them by `subjectId` and `externalSystem`.
 - `GET /self-model` returns Atlas's current runtime Self Model with available capabilities, provider confidence, interface maturity, subsystem maturity, granted authority, resource limits, limitations, and known failure modes.
+- `POST /cognitive-loop/cycles` runs one bounded Cognitive Loop cycle that observes runtime state, references Memory/Experience/Self Model/World State context, records a Memory trace, and recommends the next safe action without executing automatically.
+- `GET /cognitive-loop/cycles` lists bounded Cognitive Loop cycles recorded in the runtime.
 - `POST /executions` creates a one-node Execution Engine session for a learned provider against the deterministic unknown-business REST fixture.
 - `GET /executions` lists in-memory execution history with status, provider, capability, step, and event counts.
 - `GET /executions/:id` returns the full stored execution request and run result.
 - `POST /mvp/unknown-business/learn-and-execute` learns the synthetic unknown business system from OpenAPI evidence, extracts browser-fixture capabilities, and runs the `Create Resource` benchmark.
 
-This is the first product-shaped orchestration layer. Goal, learned capability, generated provider, execution, approval, audit, Memory event, Experience artifact, World State snapshot, Semantic World Model, Identity, and Self Model storage are currently in-memory runtime state. It is not yet a full goal-owning Atlas loop, persistent API, authenticated service, or dashboard.
+This is the first product-shaped orchestration layer. Goal, learned capability, generated provider, execution, approval, audit, Memory event, Experience artifact, World State snapshot, Semantic World Model, Identity, Self Model, and bounded Cognitive Loop cycle storage are currently in-memory runtime state. It is not yet a full autonomous Atlas loop, persistent API, authenticated service, or dashboard.

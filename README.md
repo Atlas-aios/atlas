@@ -110,6 +110,8 @@ Initial endpoints:
 - `POST /identity/resolutions`
 - `GET /identity/resolutions`
 - `GET /self-model`
+- `POST /cognitive-loop/cycles`
+- `GET /cognitive-loop/cycles`
 - `POST /executions`
 - `GET /executions`
 - `GET /executions/:id`

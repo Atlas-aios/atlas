@@ -14,6 +14,10 @@ import {
   type ProviderCandidate
 } from "@atlas-aios/capability-kernel";
 import {
+  runBoundedCognitiveLoopCycle,
+  type CognitiveLoopCycle
+} from "@atlas-aios/cognitive-loop";
+import {
   createExecutionSession,
   runSequentialWorkflow,
   type ExecutionRunResult,
@@ -57,6 +61,7 @@ import {
   createInMemoryMemoryStore,
   recordMemoryEvent,
   type ListMemoryEventsFilter,
+  type MemoryEvent,
   type MemoryEventKind,
   type MemoryStore,
   type RecordMemoryEventInput
@@ -290,6 +295,13 @@ export interface RuntimeGoalTimelineResponse {
   events: RuntimeTimelineEvent[];
 }
 
+export interface CreateRuntimeCognitiveLoopCycleRequest {
+  id: string;
+  goalId?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
 interface RuntimeState {
   goals: Map<string, Goal>;
   goalEvents: Map<string, GoalLifecycleEvent[]>;
@@ -302,6 +314,7 @@ interface RuntimeState {
   learningPromotionApprovals: Map<string, ApproveRuntimeLearningPromotionRequest>;
   executions: RuntimeExecutionRecord[];
   approvalRequests: RuntimeApprovalRequest[];
+  cognitiveLoopCycles: CognitiveLoopCycle[];
   auditLogs: RuntimeAuditEvent[];
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
@@ -338,6 +351,7 @@ export function createAtlasRuntime(): AtlasRuntime {
     >(),
     executions: [],
     approvalRequests: [],
+    cognitiveLoopCycles: [],
     auditLogs: [],
     memoryStore: createInMemoryMemoryStore(),
     experienceStore: createInMemoryExperienceStore(),
@@ -771,6 +785,19 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/cognitive-loop/cycles") {
+    const input = (await request.json()) as CreateRuntimeCognitiveLoopCycleRequest;
+    const result = runRuntimeCognitiveLoopCycle(state, input);
+
+    return json(result, { status: 201 });
+  }
+
+  if (request.method === "GET" && url.pathname === "/cognitive-loop/cycles") {
+    return json({
+      cycles: state.cognitiveLoopCycles
+    });
+  }
+
   if (request.method === "POST" && url.pathname === "/swm/entities") {
     const input = (await request.json()) as SemanticEntityInput;
 
@@ -1137,6 +1164,81 @@ function updateRuntimeSelfModelFromExecution(
             "Provider execution requires successful runtime workflow completion."
         })
   });
+}
+
+function runRuntimeCognitiveLoopCycle(
+  state: RuntimeState,
+  input: CreateRuntimeCognitiveLoopCycleRequest
+): { cycle: CognitiveLoopCycle; memoryEvent: MemoryEvent } {
+  const completedAt = input.completedAt ?? input.startedAt;
+  const worldState = recordWorldStateSnapshot(
+    state.worldStateStore,
+    createRuntimeWorldStateSnapshot(state, input.startedAt)
+  );
+  const selfModel = createRuntimeSelfModelSnapshot(state, input.startedAt);
+  const cycle = runBoundedCognitiveLoopCycle({
+    id: input.id,
+    ...(input.goalId === undefined ? {} : { goalId: input.goalId }),
+    startedAt: input.startedAt,
+    completedAt,
+    observations: {
+      activeGoalIds: [...worldState.activeGoalIds],
+      activeExecutionIds: [...worldState.activeExecutionIds],
+      blockerIds: worldState.blockers.map((blocker) => blocker.id),
+      memoryEventIds: state.memoryStore.list().map((event) => event.id),
+      experienceArtifactIds: state.experienceStore
+        .list({ applicability: [] })
+        .map((artifact) => artifact.id),
+      capabilityIds: state.capabilities.map((capability) => capability.id),
+      identityIds: state.identityStore.listSubjects().map((identity) => identity.id),
+      selfModelSnapshotId: selfModel.id,
+      worldStateSnapshotId: worldState.id
+    }
+  });
+  const memoryEvent = recordMemoryEvent(
+    state.memoryStore,
+    createCognitiveLoopMemoryEvent(cycle)
+  );
+
+  state.cognitiveLoopCycles.push(cycle);
+
+  return { cycle, memoryEvent };
+}
+
+function createCognitiveLoopMemoryEvent(
+  cycle: CognitiveLoopCycle
+): RecordMemoryEventInput {
+  return {
+    id: `memory:event:cognitive-loop:${cycle.id}`,
+    kind: "conversation",
+    occurredAt: cycle.completedAt,
+    summary: `Cognitive Loop cycle ${cycle.id} recommended ${cycle.nextAction.type}.`,
+    subjectIds: optionalRuntimeRefs([cycle.goalId]),
+    sourceIds: [
+      cycle.id,
+      ...optionalRuntimeRefs([
+        cycle.observations.worldStateSnapshotId,
+        cycle.observations.selfModelSnapshotId
+      ])
+    ],
+    evidenceRefs: [
+      ...cycle.nextAction.targetRefs,
+      ...optionalRuntimeRefs([
+        cycle.observations.worldStateSnapshotId,
+        cycle.observations.selfModelSnapshotId
+      ])
+    ],
+    metadata: {
+      nextActionType: cycle.nextAction.type,
+      nextActionStatus: cycle.nextAction.status,
+      bounded: String(cycle.bounded),
+      executedAction: String(cycle.executedAction)
+    }
+  };
+}
+
+function optionalRuntimeRefs(refs: Array<string | undefined>): string[] {
+  return refs.filter((ref): ref is string => ref !== undefined);
 }
 
 function runtimeProviderKnownLimitations(providerId: string): string[] {
