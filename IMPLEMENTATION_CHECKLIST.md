@@ -102,6 +102,13 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Define retrieval adapter contract for context lookups.
 - [x] Define optional remote deep reasoning model lane.
 - [x] Add NVIDIA NIM remote reasoning client contract.
+- [x] Implement provider-neutral model-backed Brain planning.
+- [x] Add bounded model planning prompts.
+- [x] Add strict model plan output validation.
+- [x] Add trusted Atlas plan and step identifier construction.
+- [x] Wire NVIDIA NIM into runtime server configuration.
+- [ ] Implement local model inference provider.
+- [ ] Add policy-controlled model fallback and retry.
 - [x] Add SWM context lookup.
 - [x] Add World State lookup.
 - [x] Add Memory lookup.
@@ -507,6 +514,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/self-model`.
 - [x] Implement `/cognitive-loop/cycles`.
 - [x] Implement `/thoughts`.
+- [x] Implement `/brain/plan`.
 - [x] Implement `/simulations`.
 - [x] Implement `/learning/reports`.
 - [x] Implement `/learning/promotion-decisions/:stage/approve`.

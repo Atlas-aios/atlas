@@ -28,10 +28,8 @@ describe("NVIDIA NIM chat completion client", () => {
           messages: [{ role: "user", content: "Review this Atlas plan." }],
           max_tokens: 2048,
           stream: false,
-          extra_body: {
-            chat_template_kwargs: { enable_thinking: true },
-            reasoning_budget: 1024
-          }
+          chat_template_kwargs: { enable_thinking: true },
+          reasoning_budget: 1024
         })
       }
     });

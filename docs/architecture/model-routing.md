@@ -67,6 +67,49 @@ Brain planning request
 -> Brain execution path calls the selected model provider
 ```
 
+## Implemented Runtime Path
+
+`POST /brain/plan` now connects a stored Goal to the Brain model runtime:
+
+```text
+stored Goal
+-> server-owned model policy
+-> deterministic profile selection
+-> configured provider invocation
+-> bounded serialized context (maximum 16,000 characters)
+-> strict JSON parsing and field validation
+-> trusted Atlas plan and step ids
+-> AtlasPlan plus routing metadata
+```
+
+The request supplies `goalId`, `taskClass`, `difficulty`, and `privacyClass`.
+It cannot enable remote inference. The runtime reads remote permission only from:
+
+```text
+ATLAS_ALLOW_REMOTE_MODELS=true
+ATLAS_ALLOW_FREE_HOSTED_MODEL_ENDPOINTS=true
+NVIDIA_API_KEY=<secret>
+```
+
+The NVIDIA provider is configured only when all three values are present. Provider
+credentials are never included in prompts or responses.
+
+Model output may propose rationale, risks, capability ids, purposes, and approval
+requirements. Atlas ignores model-supplied plan and step ids and constructs those
+identifiers from trusted runtime state. Markdown-wrapped output, missing fields,
+invalid field types, empty steps, and plans over 50 steps are rejected.
+
+The local profile is a routing decision, not yet a running model provider. Routine,
+private, and confidential planning therefore returns
+`503 model_provider_unavailable` until a local OpenAI-compatible inference adapter is
+implemented. Atlas does not substitute fixture output or silently send private work
+to NVIDIA.
+
+Current NVIDIA references:
+
+- https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b
+- https://docs.api.nvidia.com/nim/reference/llm-apis
+
 ## Adaptive Specialist Lane
 
 Atlas should eventually train or fine-tune smaller specialist models for repeated sites, domains, and task families. These specialists are accelerators, not sources of truth.

@@ -65,6 +65,32 @@ corepack pnpm build
 corepack pnpm --filter @atlas-aios/runtime start
 ```
 
+To enable the real NVIDIA Nemotron planning lane for eligible high-difficulty
+public or internal requests:
+
+```powershell
+$env:ATLAS_ALLOW_REMOTE_MODELS="true"
+$env:ATLAS_ALLOW_FREE_HOSTED_MODEL_ENDPOINTS="true"
+$env:NVIDIA_API_KEY="<your NVIDIA API key>"
+corepack pnpm build
+corepack pnpm --filter @atlas-aios/runtime start
+```
+
+Create a goal with `POST /goals`, then call `POST /brain/plan` with its id:
+
+```json
+{
+  "goalId": "goal:architecture-review",
+  "taskClass": "architecture",
+  "difficulty": "high",
+  "privacyClass": "internal"
+}
+```
+
+Remote permissions are server-owned; request JSON cannot enable them. Routine and
+private requests select the local lane. Until a local inference provider is wired,
+that lane returns `503 model_provider_unavailable` instead of a fabricated plan.
+
 Run the current end-to-end MVP demo:
 
 ```powershell
@@ -77,6 +103,7 @@ The demo creates a goal, runs the unknown-business learning fixture, dispatches 
 Initial endpoints:
 
 - `GET /health`
+- `POST /brain/plan`
 - `POST /goals`
 - `GET /goals`
 - `GET /goals/:id`

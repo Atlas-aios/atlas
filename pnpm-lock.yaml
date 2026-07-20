@@ -34,6 +34,9 @@ importers:
       "@atlas-aios/agoe":
         specifier: workspace:*
         version: link:../../packages/agoe
+      "@atlas-aios/brain":
+        specifier: workspace:*
+        version: link:../../packages/brain
       "@atlas-aios/capability-kernel":
         specifier: workspace:*
         version: link:../../packages/capability-kernel

@@ -22,6 +22,8 @@ import type { SelfModelSnapshot } from "@atlas-aios/self-model";
 import type { SemanticEntity, SemanticRelationship } from "@atlas-aios/swm";
 import type { OperationalBlocker, WorldStateSnapshot } from "@atlas-aios/world-state";
 
+export * from "./model-runtime.js";
+
 export interface PlanningContext {
   goalId: string;
   worldStateSnapshotId: string;

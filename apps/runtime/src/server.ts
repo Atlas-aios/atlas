@@ -3,10 +3,19 @@ import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 
 import {
+  createNvidiaNimPlanningProvider,
+  type CreateNvidiaNimPlanningProviderInput
+} from "@atlas-aios/brain";
+
+import {
   createAtlasRuntime,
   createFileRuntimePersistence,
-  type CreateAtlasRuntimeOptions
+  type CreateAtlasRuntimeOptions,
+  type RuntimeBrainConfig
 } from "./index.js";
+
+type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
+type RuntimeNvidiaFetcher = CreateNvidiaNimPlanningProviderInput["fetcher"];
 
 export interface StartAtlasRuntimeServerOptions {
   port: number;
@@ -17,6 +26,34 @@ export interface StartAtlasRuntimeServerOptions {
 export interface RunningAtlasRuntimeServer {
   url: string;
   close(): Promise<void>;
+}
+
+export function createRuntimeBrainConfigFromEnvironment(
+  environment: RuntimeEnvironment,
+  fetcher: RuntimeNvidiaFetcher = fetchNvidiaNim
+): RuntimeBrainConfig {
+  const allowRemoteModels = environment.ATLAS_ALLOW_REMOTE_MODELS === "true";
+  const allowFreeHostedEndpoints =
+    environment.ATLAS_ALLOW_FREE_HOSTED_MODEL_ENDPOINTS === "true";
+  const apiKey = environment.NVIDIA_API_KEY;
+  const canConfigureNvidia =
+    allowRemoteModels &&
+    allowFreeHostedEndpoints &&
+    apiKey !== undefined &&
+    apiKey.length > 0;
+
+  return {
+    allowRemoteModels,
+    allowFreeHostedEndpoints,
+    providers: canConfigureNvidia
+      ? {
+          "nvidia-nemotron-super-remote": createNvidiaNimPlanningProvider({
+            apiKey,
+            fetcher
+          })
+        }
+      : {}
+  };
 }
 
 export async function startAtlasRuntimeServer(
@@ -106,11 +143,22 @@ async function writeWebResponse(
   outgoing.end(Buffer.from(await response.arrayBuffer()));
 }
 
+async function fetchNvidiaNim(url: string, init: Parameters<RuntimeNvidiaFetcher>[1]) {
+  const response = await fetch(url, init);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    json: () => response.json()
+  };
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.ATLAS_RUNTIME_PORT ?? 3000);
   const server = await startAtlasRuntimeServer({
     port,
     runtime: {
+      brain: createRuntimeBrainConfigFromEnvironment(process.env),
       ...(process.env.ATLAS_RUNTIME_API_KEY === undefined
         ? {}
         : {

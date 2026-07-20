@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@atlas-aios/agoe": "workspace:*",
+    "@atlas-aios/brain": "workspace:*",
     "@atlas-aios/capability-kernel": "workspace:*",
     "@atlas-aios/cognitive-loop": "workspace:*",
     "@atlas-aios/execution-engine": "workspace:*",

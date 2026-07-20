@@ -21,6 +21,254 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("generates a validated Brain plan for a stored goal", async () => {
+    const invocations: string[] = [];
+    const runtime = createAtlasRuntime({
+      brain: {
+        allowRemoteModels: false,
+        allowFreeHostedEndpoints: false,
+        providers: {
+          "qwen-local-default": {
+            invoke: async (input) => {
+              invocations.push(input.userPrompt);
+              return {
+                requestId: "local-request:1",
+                content: JSON.stringify({
+                  rationale: "Discover capabilities before selecting execution.",
+                  risks: ["The interface evidence may be incomplete."],
+                  steps: [
+                    {
+                      capabilityId: "capability:discover-interface",
+                      purpose: "Inspect trusted interface evidence.",
+                      requiresApproval: false
+                    }
+                  ]
+                })
+              };
+            }
+          }
+        }
+      }
+    });
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:brain-plan",
+          title: "Learn an unknown interface",
+          description: "Discover and validate capabilities without app-specific code.",
+          ownerId: "identity:user:moksh",
+          priority: 90,
+          successCriteria: ["A validated capability-first plan exists."],
+          createdAt: "2026-07-20T08:00:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/brain/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:brain-plan",
+          taskClass: "planning",
+          difficulty: "medium",
+          privacyClass: "private"
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      plan: {
+        id: "plan:goal:brain-plan:1",
+        goalId: "goal:brain-plan",
+        rationale: "Discover capabilities before selecting execution.",
+        risks: ["The interface evidence may be incomplete."],
+        steps: [
+          {
+            id: "plan:goal:brain-plan:1:step:1",
+            capabilityId: "capability:discover-interface",
+            purpose: "Inspect trusted interface evidence.",
+            requiresApproval: false
+          }
+        ]
+      },
+      modelSelection: expect.objectContaining({
+        selectedProfileId: "qwen-local-default",
+        lane: "local-default"
+      }),
+      providerRequestId: "local-request:1"
+    });
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]).toContain(
+      "Discover and validate capabilities without app-specific code."
+    );
+
+    const auditResponse = await runtime.handle(
+      new Request("http://atlas.local/audit-logs", { method: "GET" })
+    );
+    await expect(auditResponse.json()).resolves.toEqual({
+      auditLogs: [
+        expect.objectContaining({
+          id: "audit:brain-plan:plan:goal:brain-plan:1",
+          type: "brain.plan.generated",
+          actorId: "identity:runtime",
+          subjectId: "goal:brain-plan",
+          evidenceRefs: ["plan:goal:brain-plan:1", "local-request:1"],
+          metadata: {
+            modelProfileId: "qwen-local-default",
+            modelLane: "local-default"
+          }
+        })
+      ]
+    });
+  });
+
+  it("does not let a Brain plan request enable remote models", async () => {
+    const selectedProfiles: string[] = [];
+    const provider = {
+      invoke: async (input: { modelProfileId: string }) => {
+        selectedProfiles.push(input.modelProfileId);
+        return {
+          content: JSON.stringify({
+            rationale: "Use the server-approved model lane.",
+            risks: [],
+            steps: [
+              {
+                capabilityId: "capability:inspect",
+                purpose: "Inspect evidence.",
+                requiresApproval: false
+              }
+            ]
+          })
+        };
+      }
+    };
+    const runtime = createAtlasRuntime({
+      brain: {
+        allowRemoteModels: false,
+        allowFreeHostedEndpoints: false,
+        providers: {
+          "qwen-local-default": provider,
+          "nvidia-nemotron-super-remote": provider
+        }
+      }
+    });
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:server-policy",
+          title: "Review architecture",
+          description: "Review the architecture under server policy.",
+          ownerId: "identity:user:moksh",
+          priority: 80,
+          successCriteria: ["A review plan exists."],
+          createdAt: "2026-07-20T08:00:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/brain/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:server-policy",
+          taskClass: "architecture",
+          difficulty: "high",
+          privacyClass: "internal",
+          allowRemoteModels: true,
+          allowFreeHostedEndpoints: true
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(selectedProfiles).toEqual(["qwen-local-default"]);
+  });
+
+  it("returns 503 instead of fabricating a plan when the selected provider is absent", async () => {
+    const runtime = createAtlasRuntime();
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:no-model",
+          title: "Plan without a configured model",
+          description: "This request must fail honestly.",
+          ownerId: "identity:user:moksh",
+          priority: 70,
+          successCriteria: ["No synthetic plan is returned."],
+          createdAt: "2026-07-20T08:00:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/brain/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:no-model",
+          taskClass: "planning",
+          difficulty: "medium",
+          privacyClass: "private"
+        })
+      })
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "model_provider_unavailable",
+      modelProfileId: "qwen-local-default"
+    });
+  });
+
+  it("rejects malformed model plans at the runtime boundary", async () => {
+    const runtime = createAtlasRuntime({
+      brain: {
+        allowRemoteModels: false,
+        allowFreeHostedEndpoints: false,
+        providers: {
+          "qwen-local-default": {
+            invoke: async () => ({ content: "not-json" })
+          }
+        }
+      }
+    });
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:invalid-model-output",
+          title: "Validate model output",
+          description: "Reject malformed output.",
+          ownerId: "identity:user:moksh",
+          priority: 70,
+          successCriteria: ["Malformed output is rejected."],
+          createdAt: "2026-07-20T08:00:00.000Z"
+        })
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/brain/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:invalid-model-output",
+          taskClass: "planning",
+          difficulty: "medium",
+          privacyClass: "private"
+        })
+      })
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_model_output"
+    });
+  });
+
   it("runs the unknown business system learn-and-execute MVP flow", async () => {
     const runtime = createAtlasRuntime();
 

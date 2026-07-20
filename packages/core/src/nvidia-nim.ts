@@ -80,12 +80,10 @@ export function buildNvidiaNimChatCompletionRequest(
         messages: input.messages,
         max_tokens: input.maxTokens ?? 4096,
         stream: false,
-        extra_body: {
-          chat_template_kwargs: {
-            enable_thinking: input.enableThinking ?? true
-          },
-          reasoning_budget: input.reasoningBudget ?? 4096
-        }
+        chat_template_kwargs: {
+          enable_thinking: input.enableThinking ?? true
+        },
+        reasoning_budget: input.reasoningBudget ?? 4096
       })
     }
   };

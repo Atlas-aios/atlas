@@ -9,6 +9,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../../packages/agoe" },
+    { "path": "../../packages/brain" },
     { "path": "../../packages/capability-kernel" },
     { "path": "../../packages/cognitive-loop" },
     { "path": "../../packages/execution-engine" },

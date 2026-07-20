@@ -11,6 +11,14 @@ import {
   type GoalLifecycleEvent
 } from "@atlas-aios/agoe";
 import {
+  BrainModelUnavailableError,
+  InvalidBrainModelOutputError,
+  generateModelBackedPlan,
+  type AtlasPlan,
+  type BrainPlanningModelProvider,
+  type PlanningModelSelectionInput
+} from "@atlas-aios/brain";
+import {
   createCapabilityKernel,
   type CapabilityResolution,
   type CapabilityResolutionRequest,
@@ -130,6 +138,20 @@ export interface RuntimePersistence {
 export interface CreateAtlasRuntimeOptions {
   auth?: RuntimeAuthConfig;
   persistence?: RuntimePersistence;
+  brain?: RuntimeBrainConfig;
+}
+
+export interface RuntimeBrainConfig {
+  allowRemoteModels: boolean;
+  allowFreeHostedEndpoints: boolean;
+  providers: Readonly<Record<string, BrainPlanningModelProvider | undefined>>;
+}
+
+export interface GenerateRuntimeBrainPlanRequest {
+  goalId: string;
+  taskClass: PlanningModelSelectionInput["taskClass"];
+  difficulty: PlanningModelSelectionInput["difficulty"];
+  privacyClass: PlanningModelSelectionInput["privacyClass"];
 }
 
 export interface RuntimeHealthResponse {
@@ -390,6 +412,7 @@ export interface RuntimeStateSnapshot {
   workflows: AtlasFlow[];
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
+  brainPlans?: AtlasPlan[];
 }
 
 interface RuntimeState {
@@ -409,6 +432,7 @@ interface RuntimeState {
   workflows: AtlasFlow[];
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
+  brainPlans: AtlasPlan[];
   governancePolicyStore: GovernancePolicyStore;
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
@@ -468,6 +492,7 @@ export function createAtlasRuntime(
     workflows: [],
     thoughts: [],
     simulations: [],
+    brainPlans: [],
     governancePolicyStore: createInMemoryGovernancePolicyStore(
       createDefaultGovernancePolicies()
     ),
@@ -493,7 +518,7 @@ export function createAtlasRuntime(
         return authorizationFailure;
       }
 
-      const response = await handleRuntimeRequest(request, state);
+      const response = await handleRuntimeRequest(request, state, options.brain);
 
       if (shouldPersistRuntimeRequest(request, response)) {
         options.persistence?.save(createRuntimeStateSnapshot(state));
@@ -506,7 +531,8 @@ export function createAtlasRuntime(
 
 async function handleRuntimeRequest(
   request: Request,
-  state: RuntimeState
+  state: RuntimeState,
+  brain: RuntimeBrainConfig | undefined
 ): Promise<Response> {
   const url = new URL(request.url);
 
@@ -515,6 +541,89 @@ async function handleRuntimeRequest(
       service: "atlas-runtime",
       status: "ok"
     });
+  }
+
+  if (request.method === "POST" && url.pathname === "/brain/plan") {
+    const input = (await request.json()) as unknown;
+
+    if (!isGenerateRuntimeBrainPlanRequest(input)) {
+      return json(
+        {
+          error: "invalid_brain_plan_request",
+          reason:
+            "goalId, taskClass, difficulty, and privacyClass are required and must use supported values."
+        },
+        { status: 400 }
+      );
+    }
+
+    const goal = state.goals.get(input.goalId);
+    if (goal === undefined) {
+      return json({ error: "goal_not_found", goalId: input.goalId }, { status: 404 });
+    }
+
+    const planNumber =
+      state.brainPlans.filter((plan) => plan.goalId === goal.id).length + 1;
+    const planId = `plan:${goal.id}:${planNumber}`;
+
+    try {
+      const result = await generateModelBackedPlan({
+        planId,
+        goalId: goal.id,
+        objective: `${goal.title}\n${goal.description}`,
+        context: createRuntimeBrainPlanningContext(state, goal),
+        routing: {
+          taskClass: input.taskClass,
+          difficulty: input.difficulty,
+          privacyClass: input.privacyClass,
+          allowRemoteModels: brain?.allowRemoteModels ?? false,
+          allowFreeHostedEndpoints: brain?.allowFreeHostedEndpoints ?? false
+        },
+        providers: brain?.providers ?? {}
+      });
+      state.brainPlans.push(result.plan);
+      state.auditLogs.push({
+        id: `audit:brain-plan:${result.plan.id}`,
+        type: "brain.plan.generated",
+        actorId: request.headers.get("x-atlas-identity-id") ?? "identity:runtime",
+        subjectId: goal.id,
+        occurredAt: new Date().toISOString(),
+        summary: `Brain generated plan ${result.plan.id} using ${result.modelSelection.selectedProfileId}.`,
+        evidenceRefs: [
+          result.plan.id,
+          ...(result.providerRequestId === undefined ? [] : [result.providerRequestId])
+        ],
+        metadata: {
+          modelProfileId: result.modelSelection.selectedProfileId,
+          modelLane: result.modelSelection.lane
+        }
+      });
+
+      return json(result);
+    } catch (error) {
+      if (error instanceof BrainModelUnavailableError) {
+        return json(
+          {
+            error: error.code,
+            modelProfileId: error.modelProfileId,
+            reason: error.message
+          },
+          { status: 503 }
+        );
+      }
+
+      if (error instanceof InvalidBrainModelOutputError) {
+        return json({ error: error.code, reason: error.message }, { status: 502 });
+      }
+
+      return json(
+        {
+          error: "model_provider_failed",
+          reason: error instanceof Error ? error.message : "Model provider failed."
+        },
+        { status: 502 }
+      );
+    }
   }
 
   if (request.method === "POST" && url.pathname === "/workflows") {
@@ -1238,6 +1347,53 @@ function isRuntimeAuthExempt(request: Request): boolean {
   return request.method === "GET" && url.pathname === "/health";
 }
 
+function isGenerateRuntimeBrainPlanRequest(
+  value: unknown
+): value is GenerateRuntimeBrainPlanRequest {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const input = value as Record<string, unknown>;
+  return (
+    typeof input.goalId === "string" &&
+    input.goalId.length > 0 &&
+    isOneOf(input.taskClass, [
+      "routine",
+      "planning",
+      "architecture",
+      "governance-review",
+      "hard-debugging",
+      "research-synthesis"
+    ]) &&
+    isOneOf(input.difficulty, ["low", "medium", "high", "critical"]) &&
+    isOneOf(input.privacyClass, ["public", "internal", "private", "confidential"])
+  );
+}
+
+function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
+  return typeof value === "string" && allowed.includes(value as T);
+}
+
+function createRuntimeBrainPlanningContext(state: RuntimeState, goal: Goal): string[] {
+  const goalContext = [
+    `Goal owner: ${goal.ownerId}. Priority: ${goal.priority}. Status: ${goal.status}.`,
+    `Success criteria: ${goal.successCriteria.join("; ")}`
+  ];
+  const capabilityContext = state.capabilities
+    .slice(0, 20)
+    .map(
+      (capability) =>
+        `Available capability ${capability.id} (${capability.name}) has confidence ${capability.confidence}.`
+    );
+  const blockerContext = createRuntimeOperationalBlockers(state).map(
+    (blocker) =>
+      `Operational blocker ${blocker.id} has severity ${blocker.severity}: ${blocker.summary}`
+  );
+
+  return [...goalContext, ...capabilityContext, ...blockerContext];
+}
+
 function shouldPersistRuntimeRequest(request: Request, response: Response): boolean {
   return request.method !== "GET" && request.method !== "HEAD" && response.status < 500;
 }
@@ -1259,7 +1415,8 @@ function createRuntimeStateSnapshot(state: RuntimeState): RuntimeStateSnapshot {
     auditLogs: state.auditLogs,
     workflows: state.workflows,
     thoughts: state.thoughts,
-    simulations: state.simulations
+    simulations: state.simulations,
+    brainPlans: state.brainPlans
   };
 }
 
@@ -1283,6 +1440,7 @@ function restoreRuntimeStateSnapshot(
   state.workflows = snapshot.workflows ?? [];
   state.thoughts = snapshot.thoughts ?? [];
   state.simulations = snapshot.simulations ?? [];
+  state.brainPlans = snapshot.brainPlans ?? [];
 }
 
 async function simulateRuntimeProvider(
