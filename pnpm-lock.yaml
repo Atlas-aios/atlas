@@ -61,6 +61,9 @@ importers:
       "@atlas-aios/interface-drivers":
         specifier: workspace:*
         version: link:../../packages/interface-drivers
+      "@atlas-aios/internal-economy":
+        specifier: workspace:*
+        version: link:../../packages/internal-economy
       "@atlas-aios/learning":
         specifier: workspace:*
         version: link:../../packages/learning
@@ -145,6 +148,8 @@ importers:
   packages/identity: {}
 
   packages/interface-drivers: {}
+
+  packages/internal-economy: {}
 
   packages/learning:
     dependencies:

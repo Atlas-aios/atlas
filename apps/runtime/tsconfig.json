@@ -18,6 +18,7 @@
     { "path": "../../packages/governance" },
     { "path": "../../packages/identity" },
     { "path": "../../packages/interface-drivers" },
+    { "path": "../../packages/internal-economy" },
     { "path": "../../packages/learning" },
     { "path": "../../packages/memory" },
     { "path": "../../packages/self-model" },

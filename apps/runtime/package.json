@@ -27,6 +27,7 @@
     "@atlas-aios/governance": "workspace:*",
     "@atlas-aios/identity": "workspace:*",
     "@atlas-aios/interface-drivers": "workspace:*",
+    "@atlas-aios/internal-economy": "workspace:*",
     "@atlas-aios/learning": "workspace:*",
     "@atlas-aios/memory": "workspace:*",
     "@atlas-aios/self-model": "workspace:*",

@@ -390,6 +390,245 @@ describe("Atlas runtime API", () => {
     }
   });
 
+  it("accounts for durable budget reservations and constrains simulation comparison", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "atlas-economy-"));
+    const persistencePath = join(workspace, "runtime-state.json");
+    const headers = {
+      authorization: "Bearer atlas-economy-key",
+      "x-atlas-identity-id": "identity:user:moksh",
+      "content-type": "application/json"
+    };
+
+    try {
+      const runtime = createAtlasRuntime({
+        auth: { apiKey: "atlas-economy-key", requireIdentity: true },
+        persistence: createFileRuntimePersistence(persistencePath)
+      });
+      const budgetResponse = await runtime.handle(
+        new Request("http://atlas.local/economy/budgets", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            id: "budget:project:atlas",
+            scopeType: "project",
+            scopeId: "project:atlas",
+            unit: "usd",
+            limit: 10,
+            createdAt: "2026-07-20T15:00:00.000Z"
+          })
+        })
+      );
+      expect(budgetResponse.status).toBe(201);
+      await expect(budgetResponse.json()).resolves.toMatchObject({
+        budget: { id: "budget:project:atlas", limit: 10 },
+        balance: { settled: 0, reserved: 0, available: 10, unit: "usd" }
+      });
+
+      const reservationResponse = await runtime.handle(
+        new Request("http://atlas.local/economy/reservations", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            id: "reservation:plan:held",
+            budgetId: "budget:project:atlas",
+            amount: 4,
+            purpose: "Hold execution capacity",
+            referenceId: "plan:held",
+            createdAt: "2026-07-20T15:01:00.000Z"
+          })
+        })
+      );
+      expect(reservationResponse.status).toBe(201);
+
+      const overspendResponse = await runtime.handle(
+        new Request("http://atlas.local/economy/reservations", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            id: "reservation:plan:overspend",
+            budgetId: "budget:project:atlas",
+            amount: 7,
+            purpose: "Oversubscribe project budget",
+            referenceId: "plan:overspend",
+            createdAt: "2026-07-20T15:02:00.000Z"
+          })
+        })
+      );
+      expect(overspendResponse.status).toBe(409);
+      await expect(overspendResponse.json()).resolves.toMatchObject({
+        error: "insufficient_funds"
+      });
+
+      await runtime.handle(
+        new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+          method: "POST",
+          headers
+        })
+      );
+      for (const id of [
+        "simulation:economy:expensive",
+        "simulation:economy:affordable"
+      ]) {
+        const simulationResponse = await runtime.handle(
+          new Request("http://atlas.local/simulations", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              id,
+              goalId: "goal:economy",
+              capabilityId: "capability:create-folio",
+              providerId: "provider:openapi:create-folio",
+              inputs: { name: id },
+              predictedWorldStateEffects: [],
+              createdAt: "2026-07-20T15:03:00.000Z"
+            })
+          })
+        );
+        expect(simulationResponse.status).toBe(201);
+      }
+
+      const comparisonResponse = await runtime.handle(
+        new Request("http://atlas.local/simulations/compare", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            id: "comparison:economy:one",
+            comparedAt: "2026-07-20T15:04:00.000Z",
+            budgetId: "budget:project:atlas",
+            candidates: [
+              {
+                planId: "plan:expensive",
+                simulationId: "simulation:economy:expensive",
+                estimatedCost: 7,
+                estimatedLatencyMs: 200,
+                confidence: 0.95
+              },
+              {
+                planId: "plan:affordable",
+                simulationId: "simulation:economy:affordable",
+                estimatedCost: 5,
+                estimatedLatencyMs: 400,
+                confidence: 0.8
+              }
+            ],
+            policy: {
+              maximumCost: 10,
+              maximumLatencyMs: 1000,
+              minimumConfidence: 0.5,
+              maximumBlockerIncrease: 0,
+              maximumCriticalBlockerIncrease: 0,
+              weights: {
+                confidence: 1,
+                cost: 1,
+                latency: 1,
+                blockers: 1,
+                criticalBlockers: 1
+              }
+            }
+          })
+        })
+      );
+      expect(comparisonResponse.status).toBe(201);
+      await expect(comparisonResponse.json()).resolves.toMatchObject({
+        comparison: {
+          id: "comparison:economy:one",
+          selectedPlanId: "plan:affordable",
+          policy: { maximumCost: 6 },
+          economyEvidence: {
+            budgetId: "budget:project:atlas",
+            unit: "usd",
+            availableAtComparison: 6,
+            effectiveMaximumCost: 6
+          },
+          rankings: expect.arrayContaining([
+            expect.objectContaining({
+              planId: "plan:expensive",
+              eligible: false,
+              rejectionReasons: ["cost_limit_exceeded"]
+            })
+          ])
+        }
+      });
+
+      const settlementResponse = await runtime.handle(
+        new Request(
+          "http://atlas.local/economy/reservations/reservation%3Aplan%3Aheld/settle",
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              settlementId: "settlement:plan:held",
+              actualAmount: 3,
+              settledAt: "2026-07-20T15:05:00.000Z"
+            })
+          }
+        )
+      );
+      expect(settlementResponse.status).toBe(200);
+      await expect(settlementResponse.json()).resolves.toMatchObject({
+        reservation: { status: "settled", settledAmount: 3 },
+        balance: { settled: 3, reserved: 0, available: 7 }
+      });
+
+      const ledgerResponse = await runtime.handle(
+        new Request("http://atlas.local/economy/ledger", {
+          method: "GET",
+          headers
+        })
+      );
+      await expect(ledgerResponse.json()).resolves.toMatchObject({
+        ledger: [
+          { kind: "budget_created" },
+          { kind: "cost_reserved" },
+          { kind: "cost_settled" }
+        ]
+      });
+
+      const auditResponse = await runtime.handle(
+        new Request("http://atlas.local/audit-logs", {
+          method: "GET",
+          headers
+        })
+      );
+      await expect(auditResponse.json()).resolves.toMatchObject({
+        auditLogs: expect.arrayContaining([
+          expect.objectContaining({
+            id: "audit:economy:ledger:settlement:settlement:plan:held",
+            type: "economy.cost_settled"
+          }),
+          expect.objectContaining({
+            id: "audit:simulation-comparison:comparison:economy:one",
+            metadata: expect.objectContaining({
+              budgetId: "budget:project:atlas",
+              effectiveMaximumCost: "6"
+            })
+          })
+        ])
+      });
+
+      const restoredRuntime = createAtlasRuntime({
+        auth: { apiKey: "atlas-economy-key", requireIdentity: true },
+        persistence: createFileRuntimePersistence(persistencePath)
+      });
+      const restoredBudgetsResponse = await restoredRuntime.handle(
+        new Request("http://atlas.local/economy/budgets", {
+          method: "GET",
+          headers
+        })
+      );
+      await expect(restoredBudgetsResponse.json()).resolves.toMatchObject({
+        budgets: [
+          {
+            budget: { id: "budget:project:atlas" },
+            balance: { settled: 3, reserved: 0, available: 7 }
+          }
+        ]
+      });
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   it("reports local runtime health", async () => {
     const runtime = createAtlasRuntime();
 

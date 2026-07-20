@@ -74,6 +74,22 @@ import {
   type RestDriverResult
 } from "@atlas-aios/interface-drivers";
 import {
+  EconomyError,
+  createBudget,
+  createInternalEconomyState,
+  getBudgetBalance,
+  releaseReservation,
+  reserveCost,
+  settleReservation,
+  snapshotInternalEconomy,
+  type CreateBudgetInput,
+  type EconomyLedgerEntry,
+  type InternalEconomyState,
+  type ReleaseReservationInput,
+  type ReserveCostInput,
+  type SettleReservationInput
+} from "@atlas-aios/internal-economy";
+import {
   createUnknownBusinessBrowserUiFixture,
   createUnknownBusinessCreateResourceBenchmark,
   createUnknownBusinessSystemRestFixture,
@@ -442,8 +458,20 @@ export interface RuntimeSimulationComparisonCandidateInput {
 export interface CreateRuntimeSimulationComparisonRequest {
   id: string;
   comparedAt: string;
+  budgetId?: string;
   candidates: RuntimeSimulationComparisonCandidateInput[];
   policy: SimulationPlanComparisonPolicy;
+}
+
+export interface RuntimeSimulationComparisonEconomyEvidence {
+  budgetId: string;
+  unit: string;
+  availableAtComparison: number;
+  effectiveMaximumCost: number;
+}
+
+export interface RuntimeSimulationComparisonRecord extends SimulationPlanComparisonResult {
+  economyEvidence?: RuntimeSimulationComparisonEconomyEvidence;
 }
 
 export interface RuntimeStateSnapshot {
@@ -463,7 +491,8 @@ export interface RuntimeStateSnapshot {
   workflows: AtlasFlow[];
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
-  simulationComparisons?: SimulationPlanComparisonResult[];
+  simulationComparisons?: RuntimeSimulationComparisonRecord[];
+  internalEconomy?: InternalEconomyState;
   brainPlans?: AtlasPlan[];
   planRuns?: PlanRun[];
 }
@@ -485,7 +514,8 @@ interface RuntimeState {
   workflows: AtlasFlow[];
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
-  simulationComparisons: SimulationPlanComparisonResult[];
+  simulationComparisons: RuntimeSimulationComparisonRecord[];
+  internalEconomy: InternalEconomyState;
   brainPlans: AtlasPlan[];
   planRuns: PlanRun[];
   governancePolicyStore: GovernancePolicyStore;
@@ -548,6 +578,7 @@ export function createAtlasRuntime(
     thoughts: [],
     simulations: [],
     simulationComparisons: [],
+    internalEconomy: createInternalEconomyState(),
     brainPlans: [],
     planRuns: [],
     governancePolicyStore: createInMemoryGovernancePolicyStore(
@@ -888,6 +919,158 @@ async function handleRuntimeRequest(
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/economy/budgets") {
+    const input = (await request.json()) as unknown;
+    if (!isCreateBudgetInput(input)) {
+      return json(
+        {
+          error: "invalid_economy_budget_request",
+          reason:
+            "Budget creation requires id, scopeType, scopeId, unit, positive limit, and createdAt."
+        },
+        { status: 400 }
+      );
+    }
+
+    const existed = state.internalEconomy.budgets.some(
+      (budget) => budget.id === input.id
+    );
+    try {
+      const result = createBudget(state.internalEconomy, input);
+      state.internalEconomy = result.state;
+      if (!existed) {
+        recordRuntimeEconomyEvidence(state, result.entry, request);
+      }
+      return json(
+        {
+          budget: result.budget,
+          balance: getBudgetBalance(state.internalEconomy, result.budget.id)
+        },
+        { status: existed ? 200 : 201 }
+      );
+    } catch (error) {
+      return economyErrorResponse(error);
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/economy/budgets") {
+    return json({
+      budgets: state.internalEconomy.budgets.map((budget) => ({
+        budget: { ...budget },
+        balance: getBudgetBalance(state.internalEconomy, budget.id)
+      }))
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/economy/ledger") {
+    const budgetId = url.searchParams.get("budgetId");
+    return json({
+      ledger: state.internalEconomy.ledger
+        .filter((entry) => budgetId === null || entry.budgetId === budgetId)
+        .map((entry) => ({ ...entry }))
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/economy/reservations") {
+    const input = (await request.json()) as unknown;
+    if (!isReserveCostInput(input)) {
+      return json(
+        {
+          error: "invalid_economy_reservation_request",
+          reason:
+            "Reservation requires id, budgetId, positive amount, purpose, referenceId, and createdAt."
+        },
+        { status: 400 }
+      );
+    }
+
+    const existed = state.internalEconomy.reservations.some(
+      (reservation) => reservation.id === input.id
+    );
+    try {
+      const result = reserveCost(state.internalEconomy, input);
+      state.internalEconomy = result.state;
+      if (!existed) {
+        recordRuntimeEconomyEvidence(state, result.entry, request);
+      }
+      return json(
+        {
+          reservation: result.reservation,
+          balance: getBudgetBalance(state.internalEconomy, result.reservation.budgetId)
+        },
+        { status: existed ? 200 : 201 }
+      );
+    } catch (error) {
+      return economyErrorResponse(error);
+    }
+  }
+
+  const settleReservationMatch = /^\/economy\/reservations\/(.+)\/settle$/.exec(
+    url.pathname
+  );
+  if (request.method === "POST" && settleReservationMatch !== null) {
+    const reservationId = decodeURIComponent(settleReservationMatch[1] ?? "");
+    const body = (await request.json()) as unknown;
+    if (!isSettleReservationBody(body)) {
+      return json(
+        {
+          error: "invalid_economy_settlement_request",
+          reason: "Settlement requires settlementId, actualAmount, and settledAt."
+        },
+        { status: 400 }
+      );
+    }
+
+    const input: SettleReservationInput = { reservationId, ...body };
+    const existingEntryCount = state.internalEconomy.ledger.length;
+    try {
+      const result = settleReservation(state.internalEconomy, input);
+      state.internalEconomy = result.state;
+      if (state.internalEconomy.ledger.length > existingEntryCount) {
+        recordRuntimeEconomyEvidence(state, result.entry, request);
+      }
+      return json({
+        reservation: result.reservation,
+        balance: getBudgetBalance(state.internalEconomy, result.reservation.budgetId)
+      });
+    } catch (error) {
+      return economyErrorResponse(error);
+    }
+  }
+
+  const releaseReservationMatch = /^\/economy\/reservations\/(.+)\/release$/.exec(
+    url.pathname
+  );
+  if (request.method === "POST" && releaseReservationMatch !== null) {
+    const reservationId = decodeURIComponent(releaseReservationMatch[1] ?? "");
+    const body = (await request.json()) as unknown;
+    if (!isReleaseReservationBody(body)) {
+      return json(
+        {
+          error: "invalid_economy_release_request",
+          reason: "Release requires releaseId, releasedAt, and reason."
+        },
+        { status: 400 }
+      );
+    }
+
+    const input: ReleaseReservationInput = { reservationId, ...body };
+    const existingEntryCount = state.internalEconomy.ledger.length;
+    try {
+      const result = releaseReservation(state.internalEconomy, input);
+      state.internalEconomy = result.state;
+      if (state.internalEconomy.ledger.length > existingEntryCount) {
+        recordRuntimeEconomyEvidence(state, result.entry, request);
+      }
+      return json({
+        reservation: result.reservation,
+        balance: getBudgetBalance(state.internalEconomy, result.reservation.budgetId)
+      });
+    } catch (error) {
+      return economyErrorResponse(error);
+    }
+  }
+
   if (request.method === "POST" && url.pathname === "/simulations") {
     const input = (await request.json()) as unknown;
     if (!isCreateRuntimeSimulationRequest(input)) {
@@ -964,13 +1147,53 @@ async function handleRuntimeRequest(
       });
     }
 
+    let comparisonPolicy = input.policy;
+    let economyEvidence: RuntimeSimulationComparisonEconomyEvidence | undefined;
+    if (input.budgetId !== undefined) {
+      try {
+        const balance = getBudgetBalance(state.internalEconomy, input.budgetId);
+        if (balance.available <= 0) {
+          return json(
+            {
+              error: "budget_exhausted",
+              budgetId: input.budgetId,
+              available: balance.available,
+              unit: balance.unit
+            },
+            { status: 409 }
+          );
+        }
+        const effectiveMaximumCost = Math.min(
+          input.policy.maximumCost,
+          balance.available
+        );
+        comparisonPolicy = {
+          ...input.policy,
+          maximumCost: effectiveMaximumCost,
+          weights: { ...input.policy.weights }
+        };
+        economyEvidence = {
+          budgetId: input.budgetId,
+          unit: balance.unit,
+          availableAtComparison: balance.available,
+          effectiveMaximumCost
+        };
+      } catch (error) {
+        return economyErrorResponse(error);
+      }
+    }
+
     try {
-      const comparison = compareSimulationPlans({
+      const compared = compareSimulationPlans({
         id: input.id,
         comparedAt: input.comparedAt,
         candidates: resolvedCandidates,
-        policy: input.policy
+        policy: comparisonPolicy
       });
+      const comparison: RuntimeSimulationComparisonRecord = {
+        ...compared,
+        ...(economyEvidence === undefined ? {} : { economyEvidence })
+      };
       state.simulationComparisons.push(comparison);
       recordRuntimeSimulationComparisonEvidence(state, comparison);
 
@@ -1901,6 +2124,7 @@ function isCreateRuntimeSimulationComparisonRequest(
   }
 
   return (
+    (value.budgetId === undefined || isNonEmptyRuntimeString(value.budgetId)) &&
     value.candidates.every(
       (candidate) =>
         isRuntimeRecord(candidate) &&
@@ -1920,6 +2144,58 @@ function isCreateRuntimeSimulationComparisonRequest(
     isFiniteRuntimeNumber(value.policy.weights.latency) &&
     isFiniteRuntimeNumber(value.policy.weights.blockers) &&
     isFiniteRuntimeNumber(value.policy.weights.criticalBlockers)
+  );
+}
+
+function isCreateBudgetInput(value: unknown): value is CreateBudgetInput {
+  return (
+    isRuntimeRecord(value) &&
+    isNonEmptyRuntimeString(value.id) &&
+    (value.scopeType === "organization" ||
+      value.scopeType === "project" ||
+      value.scopeType === "goal" ||
+      value.scopeType === "execution" ||
+      value.scopeType === "provider") &&
+    isNonEmptyRuntimeString(value.scopeId) &&
+    isNonEmptyRuntimeString(value.unit) &&
+    isFiniteRuntimeNumber(value.limit) &&
+    isNonEmptyRuntimeString(value.createdAt) &&
+    (value.parentBudgetId === undefined ||
+      isNonEmptyRuntimeString(value.parentBudgetId))
+  );
+}
+
+function isReserveCostInput(value: unknown): value is ReserveCostInput {
+  return (
+    isRuntimeRecord(value) &&
+    isNonEmptyRuntimeString(value.id) &&
+    isNonEmptyRuntimeString(value.budgetId) &&
+    isFiniteRuntimeNumber(value.amount) &&
+    isNonEmptyRuntimeString(value.purpose) &&
+    isNonEmptyRuntimeString(value.referenceId) &&
+    isNonEmptyRuntimeString(value.createdAt)
+  );
+}
+
+function isSettleReservationBody(
+  value: unknown
+): value is Omit<SettleReservationInput, "reservationId"> {
+  return (
+    isRuntimeRecord(value) &&
+    isNonEmptyRuntimeString(value.settlementId) &&
+    isFiniteRuntimeNumber(value.actualAmount) &&
+    isNonEmptyRuntimeString(value.settledAt)
+  );
+}
+
+function isReleaseReservationBody(
+  value: unknown
+): value is Omit<ReleaseReservationInput, "reservationId"> {
+  return (
+    isRuntimeRecord(value) &&
+    isNonEmptyRuntimeString(value.releaseId) &&
+    isNonEmptyRuntimeString(value.releasedAt) &&
+    isNonEmptyRuntimeString(value.reason)
   );
 }
 
@@ -2025,6 +2301,7 @@ function createRuntimeStateSnapshot(state: RuntimeState): RuntimeStateSnapshot {
     thoughts: state.thoughts,
     simulations: state.simulations,
     simulationComparisons: state.simulationComparisons,
+    internalEconomy: snapshotInternalEconomy(state.internalEconomy),
     brainPlans: state.brainPlans,
     planRuns: state.planRuns
   };
@@ -2051,6 +2328,7 @@ function restoreRuntimeStateSnapshot(
   state.thoughts = snapshot.thoughts ?? [];
   state.simulations = snapshot.simulations ?? [];
   state.simulationComparisons = snapshot.simulationComparisons ?? [];
+  state.internalEconomy = createInternalEconomyState(snapshot.internalEconomy);
   state.brainPlans = snapshot.brainPlans ?? [];
   state.planRuns = snapshot.planRuns ?? [];
 }
@@ -2537,7 +2815,7 @@ function updateRuntimeSelfModelFromExecution(
 
 function recordRuntimeSimulationComparisonEvidence(
   state: RuntimeState,
-  comparison: SimulationPlanComparisonResult
+  comparison: RuntimeSimulationComparisonRecord
 ): void {
   const simulationIds = comparison.rankings.map((ranking) => ranking.simulationId);
   const evidenceRefs = [
@@ -2560,7 +2838,19 @@ function recordRuntimeSimulationComparisonEvidence(
     metadata: {
       status: comparison.status,
       selectedPlanId: comparison.selectedPlanId ?? "none",
-      sourceSnapshotId: comparison.sourceSnapshotId
+      sourceSnapshotId: comparison.sourceSnapshotId,
+      ...(comparison.economyEvidence === undefined
+        ? {}
+        : {
+            budgetId: comparison.economyEvidence.budgetId,
+            availableAtComparison: String(
+              comparison.economyEvidence.availableAtComparison
+            ),
+            effectiveMaximumCost: String(
+              comparison.economyEvidence.effectiveMaximumCost
+            ),
+            budgetUnit: comparison.economyEvidence.unit
+          })
     }
   });
   recordMemoryEvent(state.memoryStore, {
@@ -2577,6 +2867,50 @@ function recordRuntimeSimulationComparisonEvidence(
     metadata: {
       status: comparison.status,
       selectedPlanId: comparison.selectedPlanId ?? "none"
+    }
+  });
+}
+
+function recordRuntimeEconomyEvidence(
+  state: RuntimeState,
+  entry: EconomyLedgerEntry,
+  request: Request
+): void {
+  const actorId = request.headers.get("x-atlas-identity-id") ?? "identity:runtime";
+  const subjectIds = [
+    entry.budgetId,
+    ...(entry.reservationId === undefined ? [] : [entry.reservationId])
+  ];
+
+  state.auditLogs.push({
+    id: `audit:economy:${entry.id}`,
+    type: `economy.${entry.kind}`,
+    actorId,
+    subjectId: entry.budgetId,
+    occurredAt: entry.occurredAt,
+    summary: entry.description,
+    evidenceRefs: [entry.id],
+    metadata: {
+      amount: String(entry.amount),
+      unit: entry.unit,
+      ...(entry.reservationId === undefined
+        ? {}
+        : { reservationId: entry.reservationId }),
+      ...(entry.referenceId === undefined ? {} : { referenceId: entry.referenceId })
+    }
+  });
+  recordMemoryEvent(state.memoryStore, {
+    id: `memory:event:economy:${entry.id}`,
+    kind: entry.kind === "budget_created" ? "decision" : "execution",
+    occurredAt: entry.occurredAt,
+    summary: entry.description,
+    subjectIds,
+    sourceIds: [entry.id],
+    evidenceRefs: [entry.id],
+    metadata: {
+      ledgerEntryKind: entry.kind,
+      amount: String(entry.amount),
+      unit: entry.unit
     }
   });
 }
@@ -3374,4 +3708,27 @@ function createRuntimeGoalTimeline(
 
 function json<TBody>(body: TBody, init: ResponseInit = {}): Response {
   return Response.json(body, init);
+}
+
+function economyErrorResponse(error: unknown): Response {
+  if (!(error instanceof EconomyError)) {
+    throw error;
+  }
+
+  const status =
+    error.code === "not_found"
+      ? 404
+      : error.code === "conflict" ||
+          error.code === "insufficient_funds" ||
+          error.code === "invalid_transition"
+        ? 409
+        : 400;
+
+  return json(
+    {
+      error: error.code,
+      reason: error.message
+    },
+    { status }
+  );
 }

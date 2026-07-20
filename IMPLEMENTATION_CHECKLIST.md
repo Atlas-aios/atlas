@@ -443,7 +443,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement deterministic simulation plan comparison.
 - [x] Add explicit confidence, cost, latency, blocker, and critical-risk weights.
 - [x] Persist comparison selection with Memory and Audit evidence.
-- [ ] Implement Internal Economy cost model.
+- [x] Implement Internal Economy cost model.
+- [x] Persist budget reservations, settlements, releases, and ledger evidence.
+- [x] Constrain simulation comparison by available budget.
+- [ ] Reserve and settle selected-plan cost automatically during execution.
 - [ ] Implement Time Engine deadlines.
 - [ ] Implement Time Engine recurrence.
 - [ ] Implement waiting-time detection.

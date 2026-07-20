@@ -148,6 +148,24 @@ out-of-policy candidates remain visible with rejection reasons but cannot be sel
 Selection is deterministic evidence for planning and does not grant execution
 authority.
 
+### Internal Economy
+
+The Internal Economy owns deterministic resource accounting. Its append-only ledger
+records budget creation, cost reservation, actual settlement, and reservation release.
+Available funds are derived from the immutable budget limit minus settled spend and
+active reservations; callers cannot directly write a balance.
+
+Runtime persists the economy state and exposes authenticated budget, reservation,
+settlement, release, and ledger APIs. Accepted transitions emit Memory and Audit
+evidence, while conflicting retries and oversubscription are rejected by the domain
+boundary.
+
+Simulation comparison may reference a budget. Runtime snapshots its available amount
+and tightens the comparison cost ceiling to the lower of caller policy or available
+funds. This is planning evidence only: selecting a plan does not reserve funds, approve
+execution, or settle provider cost. Automatic reservation and settlement around the
+governed execution path remain explicit follow-up work.
+
 ### Memory
 
 Memory records what happened. It is append-first, provenance-first, and used as evidence for learning and experience.
