@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { runBoundedCognitiveLoopCycle } from "./index.js";
+import {
+  completeCognitiveLoopExecution,
+  runBoundedCognitiveLoopCycle
+} from "./index.js";
 
 describe("runBoundedCognitiveLoopCycle", () => {
   it("observes blockers and recommends approval without executing", () => {
@@ -260,4 +263,146 @@ describe("runBoundedCognitiveLoopCycle", () => {
     });
     expect(cycle.executedAction).toBe(false);
   });
+
+  it("records completed governed execution without mutating the source cycle", () => {
+    const cycle = createDispatchReadyCycle();
+    const evidenceRefs = ["execution:plan-run:one", "provider:evidence:one"];
+
+    const completed = completeCognitiveLoopExecution({
+      cycle,
+      outcome: {
+        id: "plan-run:one",
+        status: "completed",
+        occurredAt: "2026-07-20T13:01:00.000Z",
+        evidenceRefs
+      }
+    });
+    evidenceRefs.push("mutated:evidence");
+
+    expect(completed.executedAction).toBe(true);
+    expect(completed.actionTaken).toEqual({
+      type: "dispatch_capability",
+      executionId: "plan-run:one",
+      status: "completed",
+      occurredAt: "2026-07-20T13:01:00.000Z",
+      targetRefs: [
+        "goal:runtime-create-resource",
+        "capability:create-folio",
+        "simulation:create-folio:passed"
+      ],
+      evidenceRefs: ["execution:plan-run:one", "provider:evidence:one"]
+    });
+    expect(completed.nextAction).toEqual({
+      type: "rest",
+      status: "idle",
+      reason: "The governed dispatch completed successfully.",
+      targetRefs: ["plan-run:one"]
+    });
+    expect(completed.phases.find((phase) => phase.phase === "execute")).toEqual({
+      phase: "execute",
+      status: "completed",
+      summary: "Governed execution plan-run:one completed.",
+      evidenceRefs: ["execution:plan-run:one", "provider:evidence:one"]
+    });
+    expect(cycle.executedAction).toBe(false);
+    expect(cycle.actionTaken).toBeUndefined();
+    expect(cycle.phases.find((phase) => phase.phase === "execute")).toMatchObject({
+      status: "skipped"
+    });
+  });
+
+  it("records failed execution and requests review", () => {
+    const failed = completeCognitiveLoopExecution({
+      cycle: createDispatchReadyCycle(),
+      outcome: {
+        id: "plan-run:failed",
+        status: "failed",
+        occurredAt: "2026-07-20T13:02:00.000Z",
+        evidenceRefs: ["execution:failure:one"]
+      }
+    });
+
+    expect(failed.executedAction).toBe(true);
+    expect(failed.nextAction).toEqual({
+      type: "review_execution",
+      status: "needs_review",
+      reason: "The governed dispatch failed and requires review before retry.",
+      targetRefs: ["plan-run:failed", "execution:failure:one"]
+    });
+    expect(failed.phases.find((phase) => phase.phase === "execute")).toMatchObject({
+      status: "failed",
+      evidenceRefs: ["execution:failure:one"]
+    });
+  });
+
+  it("rejects execution continuation for a non-dispatch cycle", () => {
+    const cycle = runBoundedCognitiveLoopCycle({
+      id: "cognitive-loop:cycle:blocked",
+      startedAt: "2026-07-20T13:00:00.000Z",
+      observations: {
+        activeGoalIds: ["goal:blocked"],
+        activeExecutionIds: [],
+        blockerIds: ["blocker:approval"],
+        memoryEventIds: [],
+        experienceArtifactIds: [],
+        capabilityIds: ["capability:create-folio"],
+        simulationIds: ["simulation:create-folio:passed"],
+        identityIds: []
+      }
+    });
+
+    expect(() =>
+      completeCognitiveLoopExecution({
+        cycle,
+        outcome: {
+          id: "plan-run:blocked",
+          status: "completed",
+          occurredAt: "2026-07-20T13:03:00.000Z",
+          evidenceRefs: []
+        }
+      })
+    ).toThrow("does not have a dispatch action ready");
+  });
+
+  it("rejects duplicate execution completion", () => {
+    const first = completeCognitiveLoopExecution({
+      cycle: createDispatchReadyCycle(),
+      outcome: {
+        id: "plan-run:one",
+        status: "completed",
+        occurredAt: "2026-07-20T13:01:00.000Z",
+        evidenceRefs: ["execution:plan-run:one"]
+      }
+    });
+
+    expect(() =>
+      completeCognitiveLoopExecution({
+        cycle: first,
+        outcome: {
+          id: "plan-run:one",
+          status: "completed",
+          occurredAt: "2026-07-20T13:01:00.000Z",
+          evidenceRefs: ["execution:plan-run:one"]
+        }
+      })
+    ).toThrow("already recorded an executed action");
+  });
 });
+
+function createDispatchReadyCycle() {
+  return runBoundedCognitiveLoopCycle({
+    id: "cognitive-loop:cycle:ready-to-execute",
+    goalId: "goal:runtime-create-resource",
+    startedAt: "2026-07-20T13:00:00.000Z",
+    observations: {
+      activeGoalIds: ["goal:runtime-create-resource"],
+      activeExecutionIds: [],
+      blockerIds: [],
+      memoryEventIds: [],
+      experienceArtifactIds: [],
+      capabilityIds: ["capability:create-folio"],
+      simulationIds: ["simulation:create-folio:passed"],
+      identityIds: []
+    }
+  });
+}

@@ -14,13 +14,14 @@ export type CognitiveLoopPhase =
   | "learn"
   | "rest";
 
-export type CognitiveLoopPhaseStatus = "completed" | "skipped";
+export type CognitiveLoopPhaseStatus = "completed" | "failed" | "skipped";
 
 export type CognitiveLoopNextActionType =
   | "request_approval"
   | "learn_capabilities"
   | "simulate_capability"
   | "dispatch_capability"
+  | "review_execution"
   | "rest";
 
 export type CognitiveLoopNextActionStatus =
@@ -28,6 +29,7 @@ export type CognitiveLoopNextActionStatus =
   | "needs_learning"
   | "needs_simulation"
   | "ready_to_dispatch"
+  | "needs_review"
   | "idle";
 
 export interface CognitiveLoopObservations {
@@ -57,6 +59,22 @@ export interface CognitiveLoopNextAction {
   targetRefs: string[];
 }
 
+export interface CognitiveLoopExecutionOutcome {
+  id: string;
+  status: "completed" | "failed";
+  occurredAt: string;
+  evidenceRefs: string[];
+}
+
+export interface CognitiveLoopActionTaken {
+  type: "dispatch_capability";
+  executionId: string;
+  status: "completed" | "failed";
+  occurredAt: string;
+  targetRefs: string[];
+  evidenceRefs: string[];
+}
+
 export interface CognitiveLoopCycle {
   id: string;
   schemaVersion: "0.1";
@@ -64,10 +82,11 @@ export interface CognitiveLoopCycle {
   startedAt: string;
   completedAt: string;
   bounded: true;
-  executedAction: false;
+  executedAction: boolean;
   observations: CognitiveLoopObservations;
   phases: CognitiveLoopPhaseRecord[];
   nextAction: CognitiveLoopNextAction;
+  actionTaken?: CognitiveLoopActionTaken;
 }
 
 export interface RunBoundedCognitiveLoopCycleInput {
@@ -76,6 +95,20 @@ export interface RunBoundedCognitiveLoopCycleInput {
   startedAt: string;
   completedAt?: string;
   observations: CognitiveLoopObservations;
+}
+
+export interface CompleteCognitiveLoopExecutionInput {
+  cycle: CognitiveLoopCycle;
+  outcome: CognitiveLoopExecutionOutcome;
+}
+
+export class CognitiveLoopExecutionError extends Error {
+  readonly code = "cognitive_loop_execution_invalid";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "CognitiveLoopExecutionError";
+  }
 }
 
 export function runBoundedCognitiveLoopCycle(
@@ -97,6 +130,101 @@ export function runBoundedCognitiveLoopCycle(
     phases: createPhaseRecords(input.id, observations, nextAction),
     nextAction
   };
+}
+
+export function completeCognitiveLoopExecution(
+  input: CompleteCognitiveLoopExecutionInput
+): CognitiveLoopCycle {
+  if (input.cycle.executedAction) {
+    throw new CognitiveLoopExecutionError(
+      `Cognitive Loop cycle ${input.cycle.id} already recorded an executed action.`
+    );
+  }
+
+  if (input.cycle.nextAction.type !== "dispatch_capability") {
+    throw new CognitiveLoopExecutionError(
+      `Cognitive Loop cycle ${input.cycle.id} does not have a dispatch action ready.`
+    );
+  }
+
+  const cycle = cloneCycle(input.cycle);
+  const outcome = cloneExecutionOutcome(input.outcome);
+  const originalTargetRefs = [...cycle.nextAction.targetRefs];
+
+  return {
+    ...cycle,
+    completedAt: outcome.occurredAt,
+    executedAction: true,
+    phases: cycle.phases.map((phase) =>
+      completeExecutionPhase(phase, outcome, cycle.id)
+    ),
+    nextAction: createPostExecutionNextAction(outcome),
+    actionTaken: {
+      type: "dispatch_capability",
+      executionId: outcome.id,
+      status: outcome.status,
+      occurredAt: outcome.occurredAt,
+      targetRefs: originalTargetRefs,
+      evidenceRefs: [...outcome.evidenceRefs]
+    }
+  };
+}
+
+function completeExecutionPhase(
+  phase: CognitiveLoopPhaseRecord,
+  outcome: CognitiveLoopExecutionOutcome,
+  cycleId: string
+): CognitiveLoopPhaseRecord {
+  switch (phase.phase) {
+    case "execute":
+      return {
+        phase: "execute",
+        status: outcome.status,
+        summary: `Governed execution ${outcome.id} ${outcome.status}.`,
+        evidenceRefs: [...outcome.evidenceRefs]
+      };
+    case "evaluate":
+      return {
+        phase: "evaluate",
+        status: "completed",
+        summary: `Execution outcome is ${outcome.status}.`,
+        evidenceRefs: [outcome.id, ...outcome.evidenceRefs]
+      };
+    case "learn":
+      return {
+        phase: "learn",
+        status: "completed",
+        summary: "Execution outcome is ready to be recorded as Memory evidence.",
+        evidenceRefs: [cycleId, outcome.id, ...outcome.evidenceRefs]
+      };
+    case "rest":
+      return {
+        phase: "rest",
+        status: "completed",
+        summary: "Loop stops after recording the governed execution outcome.",
+        evidenceRefs: [outcome.id]
+      };
+    default:
+      return clonePhase(phase);
+  }
+}
+
+function createPostExecutionNextAction(
+  outcome: CognitiveLoopExecutionOutcome
+): CognitiveLoopNextAction {
+  return outcome.status === "completed"
+    ? {
+        type: "rest",
+        status: "idle",
+        reason: "The governed dispatch completed successfully.",
+        targetRefs: [outcome.id]
+      }
+    : {
+        type: "review_execution",
+        status: "needs_review",
+        reason: "The governed dispatch failed and requires review before retry.",
+        targetRefs: [outcome.id, ...outcome.evidenceRefs]
+      };
 }
 
 function chooseNextAction(
@@ -294,6 +422,8 @@ function attentionSummary(nextAction: CognitiveLoopNextAction): string {
       return "Attention is focused on counterfactual validation.";
     case "dispatch_capability":
       return "Attention is focused on ready execution planning.";
+    case "review_execution":
+      return "Attention is focused on execution failure review.";
     case "rest":
       return "Attention is idle because no active goal needs work.";
   }
@@ -311,6 +441,8 @@ function attentionEvidence(
     case "simulate_capability":
       return [...nextAction.targetRefs];
     case "dispatch_capability":
+      return [...nextAction.targetRefs];
+    case "review_execution":
       return [...nextAction.targetRefs];
     case "rest":
       return [];
@@ -335,6 +467,43 @@ function cloneObservations(
     ...(observations.worldStateSnapshotId === undefined
       ? {}
       : { worldStateSnapshotId: observations.worldStateSnapshotId })
+  };
+}
+
+function cloneCycle(cycle: CognitiveLoopCycle): CognitiveLoopCycle {
+  return {
+    ...cycle,
+    observations: cloneObservations(cycle.observations),
+    phases: cycle.phases.map(clonePhase),
+    nextAction: {
+      ...cycle.nextAction,
+      targetRefs: [...cycle.nextAction.targetRefs]
+    },
+    ...(cycle.actionTaken === undefined
+      ? {}
+      : {
+          actionTaken: {
+            ...cycle.actionTaken,
+            targetRefs: [...cycle.actionTaken.targetRefs],
+            evidenceRefs: [...cycle.actionTaken.evidenceRefs]
+          }
+        })
+  };
+}
+
+function clonePhase(phase: CognitiveLoopPhaseRecord): CognitiveLoopPhaseRecord {
+  return {
+    ...phase,
+    evidenceRefs: [...phase.evidenceRefs]
+  };
+}
+
+function cloneExecutionOutcome(
+  outcome: CognitiveLoopExecutionOutcome
+): CognitiveLoopExecutionOutcome {
+  return {
+    ...outcome,
+    evidenceRefs: [...outcome.evidenceRefs]
   };
 }
 

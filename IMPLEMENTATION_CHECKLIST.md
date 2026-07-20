@@ -419,7 +419,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement allocate attention phase.
 - [x] Implement plan phase.
 - [x] Implement evidence-backed simulate phase.
-- [ ] Implement execute phase.
+- [x] Implement governed execute continuation phase.
+- [x] Bind loop execution to exact goal, capability, simulation, approval, and plan evidence.
+- [x] Make loop execution idempotent per cycle and plan run.
 - [x] Implement evaluate phase.
 - [x] Implement learn phase.
 - [x] Implement rest/idle phase.

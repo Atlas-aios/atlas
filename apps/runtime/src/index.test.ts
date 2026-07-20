@@ -531,6 +531,17 @@ describe("Atlas runtime API", () => {
         })
       })
     );
+    await runtime.handle(
+      new Request("http://atlas.local/goals/goal:orchestrated/status", {
+        method: "POST",
+        body: JSON.stringify({
+          eventId: "goal:orchestrated:event:activated",
+          toStatus: "active",
+          occurredAt: "2026-07-20T10:00:30.000Z",
+          reason: "Begin governed orchestration."
+        })
+      })
+    );
     const planResponse = await runtime.handle(
       new Request("http://atlas.local/brain/plan", {
         method: "POST",
@@ -623,15 +634,56 @@ describe("Atlas runtime API", () => {
       error: "invalid_plan_run_resume_request"
     });
 
-    const resumeResponse = await runtime.handle(
-      new Request("http://atlas.local/brain/plan-runs/plan-run%3Aorchestrated/resume", {
+    const cycleResponse = await runtime.handle(
+      new Request("http://atlas.local/cognitive-loop/cycles", {
         method: "POST",
-        body: JSON.stringify({ resumedAt: "2026-07-20T10:03:00.000Z" })
+        body: JSON.stringify({
+          id: "cognitive-loop:cycle:orchestrated-execution",
+          goalId: "goal:orchestrated",
+          startedAt: "2026-07-20T10:02:30.000Z"
+        })
       })
     );
+    expect(cycleResponse.status).toBe(201);
+    await expect(cycleResponse.json()).resolves.toMatchObject({
+      cycle: {
+        nextAction: {
+          type: "dispatch_capability",
+          targetRefs: expect.arrayContaining([
+            "goal:orchestrated",
+            "capability:create-folio",
+            `simulation:plan-run:orchestrated:${stepId}`
+          ])
+        }
+      }
+    });
 
-    expect(resumeResponse.status).toBe(200);
-    await expect(resumeResponse.json()).resolves.toMatchObject({
+    const invalidCycleExecutionResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/cognitive-loop/cycles/cognitive-loop%3Acycle%3Aorchestrated-execution/execute",
+        {
+          method: "POST",
+          body: JSON.stringify({})
+        }
+      )
+    );
+    expect(invalidCycleExecutionResponse.status).toBe(400);
+
+    const executeResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/cognitive-loop/cycles/cognitive-loop%3Acycle%3Aorchestrated-execution/execute",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            planRunId: "plan-run:orchestrated",
+            executedAt: "2026-07-20T10:03:00.000Z"
+          })
+        }
+      )
+    );
+
+    expect(executeResponse.status).toBe(200);
+    await expect(executeResponse.json()).resolves.toMatchObject({
       planRun: {
         id: "plan-run:orchestrated",
         status: "completed",
@@ -651,7 +703,103 @@ describe("Atlas runtime API", () => {
             }
           ]
         }
+      },
+      cycle: {
+        id: "cognitive-loop:cycle:orchestrated-execution",
+        executedAction: true,
+        actionTaken: {
+          type: "dispatch_capability",
+          executionId: "plan-run:orchestrated",
+          status: "completed",
+          evidenceRefs: expect.arrayContaining([
+            "plan-run:orchestrated:execution",
+            `runtime:provider:provider:openapi:create-folio`
+          ])
+        },
+        nextAction: {
+          type: "rest",
+          status: "idle"
+        },
+        phases: expect.arrayContaining([
+          expect.objectContaining({
+            phase: "execute",
+            status: "completed",
+            evidenceRefs: expect.arrayContaining(["plan-run:orchestrated:execution"])
+          })
+        ])
       }
+    });
+
+    const replayResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/cognitive-loop/cycles/cognitive-loop%3Acycle%3Aorchestrated-execution/execute",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            planRunId: "plan-run:orchestrated",
+            executedAt: "2026-07-20T10:03:00.000Z"
+          })
+        }
+      )
+    );
+    expect(replayResponse.status).toBe(200);
+    await expect(replayResponse.json()).resolves.toMatchObject({
+      idempotent: true,
+      cycle: {
+        actionTaken: { executionId: "plan-run:orchestrated" }
+      },
+      planRun: { status: "completed" }
+    });
+
+    const mismatchResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/cognitive-loop/cycles/cognitive-loop%3Acycle%3Aorchestrated-execution/execute",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            planRunId: "plan-run:different",
+            executedAt: "2026-07-20T10:04:00.000Z"
+          })
+        }
+      )
+    );
+    expect(mismatchResponse.status).toBe(409);
+    await expect(mismatchResponse.json()).resolves.toMatchObject({
+      error: "cognitive_loop_execution_conflict"
+    });
+
+    const executionAuditResponse = await runtime.handle(
+      new Request("http://atlas.local/audit-logs", { method: "GET" })
+    );
+    const executionAuditBody = (await executionAuditResponse.json()) as {
+      auditLogs: Array<{ type: string; subjectId: string }>;
+    };
+    expect(
+      executionAuditBody.auditLogs.filter(
+        (event) =>
+          event.type === "cognitive-loop.execution.completed" &&
+          event.subjectId === "cognitive-loop:cycle:orchestrated-execution"
+      )
+    ).toHaveLength(1);
+
+    const executionMemoryResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/memory/events?subjectId=cognitive-loop%3Acycle%3Aorchestrated-execution",
+        { method: "GET" }
+      )
+    );
+    await expect(executionMemoryResponse.json()).resolves.toMatchObject({
+      memoryEvents: [
+        expect.objectContaining({
+          id: "memory:event:cognitive-loop-execution:cognitive-loop:cycle:orchestrated-execution",
+          kind: "execution",
+          evidenceRefs: expect.arrayContaining([
+            "plan-run:orchestrated:execution",
+            `simulation:plan-run:orchestrated:${stepId}`,
+            approvalRequestId
+          ])
+        })
+      ]
     });
 
     const getResponse = await runtime.handle(

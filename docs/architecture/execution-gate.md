@@ -81,6 +81,19 @@ part of a plan while another step is waiting. Once every step is allowed, Runtim
 compiles the resolved steps and exact inputs into one sequential AtlasFlow and passes
 that workflow to Execution Engine.
 
-`simulate_first` runs only the Interface Driver simulation path. The resulting
-evidence is sent back through Decision Engine. Human approval is separately verified
-before the reconsidered `approve_with_constraints` outcome can reach execution.
+`simulate_first` combines Interface Driver request preview with an isolated World
+State projection. The resulting evidence is sent back through Decision Engine. Human
+approval is separately verified before the reconsidered
+`approve_with_constraints` outcome can reach execution.
+
+## Cognitive Loop Continuation
+
+`POST /cognitive-loop/cycles/:cycleId/execute` does not bypass this gate. Runtime only
+continues a dispatch-ready cycle when its goal, capability, simulation ids, approval
+records, and plan run match. A waiting plan run is reconsidered and resumed through
+the same Decision Engine, Execution Gate, AtlasFlow, and provider path used by the
+direct plan-run API.
+
+The completed or failed execution is recorded on an immutable continuation of the
+cycle and in Memory and Audit. Replaying the same cycle and plan-run pair returns the
+stored outcome without another provider call; a different plan-run id is rejected.

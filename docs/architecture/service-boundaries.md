@@ -178,4 +178,11 @@ The Cognitive Loop orchestrates observe, update, remember, distill, plan, simula
 The bounded loop now distinguishes a missing simulation from a completed one. It
 returns `simulate_capability` when a goal and capability are ready but no successful
 simulation artifact exists, and only returns `dispatch_capability` when that evidence
-is present. The bounded loop still does not execute automatically.
+is present.
+
+A dispatch-ready cycle can be continued through Runtime with an explicit plan-run id.
+Runtime binds the cycle to the exact goal, first capability, successful simulation
+artifacts, and approved requests before reusing Decision Engine reconsideration,
+Execution Gate, AtlasFlow, and provider execution. The continued cycle records the
+actual execution evidence and becomes idempotent for that plan run. Atlas does not yet
+select a plan run or schedule this continuation automatically.

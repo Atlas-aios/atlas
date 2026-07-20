@@ -25,6 +25,7 @@ import {
   type ProviderCandidate
 } from "@atlas-aios/capability-kernel";
 import {
+  completeCognitiveLoopExecution,
   runBoundedCognitiveLoopCycle,
   type CognitiveLoopCycle
 } from "@atlas-aios/cognitive-loop";
@@ -380,6 +381,11 @@ export interface CreateRuntimeCognitiveLoopCycleRequest {
   goalId?: string;
   startedAt: string;
   completedAt?: string;
+}
+
+export interface ExecuteRuntimeCognitiveLoopCycleRequest {
+  planRunId: string;
+  executedAt: string;
 }
 
 export type CreateRuntimeGovernancePolicyRequest = GovernancePolicy;
@@ -1316,6 +1322,160 @@ async function handleRuntimeRequest(
     });
   }
 
+  const cognitiveLoopExecuteMatch = /^\/cognitive-loop\/cycles\/(.+)\/execute$/.exec(
+    url.pathname
+  );
+  if (request.method === "POST" && cognitiveLoopExecuteMatch !== null) {
+    const cycleId = decodeURIComponent(cognitiveLoopExecuteMatch[1] ?? "");
+    const cycle = state.cognitiveLoopCycles.find((item) => item.id === cycleId);
+    if (cycle === undefined) {
+      return json(
+        { error: "cognitive_loop_cycle_not_found", cycleId },
+        { status: 404 }
+      );
+    }
+
+    const input = (await request.json()) as unknown;
+    if (
+      !isRuntimeRecord(input) ||
+      !isNonEmptyRuntimeString(input.planRunId) ||
+      !isNonEmptyRuntimeString(input.executedAt)
+    ) {
+      return json(
+        {
+          error: "invalid_cognitive_loop_execution_request",
+          reason: "planRunId and executedAt are required."
+        },
+        { status: 400 }
+      );
+    }
+
+    if (cycle.executedAction) {
+      if (cycle.actionTaken?.executionId !== input.planRunId) {
+        return cognitiveLoopExecutionConflict(
+          cycleId,
+          "The cycle already recorded a different plan run."
+        );
+      }
+
+      const recordedPlanRun = state.planRuns.find(
+        (planRun) => planRun.id === input.planRunId
+      );
+      if (recordedPlanRun === undefined) {
+        return json(
+          { error: "plan_run_not_found", planRunId: input.planRunId },
+          { status: 404 }
+        );
+      }
+
+      return json({ cycle, planRun: recordedPlanRun, idempotent: true });
+    }
+
+    const planRun = state.planRuns.find((item) => item.id === input.planRunId);
+    if (planRun === undefined) {
+      return json(
+        { error: "plan_run_not_found", planRunId: input.planRunId },
+        { status: 404 }
+      );
+    }
+
+    const mismatchReason = cognitiveLoopPlanRunMismatch(cycle, planRun);
+    if (mismatchReason !== undefined) {
+      return cognitiveLoopExecutionConflict(cycleId, mismatchReason);
+    }
+
+    const plan = state.brainPlans.find((item) => item.id === planRun.planId);
+    if (plan === undefined) {
+      return json(
+        { error: "brain_plan_not_found", planId: planRun.planId },
+        { status: 404 }
+      );
+    }
+
+    let executedPlanRun = planRun;
+    if (planRun.status === "waiting_for_approval") {
+      try {
+        executedPlanRun = await resumePlanRun(
+          {
+            run: planRun,
+            plan,
+            approvedApprovalRequestIds: approvedPlanRunApprovalIds(state, planRun),
+            resumedAt: input.executedAt
+          },
+          createRuntimePlanOrchestratorDependencies(state)
+        );
+        state.planRuns = state.planRuns.map((item) =>
+          item.id === planRun.id ? executedPlanRun : item
+        );
+        recordRuntimePlanRunEvidence(state, executedPlanRun, "resumed");
+      } catch (error) {
+        if (error instanceof PlanRunApprovalError) {
+          return json(
+            {
+              error: error.code,
+              approvalRequestId: error.approvalRequestId,
+              reason: error.message
+            },
+            { status: 409 }
+          );
+        }
+
+        return json(
+          {
+            error: "cognitive_loop_execution_failed",
+            reason:
+              error instanceof Error ? error.message : "Plan run execution failed."
+          },
+          { status: 422 }
+        );
+      }
+    } else if (planRun.status !== "completed" && planRun.status !== "failed") {
+      return cognitiveLoopExecutionConflict(
+        cycleId,
+        `Plan run ${planRun.id} is not ready for governed execution.`
+      );
+    }
+
+    if (
+      (executedPlanRun.status !== "completed" && executedPlanRun.status !== "failed") ||
+      executedPlanRun.execution === undefined
+    ) {
+      return json(
+        {
+          error: "cognitive_loop_execution_failed",
+          reason: "Plan run did not produce a trustworthy execution outcome."
+        },
+        { status: 422 }
+      );
+    }
+
+    const evidenceRefs = cognitiveLoopPlanRunEvidenceRefs(executedPlanRun);
+    const continuedCycle = completeCognitiveLoopExecution({
+      cycle,
+      outcome: {
+        id: executedPlanRun.id,
+        status: executedPlanRun.status,
+        occurredAt: input.executedAt,
+        evidenceRefs
+      }
+    });
+    state.cognitiveLoopCycles = state.cognitiveLoopCycles.map((item) =>
+      item.id === cycle.id ? continuedCycle : item
+    );
+    recordRuntimeCognitiveLoopExecutionEvidence(
+      state,
+      continuedCycle,
+      executedPlanRun,
+      evidenceRefs
+    );
+
+    return json({
+      cycle: continuedCycle,
+      planRun: executedPlanRun,
+      idempotent: false
+    });
+  }
+
   if (request.method === "POST" && url.pathname === "/swm/entities") {
     const input = (await request.json()) as SemanticEntityInput;
 
@@ -2227,6 +2387,120 @@ function updateRuntimeSelfModelFromExecution(
           limitation:
             "Provider execution requires successful runtime workflow completion."
         })
+  });
+}
+
+function cognitiveLoopExecutionConflict(cycleId: string, reason: string): Response {
+  return json(
+    {
+      error: "cognitive_loop_execution_conflict",
+      cycleId,
+      reason
+    },
+    { status: 409 }
+  );
+}
+
+function cognitiveLoopPlanRunMismatch(
+  cycle: CognitiveLoopCycle,
+  planRun: PlanRun
+): string | undefined {
+  if (cycle.nextAction.type !== "dispatch_capability") {
+    return `Cycle ${cycle.id} does not have a dispatch action ready.`;
+  }
+
+  if (cycle.goalId === undefined || cycle.goalId !== planRun.goalId) {
+    return `Plan run ${planRun.id} does not belong to cycle goal ${cycle.goalId ?? "none"}.`;
+  }
+
+  const firstStep = planRun.steps[0];
+  if (
+    firstStep === undefined ||
+    !cycle.nextAction.targetRefs.includes(planRun.goalId) ||
+    !cycle.nextAction.targetRefs.includes(firstStep.capabilityId)
+  ) {
+    return `Plan run ${planRun.id} does not match the cycle dispatch targets.`;
+  }
+
+  const simulationIds = planRun.steps.flatMap((step) =>
+    step.simulation?.status === "simulated" ? [step.simulation.id] : []
+  );
+  if (simulationIds.length === 0) {
+    return `Plan run ${planRun.id} has no successful simulation evidence.`;
+  }
+
+  if (
+    simulationIds.some(
+      (simulationId) => !cycle.observations.simulationIds.includes(simulationId)
+    )
+  ) {
+    return `Plan run ${planRun.id} simulation evidence is not present in cycle ${cycle.id}.`;
+  }
+
+  return undefined;
+}
+
+function approvedPlanRunApprovalIds(state: RuntimeState, planRun: PlanRun): string[] {
+  return planRun.steps.flatMap((step) =>
+    step.approvalRequestId !== undefined &&
+    state.approvalRequests.some(
+      (approval) =>
+        approval.id === step.approvalRequestId && approval.status === "approved"
+    )
+      ? [step.approvalRequestId]
+      : []
+  );
+}
+
+function cognitiveLoopPlanRunEvidenceRefs(planRun: PlanRun): string[] {
+  return [
+    planRun.id,
+    planRun.planId,
+    ...(planRun.execution === undefined ? [] : [planRun.execution.session.id]),
+    ...planRun.steps.flatMap((step) => [
+      step.decision.requestId,
+      ...(step.simulation?.evidenceRefs ?? []),
+      ...(step.approvalRequestId === undefined ? [] : [step.approvalRequestId])
+    ]),
+    ...(planRun.execution?.steps.flatMap((step) => step.evidenceRefs) ?? [])
+  ].filter((ref, index, refs) => refs.indexOf(ref) === index);
+}
+
+function recordRuntimeCognitiveLoopExecutionEvidence(
+  state: RuntimeState,
+  cycle: CognitiveLoopCycle,
+  planRun: PlanRun,
+  evidenceRefs: string[]
+): void {
+  const occurredAt = cycle.actionTaken?.occurredAt ?? cycle.completedAt;
+  const status = cycle.actionTaken?.status ?? "failed";
+  state.auditLogs.push({
+    id: `audit:cognitive-loop-execution:${cycle.id}`,
+    type: `cognitive-loop.execution.${status}`,
+    actorId: planRun.requesterIdentityId,
+    subjectId: cycle.id,
+    occurredAt,
+    summary: `Cognitive Loop cycle ${cycle.id} recorded plan run ${planRun.id} as ${status}.`,
+    evidenceRefs: [...evidenceRefs],
+    metadata: {
+      planRunId: planRun.id,
+      planId: planRun.planId,
+      goalId: planRun.goalId,
+      status
+    }
+  });
+  recordMemoryEvent(state.memoryStore, {
+    id: `memory:event:cognitive-loop-execution:${cycle.id}`,
+    kind: "execution",
+    occurredAt,
+    summary: `Cognitive Loop cycle ${cycle.id} executed plan run ${planRun.id} with status ${status}.`,
+    subjectIds: [cycle.id, planRun.goalId, planRun.id],
+    sourceIds: [planRun.planId, ...evidenceRefs],
+    evidenceRefs: [...evidenceRefs],
+    metadata: {
+      actorId: planRun.requesterIdentityId,
+      status
+    }
   });
 }
 
