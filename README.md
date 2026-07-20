@@ -88,8 +88,24 @@ Create a goal with `POST /goals`, then call `POST /brain/plan` with its id:
 ```
 
 Remote permissions are server-owned; request JSON cannot enable them. Routine and
-private requests select the local lane. Until a local inference provider is wired,
-that lane returns `503 model_provider_unavailable` instead of a fabricated plan.
+private requests select the local lane. Configure any local OpenAI-compatible server:
+
+```powershell
+$env:ATLAS_LOCAL_MODEL_ID="qwen3:8b"
+$env:ATLAS_LOCAL_MODEL_BASE_URL="http://127.0.0.1:11434/v1"
+corepack pnpm build
+corepack pnpm --filter @atlas-aios/runtime start
+```
+
+`ATLAS_LOCAL_MODEL_API_KEY` is optional. If `ATLAS_LOCAL_MODEL_ID` is absent,
+the local lane returns `503 model_provider_unavailable` instead of a fabricated
+plan.
+
+After generating a plan, start governed execution with
+`POST /brain/plans/:planId/run`. Runtime resolves providers, asks Decision Engine,
+runs required interface simulations, and either executes one sequential AtlasFlow
+or returns a waiting/blocked state. Approve generated requests through the existing
+approval API, then call `POST /brain/plan-runs/:runId/resume`.
 
 Run the current end-to-end MVP demo:
 
@@ -104,6 +120,9 @@ Initial endpoints:
 
 - `GET /health`
 - `POST /brain/plan`
+- `POST /brain/plans/:planId/run`
+- `POST /brain/plan-runs/:runId/resume`
+- `GET /brain/plan-runs/:runId`
 - `POST /goals`
 - `GET /goals`
 - `GET /goals/:id`

@@ -91,4 +91,55 @@ describe("Atlas runtime server", () => {
 
     expect(brain.providers["nvidia-nemotron-super-remote"]).toBeUndefined();
   });
+
+  it("wires a configured local OpenAI-compatible planning provider", async () => {
+    const requests: Array<{
+      url: string;
+      authorization?: string;
+      model: string;
+    }> = [];
+    const brain = createRuntimeBrainConfigFromEnvironment(
+      {
+        ATLAS_LOCAL_MODEL_ID: "qwen3:8b",
+        ATLAS_LOCAL_MODEL_BASE_URL: "http://127.0.0.1:1234/v1/",
+        ATLAS_LOCAL_MODEL_API_KEY: "local-secret"
+      },
+      undefined,
+      async (url, init) => {
+        requests.push({
+          url,
+          ...(init.headers.Authorization === undefined
+            ? {}
+            : { authorization: init.headers.Authorization }),
+          model: (JSON.parse(init.body) as { model: string }).model
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: "local-request:server-test",
+            choices: [{ message: { content: "{}" } }]
+          })
+        };
+      }
+    );
+
+    await expect(
+      brain.providers["qwen-local-default"]?.invoke({
+        modelProfileId: "qwen-local-default",
+        systemPrompt: "system",
+        userPrompt: "user"
+      })
+    ).resolves.toEqual({
+      requestId: "local-request:server-test",
+      content: "{}"
+    });
+    expect(requests).toEqual([
+      {
+        url: "http://127.0.0.1:1234/v1/chat/completions",
+        authorization: "Bearer local-secret",
+        model: "qwen3:8b"
+      }
+    ]);
+  });
 });

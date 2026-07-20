@@ -119,6 +119,82 @@ describe("default decision engine", () => {
     });
   });
 
+  it("requires simulation when provider resolution marks the action for dry-run", () => {
+    const outcome = engine.decide({
+      id: "decision_req_provider_simulation",
+      goalId: "goal_unknown_interface",
+      action: "Execute a generated provider",
+      actionType: "capability_execution",
+      rationale: "The provider is learned but not yet trusted.",
+      reversibility: "reversible",
+      externalImpacts: [],
+      risks: [],
+      alternatives: [],
+      evidenceRefs: ["provider:generated"],
+      requesterIdentityId: "identity:user",
+      authorityMode: "broad",
+      simulationRequired: true
+    });
+
+    expect(outcome.type).toBe("simulate_first");
+    expect(outcome.approvalRequired).toBe(true);
+  });
+
+  it("delegates for approval after required simulation succeeds", () => {
+    const outcome = engine.decide({
+      id: "decision_req_prod_after_simulation",
+      goalId: "goal_deploy",
+      action: "Modify production infrastructure",
+      actionType: "infrastructure_change",
+      rationale: "The simulated production update passed.",
+      reversibility: "partially_reversible",
+      externalImpacts: ["production_system"],
+      risks: [],
+      alternatives: [],
+      evidenceRefs: ["deployment:plan"],
+      simulationEvidenceRefs: ["simulation:deployment:passed"],
+      requesterIdentityId: "identity:user",
+      authorityMode: "broad"
+    });
+
+    expect(outcome.type).toBe("delegate_to_human");
+    expect(outcome.approvalRequired).toBe(true);
+    expect(outcome.evidenceRefs).toContain("simulation:deployment:passed");
+  });
+
+  it("approves with constraints after simulation and human approval evidence", () => {
+    const outcome = engine.decide({
+      id: "decision_req_prod_approved",
+      goalId: "goal_deploy",
+      action: "Modify production infrastructure",
+      actionType: "infrastructure_change",
+      rationale: "The exact update was simulated and approved.",
+      reversibility: "partially_reversible",
+      externalImpacts: ["production_system"],
+      risks: [],
+      alternatives: [],
+      evidenceRefs: ["deployment:plan"],
+      simulationEvidenceRefs: ["simulation:deployment:passed"],
+      approvalEvidenceRefs: ["approval:deployment:approved"],
+      requesterIdentityId: "identity:user",
+      authorityMode: "broad"
+    });
+
+    expect(outcome).toMatchObject({
+      type: "approve_with_constraints",
+      approvalRequired: false,
+      constraints: [
+        "Execute only the simulated provider, capability, and inputs.",
+        "Preserve the verified rollback and validation evidence."
+      ]
+    });
+    expect(outcome.evidenceRefs).toEqual([
+      "deployment:plan",
+      "simulation:deployment:passed",
+      "approval:deployment:approved"
+    ]);
+  });
+
   it("rejects illegal or explicitly forbidden actions", () => {
     const outcome = engine.decide({
       id: "decision_req_forbidden",

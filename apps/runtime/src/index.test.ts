@@ -269,6 +269,203 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("runs a generated plan through simulation, approval, and AtlasFlow execution", async () => {
+    const runtime = createAtlasRuntime({
+      brain: {
+        allowRemoteModels: false,
+        allowFreeHostedEndpoints: false,
+        providers: {
+          "qwen-local-default": {
+            invoke: async () => ({
+              requestId: "local-plan-request:orchestration",
+              content: JSON.stringify({
+                rationale: "Use the learned resource capability.",
+                risks: ["The provider mapping is newly learned."],
+                steps: [
+                  {
+                    capabilityId: "capability:create-folio",
+                    purpose: "Create the requested folio.",
+                    requiresApproval: true
+                  }
+                ]
+              })
+            })
+          }
+        }
+      }
+    });
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:orchestrated",
+          title: "Create an unknown-system folio",
+          description: "Use the learned capability through governed execution.",
+          ownerId: "identity:user:moksh",
+          priority: 95,
+          successCriteria: ["The folio is created through an approved provider."],
+          createdAt: "2026-07-20T10:00:00.000Z"
+        })
+      })
+    );
+    const planResponse = await runtime.handle(
+      new Request("http://atlas.local/brain/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:orchestrated",
+          taskClass: "planning",
+          difficulty: "medium",
+          privacyClass: "private"
+        })
+      })
+    );
+    const { plan } = (await planResponse.json()) as {
+      plan: { id: string; steps: Array<{ id: string }> };
+    };
+    const stepId = plan.steps[0]?.id ?? "";
+
+    const invalidRunResponse = await runtime.handle(
+      new Request(`http://atlas.local/brain/plans/${encodeURIComponent(plan.id)}/run`, {
+        method: "POST",
+        body: JSON.stringify({
+          id: "plan-run:invalid",
+          requesterIdentityId: "identity:user:moksh"
+        })
+      })
+    );
+    expect(invalidRunResponse.status).toBe(400);
+    await expect(invalidRunResponse.json()).resolves.toMatchObject({
+      error: "invalid_plan_run_request"
+    });
+
+    const runResponse = await runtime.handle(
+      new Request(`http://atlas.local/brain/plans/${encodeURIComponent(plan.id)}/run`, {
+        method: "POST",
+        body: JSON.stringify({
+          id: "plan-run:orchestrated",
+          requesterIdentityId: "identity:user:moksh",
+          authorityMode: "broad",
+          governanceContextId: "governance:unknown-system",
+          startedAt: "2026-07-20T10:01:00.000Z",
+          steps: {
+            [stepId]: {
+              inputs: { name: "Atlas launch" },
+              reversibility: "partially_reversible",
+              externalImpacts: []
+            }
+          }
+        })
+      })
+    );
+
+    expect(runResponse.status).toBe(201);
+    const waitingBody = (await runResponse.json()) as {
+      planRun: {
+        status: string;
+        steps: Array<{ approvalRequestId?: string }>;
+      };
+    };
+    expect(waitingBody.planRun.status).toBe("waiting_for_approval");
+    const approvalRequestId = waitingBody.planRun.steps[0]?.approvalRequestId ?? "";
+
+    const approvalResponse = await runtime.handle(
+      new Request(
+        `http://atlas.local/approvals/${encodeURIComponent(approvalRequestId)}/approve`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            decidedBy: "identity:user:moksh",
+            decidedAt: "2026-07-20T10:02:00.000Z",
+            reason: "The exact simulated request is approved."
+          })
+        }
+      )
+    );
+    expect(approvalResponse.status).toBe(200);
+
+    const invalidResumeResponse = await runtime.handle(
+      new Request("http://atlas.local/brain/plan-runs/plan-run%3Aorchestrated/resume", {
+        method: "POST",
+        body: JSON.stringify({})
+      })
+    );
+    expect(invalidResumeResponse.status).toBe(400);
+    await expect(invalidResumeResponse.json()).resolves.toMatchObject({
+      error: "invalid_plan_run_resume_request"
+    });
+
+    const resumeResponse = await runtime.handle(
+      new Request("http://atlas.local/brain/plan-runs/plan-run%3Aorchestrated/resume", {
+        method: "POST",
+        body: JSON.stringify({ resumedAt: "2026-07-20T10:03:00.000Z" })
+      })
+    );
+
+    expect(resumeResponse.status).toBe(200);
+    await expect(resumeResponse.json()).resolves.toMatchObject({
+      planRun: {
+        id: "plan-run:orchestrated",
+        status: "completed",
+        workflow: {
+          id: "atlasflow:plan-run:orchestrated",
+          nodes: [{ id: stepId, type: "capability" }]
+        },
+        execution: {
+          status: "completed",
+          steps: [
+            {
+              nodeId: stepId,
+              status: "completed",
+              outputs: {
+                status: 201
+              }
+            }
+          ]
+        }
+      }
+    });
+
+    const getResponse = await runtime.handle(
+      new Request("http://atlas.local/brain/plan-runs/plan-run%3Aorchestrated", {
+        method: "GET"
+      })
+    );
+    expect(getResponse.status).toBe(200);
+    await expect(getResponse.json()).resolves.toMatchObject({
+      planRun: { id: "plan-run:orchestrated", status: "completed" }
+    });
+
+    const conflictResponse = await runtime.handle(
+      new Request(`http://atlas.local/brain/plans/${encodeURIComponent(plan.id)}/run`, {
+        method: "POST",
+        body: JSON.stringify({
+          id: "plan-run:orchestrated",
+          requesterIdentityId: "identity:user:moksh",
+          authorityMode: "broad",
+          governanceContextId: "governance:unknown-system",
+          startedAt: "2026-07-20T10:01:00.000Z",
+          steps: {
+            [stepId]: {
+              inputs: { name: "Changed input" },
+              reversibility: "partially_reversible",
+              externalImpacts: []
+            }
+          }
+        })
+      })
+    );
+    expect(conflictResponse.status).toBe(409);
+    await expect(conflictResponse.json()).resolves.toMatchObject({
+      error: "plan_run_conflict",
+      planRunId: "plan-run:orchestrated"
+    });
+  });
+
   it("runs the unknown business system learn-and-execute MVP flow", async () => {
     const runtime = createAtlasRuntime();
 

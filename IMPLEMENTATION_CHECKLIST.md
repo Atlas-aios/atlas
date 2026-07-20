@@ -107,7 +107,14 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Add strict model plan output validation.
 - [x] Add trusted Atlas plan and step identifier construction.
 - [x] Wire NVIDIA NIM into runtime server configuration.
-- [ ] Implement local model inference provider.
+- [x] Implement local OpenAI-compatible model inference provider.
+- [x] Add local model environment configuration.
+- [x] Connect stored AtlasPlan to Capability Kernel resolution.
+- [x] Connect plan steps to Decision Engine and Execution Gate.
+- [x] Add simulation-evidence and approval-evidence reconsideration.
+- [x] Compile approved plans into sequential AtlasFlow execution.
+- [x] Persist and expose governed plan-run state.
+- [x] Add plan-run idempotency fingerprint and conflict detection.
 - [ ] Add policy-controlled model fallback and retry.
 - [x] Add SWM context lookup.
 - [x] Add World State lookup.
@@ -515,6 +522,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement `/cognitive-loop/cycles`.
 - [x] Implement `/thoughts`.
 - [x] Implement `/brain/plan`.
+- [x] Implement `/brain/plans/:planId/run`.
+- [x] Implement `/brain/plan-runs/:runId/resume`.
+- [x] Implement `/brain/plan-runs/:runId`.
 - [x] Implement `/simulations`.
 - [x] Implement `/learning/reports`.
 - [x] Implement `/learning/promotion-decisions/:stage/approve`.

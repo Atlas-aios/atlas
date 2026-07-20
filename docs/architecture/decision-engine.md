@@ -124,6 +124,22 @@ If Memory rejects a proposed decision because prior evidence shows the action is
 
 The default Decision Engine treats a blocking `memory_rejection` risk as a rejection and preserves the Memory reason in the outcome rationale. This keeps Memory as evidence and Decision Engine as the judgment layer.
 
+## Simulation And Approval Evidence
+
+Decision requests may include a deterministic provider simulation requirement plus
+simulation and approval evidence references. The default engine applies a three-step
+transition:
+
+```text
+simulation required without evidence -> simulate_first
+simulation evidence without approval -> delegate_to_human
+simulation plus approval evidence -> approve_with_constraints
+```
+
+The final constraints bind execution to the exact simulated provider, capability, and
+inputs. Runtime must re-enter Decision Engine after approval; it cannot change an
+Execution Gate from waiting to allowed by itself.
+
 ## Risk Model
 
 The Decision Engine should classify risk without assuming Atlas is forbidden from acting.

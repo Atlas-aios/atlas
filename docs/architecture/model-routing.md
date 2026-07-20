@@ -99,11 +99,44 @@ requirements. Atlas ignores model-supplied plan and step ids and constructs thos
 identifiers from trusted runtime state. Markdown-wrapped output, missing fields,
 invalid field types, empty steps, and plans over 50 steps are rejected.
 
-The local profile is a routing decision, not yet a running model provider. Routine,
-private, and confidential planning therefore returns
-`503 model_provider_unavailable` until a local OpenAI-compatible inference adapter is
-implemented. Atlas does not substitute fixture output or silently send private work
-to NVIDIA.
+The local profile now uses a generic OpenAI-compatible provider. Runtime registers it
+only when `ATLAS_LOCAL_MODEL_ID` is configured. The base URL defaults to
+`http://127.0.0.1:11434/v1` and can be changed with
+`ATLAS_LOCAL_MODEL_BASE_URL`; `ATLAS_LOCAL_MODEL_API_KEY` is optional. This supports
+local servers that expose the OpenAI chat-completions contract without making Brain
+depend on Ollama, vLLM, LM Studio, SGLang, or another serving implementation.
+
+If no local model id is configured, routine, private, and confidential planning
+returns `503 model_provider_unavailable`. Atlas does not substitute fixture output or
+silently send private work to NVIDIA.
+
+## Governed Plan Execution
+
+A generated plan can enter Runtime through `POST /brain/plans/:planId/run`:
+
+```text
+stored AtlasPlan
+-> Capability Kernel provider resolution
+-> Decision Engine
+-> Execution Gate
+-> interface-driver dry-run when required
+-> human approval when required
+-> Decision Engine reconsideration with evidence
+-> sequential AtlasFlow
+-> Execution Engine
+-> provider execution
+-> Audit and Memory evidence
+```
+
+Simulation evidence is not permission. A simulated run remains
+`waiting_for_approval` until the approval API records a human decision and
+`POST /brain/plan-runs/:runId/resume` requests a fresh Decision Engine outcome.
+Changed inputs under an existing run id are rejected using a stable request
+fingerprint.
+
+The current simulation is the real request-preview dry-run implemented by supported
+Interface Drivers. It does not clone World State and does not complete the production
+Simulation Engine roadmap item.
 
 Current NVIDIA references:
 

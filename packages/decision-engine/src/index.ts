@@ -53,6 +53,10 @@ export interface DecisionRequest {
   requesterIdentityId: string;
   authorityMode: DecisionAuthorityMode;
   humanRequired?: boolean;
+  approvalRequired?: boolean;
+  simulationRequired?: boolean;
+  simulationEvidenceRefs?: string[];
+  approvalEvidenceRefs?: string[];
 }
 
 export interface DecisionOutcome {
@@ -76,6 +80,11 @@ const communicationConstraints = [
   "Draft the communication first.",
   "Do not send externally until the final message is reviewed or explicitly authorized.",
   "Do not include confidential data unless the requester explicitly allows it."
+];
+
+const verifiedExecutionConstraints = [
+  "Execute only the simulated provider, capability, and inputs.",
+  "Preserve the verified rollback and validation evidence."
 ];
 
 export function createDefaultDecisionEngine(): DecisionEngine {
@@ -116,14 +125,53 @@ function decideWithDefaultRules(request: DecisionRequest): DecisionOutcome {
     });
   }
 
-  if (request.externalImpacts.includes("production_system")) {
+  const simulationRequired = requiresSimulation(request);
+  const simulationEvidenceRefs = request.simulationEvidenceRefs ?? [];
+  const approvalEvidenceRefs = request.approvalEvidenceRefs ?? [];
+
+  if (simulationRequired && simulationEvidenceRefs.length === 0) {
+    const productionImpact = request.externalImpacts.includes("production_system");
+
     return createOutcome(request, {
       type: "simulate_first",
-      rationale: "Production-impacting actions need simulation before execution.",
+      rationale: productionImpact
+        ? "Production-impacting actions need simulation before execution."
+        : "Provider or action risk requires simulation before execution.",
       auditSeverity: "high",
       approvalRequired: true,
-      simulationRequirement:
-        "Simulate the action, produce expected effects, rollback path, and verification checks before execution."
+      simulationRequirement: productionImpact
+        ? "Simulate the action, produce expected effects, rollback path, and verification checks before execution."
+        : "Simulate the exact provider, capability, and inputs and capture validation evidence before execution."
+    });
+  }
+
+  if (simulationRequired && approvalEvidenceRefs.length === 0) {
+    return createOutcome(request, {
+      type: "delegate_to_human",
+      rationale:
+        "Simulation completed, but the action still requires explicit human approval.",
+      auditSeverity: "high",
+      approvalRequired: true
+    });
+  }
+
+  if (simulationRequired) {
+    return createOutcome(request, {
+      type: "approve_with_constraints",
+      rationale:
+        "The exact action was simulated and explicitly approved for constrained execution.",
+      auditSeverity: "high",
+      approvalRequired: false,
+      constraints: verifiedExecutionConstraints
+    });
+  }
+
+  if (request.approvalRequired === true && approvalEvidenceRefs.length === 0) {
+    return createOutcome(request, {
+      type: "delegate_to_human",
+      rationale: "The selected provider requires explicit human approval.",
+      auditSeverity: "high",
+      approvalRequired: true
     });
   }
 
@@ -141,23 +189,6 @@ function decideWithDefaultRules(request: DecisionRequest): DecisionOutcome {
       approvalRequired: true,
       discussionPoints: ["This action is irreversible or destructive."],
       ...(suggestedAlternative === undefined ? {} : { suggestedAlternative })
-    });
-  }
-
-  if (
-    request.externalImpacts.includes("money") ||
-    request.externalImpacts.includes("legal_commitment") ||
-    request.externalImpacts.includes("private_data") ||
-    request.externalImpacts.includes("privilege_escalation") ||
-    request.externalImpacts.includes("real_desktop_control")
-  ) {
-    return createOutcome(request, {
-      type: "simulate_first",
-      rationale: "High-impact external actions need simulation and explicit review.",
-      auditSeverity: "high",
-      approvalRequired: true,
-      simulationRequirement:
-        "Simulate the action, list impacted systems and data, and prepare a rollback or undo path."
     });
   }
 
@@ -201,7 +232,13 @@ function createOutcome(
     discussionPoints: options.discussionPoints ?? [],
     approvalRequired: options.approvalRequired,
     auditSeverity: options.auditSeverity,
-    evidenceRefs: request.evidenceRefs
+    evidenceRefs: [
+      ...new Set([
+        ...request.evidenceRefs,
+        ...(request.simulationEvidenceRefs ?? []),
+        ...(request.approvalEvidenceRefs ?? [])
+      ])
+    ]
   };
 
   if (options.suggestedAlternative !== undefined) {
@@ -213,6 +250,22 @@ function createOutcome(
   }
 
   return outcome;
+}
+
+function requiresSimulation(request: DecisionRequest): boolean {
+  return (
+    request.simulationRequired === true ||
+    request.externalImpacts.some((impact) =>
+      [
+        "money",
+        "production_system",
+        "legal_commitment",
+        "private_data",
+        "privilege_escalation",
+        "real_desktop_control"
+      ].includes(impact)
+    )
+  );
 }
 
 function chooseBestAlternative(

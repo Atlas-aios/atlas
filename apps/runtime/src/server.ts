@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 
 import {
+  createOpenAiCompatiblePlanningProvider,
   createNvidiaNimPlanningProvider,
+  type CreateOpenAiCompatiblePlanningProviderInput,
   type CreateNvidiaNimPlanningProviderInput
 } from "@atlas-aios/brain";
 
@@ -16,6 +18,7 @@ import {
 
 type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 type RuntimeNvidiaFetcher = CreateNvidiaNimPlanningProviderInput["fetcher"];
+type RuntimeLocalModelFetcher = CreateOpenAiCompatiblePlanningProviderInput["fetcher"];
 
 export interface StartAtlasRuntimeServerOptions {
   port: number;
@@ -30,7 +33,8 @@ export interface RunningAtlasRuntimeServer {
 
 export function createRuntimeBrainConfigFromEnvironment(
   environment: RuntimeEnvironment,
-  fetcher: RuntimeNvidiaFetcher = fetchNvidiaNim
+  nvidiaFetcher: RuntimeNvidiaFetcher = fetchNvidiaNim,
+  localModelFetcher: RuntimeLocalModelFetcher = fetchLocalOpenAiCompatibleModel
 ): RuntimeBrainConfig {
   const allowRemoteModels = environment.ATLAS_ALLOW_REMOTE_MODELS === "true";
   const allowFreeHostedEndpoints =
@@ -41,18 +45,35 @@ export function createRuntimeBrainConfigFromEnvironment(
     allowFreeHostedEndpoints &&
     apiKey !== undefined &&
     apiKey.length > 0;
+  const localModelId = environment.ATLAS_LOCAL_MODEL_ID;
+  const canConfigureLocal = localModelId !== undefined && localModelId.length > 0;
 
   return {
     allowRemoteModels,
     allowFreeHostedEndpoints,
-    providers: canConfigureNvidia
-      ? {
-          "nvidia-nemotron-super-remote": createNvidiaNimPlanningProvider({
-            apiKey,
-            fetcher
-          })
-        }
-      : {}
+    providers: {
+      ...(canConfigureLocal
+        ? {
+            "qwen-local-default": createOpenAiCompatiblePlanningProvider({
+              baseUrl:
+                environment.ATLAS_LOCAL_MODEL_BASE_URL ?? "http://127.0.0.1:11434/v1",
+              model: localModelId,
+              fetcher: localModelFetcher,
+              ...(environment.ATLAS_LOCAL_MODEL_API_KEY === undefined
+                ? {}
+                : { apiKey: environment.ATLAS_LOCAL_MODEL_API_KEY })
+            })
+          }
+        : {}),
+      ...(canConfigureNvidia
+        ? {
+            "nvidia-nemotron-super-remote": createNvidiaNimPlanningProvider({
+              apiKey,
+              fetcher: nvidiaFetcher
+            })
+          }
+        : {})
+    }
   };
 }
 
@@ -144,6 +165,19 @@ async function writeWebResponse(
 }
 
 async function fetchNvidiaNim(url: string, init: Parameters<RuntimeNvidiaFetcher>[1]) {
+  const response = await fetch(url, init);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    json: () => response.json()
+  };
+}
+
+async function fetchLocalOpenAiCompatibleModel(
+  url: string,
+  init: Parameters<RuntimeLocalModelFetcher>[1]
+) {
   const response = await fetch(url, init);
 
   return {

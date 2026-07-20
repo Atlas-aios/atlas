@@ -43,6 +43,9 @@ importers:
       "@atlas-aios/cognitive-loop":
         specifier: workspace:*
         version: link:../../packages/cognitive-loop
+      "@atlas-aios/decision-engine":
+        specifier: workspace:*
+        version: link:../../packages/decision-engine
       "@atlas-aios/execution-engine":
         specifier: workspace:*
         version: link:../../packages/execution-engine

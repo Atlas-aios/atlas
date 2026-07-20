@@ -53,6 +53,35 @@ export interface CreateNvidiaNimPlanningProviderInput {
   reasoningBudget?: number;
 }
 
+export interface OpenAiCompatibleFetchResponse {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+}
+
+export interface OpenAiCompatibleHttpInit {
+  method: "POST";
+  headers: {
+    "Content-Type": "application/json";
+    Authorization?: string;
+  };
+  body: string;
+}
+
+export type OpenAiCompatibleFetcher = (
+  url: string,
+  init: OpenAiCompatibleHttpInit
+) => Promise<OpenAiCompatibleFetchResponse>;
+
+export interface CreateOpenAiCompatiblePlanningProviderInput {
+  baseUrl: string;
+  model: string;
+  fetcher: OpenAiCompatibleFetcher;
+  apiKey?: string;
+  maxTokens?: number;
+  temperature?: number;
+}
+
 export class BrainModelUnavailableError extends Error {
   readonly code = "model_provider_unavailable";
 
@@ -120,6 +149,59 @@ export function createNvidiaNimPlanningProvider(
       return {
         content: result.content,
         ...(result.id === undefined ? {} : { requestId: result.id })
+      };
+    }
+  };
+}
+
+export function createOpenAiCompatiblePlanningProvider(
+  input: CreateOpenAiCompatiblePlanningProviderInput
+): BrainPlanningModelProvider {
+  const baseUrl = input.baseUrl.replace(/\/+$/, "");
+
+  return {
+    invoke: async (invocation) => {
+      const response = await input.fetcher(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(input.apiKey === undefined
+            ? {}
+            : { Authorization: `Bearer ${input.apiKey}` })
+        },
+        body: JSON.stringify({
+          model: input.model,
+          messages: [
+            { role: "system", content: invocation.systemPrompt },
+            { role: "user", content: invocation.userPrompt }
+          ],
+          max_tokens: input.maxTokens ?? 4096,
+          stream: false,
+          temperature: input.temperature ?? 0.2
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `OpenAI-compatible model request failed with status ${response.status}.`
+        );
+      }
+
+      const body = (await response.json()) as {
+        id?: string;
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = body.choices?.[0]?.message?.content;
+
+      if (typeof content !== "string" || content.length === 0) {
+        throw new Error(
+          "OpenAI-compatible model response did not include assistant content."
+        );
+      }
+
+      return {
+        content,
+        ...(body.id === undefined ? {} : { requestId: body.id })
       };
     }
   };

@@ -12,6 +12,7 @@
     { "path": "../../packages/brain" },
     { "path": "../../packages/capability-kernel" },
     { "path": "../../packages/cognitive-loop" },
+    { "path": "../../packages/decision-engine" },
     { "path": "../../packages/execution-engine" },
     { "path": "../../packages/experience" },
     { "path": "../../packages/governance" },

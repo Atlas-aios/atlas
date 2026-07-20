@@ -121,6 +121,16 @@ import {
   type WorldStateStore
 } from "@atlas-aios/world-state";
 
+import {
+  PlanRunApprovalError,
+  createPlanRunRequestFingerprint,
+  resumePlanRun,
+  startPlanRun,
+  type PlanOrchestratorDependencies,
+  type PlanRun,
+  type StartPlanRunInput
+} from "./plan-orchestrator.js";
+
 export interface AtlasRuntime {
   handle(request: Request): Promise<Response>;
 }
@@ -152,6 +162,12 @@ export interface GenerateRuntimeBrainPlanRequest {
   taskClass: PlanningModelSelectionInput["taskClass"];
   difficulty: PlanningModelSelectionInput["difficulty"];
   privacyClass: PlanningModelSelectionInput["privacyClass"];
+}
+
+export type CreateRuntimePlanRunRequest = Omit<StartPlanRunInput, "plan">;
+
+export interface ResumeRuntimePlanRunRequest {
+  resumedAt: string;
 }
 
 export interface RuntimeHealthResponse {
@@ -413,6 +429,7 @@ export interface RuntimeStateSnapshot {
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
   brainPlans?: AtlasPlan[];
+  planRuns?: PlanRun[];
 }
 
 interface RuntimeState {
@@ -433,6 +450,7 @@ interface RuntimeState {
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
   brainPlans: AtlasPlan[];
+  planRuns: PlanRun[];
   governancePolicyStore: GovernancePolicyStore;
   memoryStore: MemoryStore;
   experienceStore: ExperienceStore;
@@ -493,6 +511,7 @@ export function createAtlasRuntime(
     thoughts: [],
     simulations: [],
     brainPlans: [],
+    planRuns: [],
     governancePolicyStore: createInMemoryGovernancePolicyStore(
       createDefaultGovernancePolicies()
     ),
@@ -624,6 +643,149 @@ async function handleRuntimeRequest(
         { status: 502 }
       );
     }
+  }
+
+  const planRunStartMatch = /^\/brain\/plans\/(.+)\/run$/.exec(url.pathname);
+  if (request.method === "POST" && planRunStartMatch !== null) {
+    const planId = decodeURIComponent(planRunStartMatch[1] ?? "");
+    const plan = state.brainPlans.find((item) => item.id === planId);
+    if (plan === undefined) {
+      return json({ error: "brain_plan_not_found", planId }, { status: 404 });
+    }
+
+    const input = (await request.json()) as unknown;
+    if (!isCreateRuntimePlanRunRequest(input, plan)) {
+      return json(
+        {
+          error: "invalid_plan_run_request",
+          reason:
+            "The run must declare identity, authority, governance context, timestamp, and valid inputs and policy for every plan step."
+        },
+        { status: 400 }
+      );
+    }
+    const requestFingerprint = createPlanRunRequestFingerprint({ ...input, plan });
+    const existingRun = state.planRuns.find((run) => run.id === input.id);
+    if (existingRun !== undefined) {
+      if (
+        existingRun.planId !== plan.id ||
+        existingRun.requestFingerprint !== requestFingerprint
+      ) {
+        return json(
+          {
+            error: "plan_run_conflict",
+            planRunId: input.id,
+            existingPlanId: existingRun.planId
+          },
+          { status: 409 }
+        );
+      }
+
+      return json({ planRun: existingRun });
+    }
+
+    try {
+      const planRun = await startPlanRun(
+        { ...input, plan },
+        createRuntimePlanOrchestratorDependencies(state)
+      );
+      state.planRuns.push(planRun);
+      recordRuntimePlanRunEvidence(state, planRun, "started");
+
+      return json({ planRun }, { status: 201 });
+    } catch (error) {
+      return json(
+        {
+          error: "plan_run_failed",
+          reason: error instanceof Error ? error.message : "Plan run failed."
+        },
+        { status: 422 }
+      );
+    }
+  }
+
+  const planRunResumeMatch = /^\/brain\/plan-runs\/(.+)\/resume$/.exec(url.pathname);
+  if (request.method === "POST" && planRunResumeMatch !== null) {
+    const planRunId = decodeURIComponent(planRunResumeMatch[1] ?? "");
+    const planRun = state.planRuns.find((run) => run.id === planRunId);
+    if (planRun === undefined) {
+      return json({ error: "plan_run_not_found", planRunId }, { status: 404 });
+    }
+
+    const plan = state.brainPlans.find((item) => item.id === planRun.planId);
+    if (plan === undefined) {
+      return json(
+        { error: "brain_plan_not_found", planId: planRun.planId },
+        { status: 404 }
+      );
+    }
+
+    const input = (await request.json()) as unknown;
+    if (!isRuntimeRecord(input) || !isNonEmptyRuntimeString(input.resumedAt)) {
+      return json(
+        {
+          error: "invalid_plan_run_resume_request",
+          reason: "resumedAt is required."
+        },
+        { status: 400 }
+      );
+    }
+    const approvedApprovalRequestIds = planRun.steps.flatMap((step) =>
+      step.approvalRequestId !== undefined &&
+      state.approvalRequests.some(
+        (approval) =>
+          approval.id === step.approvalRequestId && approval.status === "approved"
+      )
+        ? [step.approvalRequestId]
+        : []
+    );
+
+    try {
+      const resumedRun = await resumePlanRun(
+        {
+          run: planRun,
+          plan,
+          approvedApprovalRequestIds,
+          resumedAt: input.resumedAt
+        },
+        createRuntimePlanOrchestratorDependencies(state)
+      );
+      state.planRuns = state.planRuns.map((item) =>
+        item.id === planRunId ? resumedRun : item
+      );
+      recordRuntimePlanRunEvidence(state, resumedRun, "resumed");
+
+      return json({ planRun: resumedRun });
+    } catch (error) {
+      if (error instanceof PlanRunApprovalError) {
+        return json(
+          {
+            error: error.code,
+            approvalRequestId: error.approvalRequestId,
+            reason: error.message
+          },
+          { status: 409 }
+        );
+      }
+
+      return json(
+        {
+          error: "plan_run_resume_failed",
+          reason: error instanceof Error ? error.message : "Plan run resume failed."
+        },
+        { status: 422 }
+      );
+    }
+  }
+
+  const planRunDetailMatch = /^\/brain\/plan-runs\/(.+)$/.exec(url.pathname);
+  if (request.method === "GET" && planRunDetailMatch !== null) {
+    const planRunId = decodeURIComponent(planRunDetailMatch[1] ?? "");
+    const planRun = state.planRuns.find((run) => run.id === planRunId);
+
+    return planRun === undefined
+      ? json({ error: "plan_run_not_found", planRunId }, { status: 404 })
+      : json({ planRun });
   }
 
   if (request.method === "POST" && url.pathname === "/workflows") {
@@ -1371,6 +1533,62 @@ function isGenerateRuntimeBrainPlanRequest(
   );
 }
 
+function isCreateRuntimePlanRunRequest(
+  value: unknown,
+  plan: AtlasPlan
+): value is CreateRuntimePlanRunRequest {
+  if (!isRuntimeRecord(value) || !isRuntimeRecord(value.steps)) {
+    return false;
+  }
+  const stepPolicies = value.steps;
+
+  if (
+    !isNonEmptyRuntimeString(value.id) ||
+    !isNonEmptyRuntimeString(value.requesterIdentityId) ||
+    !isOneOf(value.authorityMode, ["broad", "trusted", "restricted"]) ||
+    !isNonEmptyRuntimeString(value.governanceContextId) ||
+    !isNonEmptyRuntimeString(value.startedAt)
+  ) {
+    return false;
+  }
+
+  return plan.steps.every((step) => {
+    const policy = stepPolicies[step.id];
+    if (!isRuntimeRecord(policy) || !isRuntimeRecord(policy.inputs)) {
+      return false;
+    }
+
+    return (
+      isOneOf(policy.reversibility, [
+        "reversible",
+        "partially_reversible",
+        "irreversible"
+      ]) &&
+      Array.isArray(policy.externalImpacts) &&
+      policy.externalImpacts.every((impact) =>
+        isOneOf(impact, [
+          "money",
+          "production_system",
+          "legal_commitment",
+          "private_data",
+          "public_communication",
+          "destructive_action",
+          "privilege_escalation",
+          "real_desktop_control"
+        ])
+      )
+    );
+  });
+}
+
+function isRuntimeRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyRuntimeString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
 function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === "string" && allowed.includes(value as T);
 }
@@ -1416,7 +1634,8 @@ function createRuntimeStateSnapshot(state: RuntimeState): RuntimeStateSnapshot {
     workflows: state.workflows,
     thoughts: state.thoughts,
     simulations: state.simulations,
-    brainPlans: state.brainPlans
+    brainPlans: state.brainPlans,
+    planRuns: state.planRuns
   };
 }
 
@@ -1441,6 +1660,110 @@ function restoreRuntimeStateSnapshot(
   state.thoughts = snapshot.thoughts ?? [];
   state.simulations = snapshot.simulations ?? [];
   state.brainPlans = snapshot.brainPlans ?? [];
+  state.planRuns = snapshot.planRuns ?? [];
+}
+
+function createRuntimePlanOrchestratorDependencies(
+  state: RuntimeState
+): PlanOrchestratorDependencies {
+  return {
+    resolveCapability: (request) => resolveRuntimeCapability({ state, request }),
+    simulateStep: async (input) => {
+      const simulation = await simulateRuntimeProvider(state, {
+        id: `simulation:${input.runId}:${input.stepId}`,
+        goalId: input.goalId,
+        capabilityId: input.capabilityId,
+        providerId: input.providerId,
+        inputs: input.inputs,
+        createdAt: input.startedAt
+      });
+      state.simulations = [
+        ...state.simulations.filter((item) => item.id !== simulation.id),
+        simulation
+      ];
+
+      return {
+        id: simulation.id,
+        status: simulation.status,
+        evidenceRefs: [
+          simulation.id,
+          ...simulation.events.map(
+            (event, index) => `${simulation.id}:event:${index + 1}:${event.type}`
+          )
+        ]
+      };
+    },
+    requestApproval: ({ runId, goalId, governanceContextId, step, requestedAt }) => {
+      const approvalRequest = createRuntimeApprovalRequest({
+        goalId,
+        capabilityId: step.capabilityId,
+        providerId: step.providerId,
+        executionId: `${runId}:${step.stepId}`,
+        governanceContextId,
+        requestedAt,
+        reason:
+          step.resolution.approvalReason ??
+          step.decision.rationale ??
+          "Plan step requires approval."
+      });
+      state.approvalRequests.push(approvalRequest);
+      return approvalRequest.id;
+    },
+    executeCapability: async ({ node }) =>
+      executeRuntimeProvider(
+        state,
+        requiredStringRuntimeInput(node.inputs, "providerId"),
+        requiredStringRuntimeInput(node.inputs, "capabilityId"),
+        requiredRecordRuntimeInput(node.inputs, "inputs")
+      )
+  };
+}
+
+function recordRuntimePlanRunEvidence(
+  state: RuntimeState,
+  planRun: PlanRun,
+  phase: "started" | "resumed"
+): void {
+  const occurredAt =
+    phase === "resumed"
+      ? (planRun.execution?.session.startedAt ?? planRun.startedAt)
+      : planRun.startedAt;
+  const evidenceRefs = [
+    planRun.planId,
+    ...planRun.steps.flatMap((step) => [
+      step.decision.requestId,
+      ...(step.simulation?.evidenceRefs ?? []),
+      ...(step.approvalRequestId === undefined ? [] : [step.approvalRequestId])
+    ]),
+    ...(planRun.execution?.steps.flatMap((step) => step.evidenceRefs) ?? [])
+  ];
+  state.auditLogs.push({
+    id: `audit:plan-run:${planRun.id}:${phase}`,
+    type: `brain.plan-run.${phase}`,
+    actorId: planRun.requesterIdentityId,
+    subjectId: planRun.id,
+    occurredAt,
+    summary: `Plan run ${planRun.id} ${phase} with status ${planRun.status}.`,
+    evidenceRefs,
+    metadata: {
+      planId: planRun.planId,
+      goalId: planRun.goalId,
+      status: planRun.status
+    }
+  });
+  recordMemoryEvent(state.memoryStore, {
+    id: `memory:event:plan-run:${planRun.id}:${phase}`,
+    kind: phase === "resumed" ? "execution" : "decision",
+    occurredAt,
+    summary: `Plan run ${planRun.id} ${phase} with status ${planRun.status}.`,
+    subjectIds: [planRun.goalId, planRun.planId, planRun.id],
+    sourceIds: evidenceRefs,
+    evidenceRefs,
+    metadata: {
+      status: planRun.status,
+      phase
+    }
+  });
 }
 
 async function simulateRuntimeProvider(

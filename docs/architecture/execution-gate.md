@@ -73,3 +73,14 @@ DecisionOutcome -> ExecutionGateOutcome -> execution state transition
 ```
 
 This also gives Memory and Experience a stable place to observe decisions before execution results are known.
+
+## Runtime Plan Runs
+
+Runtime plan orchestration evaluates one gate per AtlasPlan step. It does not execute
+part of a plan while another step is waiting. Once every step is allowed, Runtime
+compiles the resolved steps and exact inputs into one sequential AtlasFlow and passes
+that workflow to Execution Engine.
+
+`simulate_first` runs only the Interface Driver simulation path. The resulting
+evidence is sent back through Decision Engine. Human approval is separately verified
+before the reconsidered `approve_with_constraints` outcome can reach execution.

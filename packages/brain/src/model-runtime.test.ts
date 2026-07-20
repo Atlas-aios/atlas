@@ -3,10 +3,75 @@ import { describe, expect, it } from "vitest";
 import {
   BrainModelUnavailableError,
   InvalidBrainModelOutputError,
+  createOpenAiCompatiblePlanningProvider,
   generateModelBackedPlan
 } from "./model-runtime.js";
 
 describe("model-backed Brain planning", () => {
+  it("calls a local OpenAI-compatible endpoint and extracts assistant content", async () => {
+    const requests: Array<{
+      url: string;
+      authorization?: string;
+      body: unknown;
+    }> = [];
+    const provider = createOpenAiCompatiblePlanningProvider({
+      baseUrl: "http://127.0.0.1:11434/v1/",
+      model: "qwen3:8b",
+      apiKey: "local-test-key",
+      maxTokens: 2048,
+      fetcher: async (url, init) => {
+        requests.push({
+          url,
+          ...(init.headers.Authorization === undefined
+            ? {}
+            : { authorization: init.headers.Authorization }),
+          body: JSON.parse(init.body)
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: "local-chat:1",
+            choices: [
+              {
+                message: {
+                  content: '{"rationale":"Local plan","risks":[],"steps":[]}'
+                }
+              }
+            ]
+          })
+        };
+      }
+    });
+
+    await expect(
+      provider.invoke({
+        modelProfileId: "qwen-local-default",
+        systemPrompt: "Return JSON.",
+        userPrompt: "Plan this goal."
+      })
+    ).resolves.toEqual({
+      requestId: "local-chat:1",
+      content: '{"rationale":"Local plan","risks":[],"steps":[]}'
+    });
+    expect(requests).toEqual([
+      {
+        url: "http://127.0.0.1:11434/v1/chat/completions",
+        authorization: "Bearer local-test-key",
+        body: {
+          model: "qwen3:8b",
+          messages: [
+            { role: "system", content: "Return JSON." },
+            { role: "user", content: "Plan this goal." }
+          ],
+          max_tokens: 2048,
+          stream: false,
+          temperature: 0.2
+        }
+      }
+    ]);
+  });
+
   it("routes a bounded request through the selected provider and validates the plan", async () => {
     const invocations: Array<{
       modelProfileId: string;
