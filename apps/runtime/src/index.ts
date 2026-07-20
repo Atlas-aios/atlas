@@ -284,6 +284,7 @@ export interface RuntimeProviderListItem {
   confidence: number;
   riskScore: number;
   estimatedCost: number;
+  costUnit: string;
   estimatedLatencyMs: number;
   permissionFit?: number;
   policyRiskScore?: number;
@@ -728,10 +729,21 @@ async function handleRuntimeRequest(
         {
           error: "invalid_plan_run_request",
           reason:
-            "The run must declare identity, authority, governance context, timestamp, and valid inputs and policy for every plan step."
+            "The run must declare identity, authority, governance context, budget, cost unit, timestamp, and valid inputs and policy for every plan step."
         },
         { status: 400 }
       );
+    }
+    try {
+      const balance = getBudgetBalance(state.internalEconomy, input.budgetId);
+      if (balance.unit !== input.costUnit) {
+        throw new EconomyError(
+          "conflict",
+          `Plan cost unit ${input.costUnit} does not match budget unit ${balance.unit}.`
+        );
+      }
+    } catch (error) {
+      return economyErrorResponse(error);
     }
     const requestFingerprint = createPlanRunRequestFingerprint({ ...input, plan });
     const existingRun = state.planRuns.find((run) => run.id === input.id);
@@ -808,6 +820,10 @@ async function handleRuntimeRequest(
         ? [step.approvalRequestId]
         : []
     );
+    const budgetFailure = runtimePlanRunBudgetFailure(state, planRun);
+    if (budgetFailure !== undefined) {
+      return budgetFailure;
+    }
 
     try {
       const resumedRun = await resumePlanRun(
@@ -1719,6 +1735,10 @@ async function handleRuntimeRequest(
 
     let executedPlanRun = planRun;
     if (planRun.status === "waiting_for_approval") {
+      const budgetFailure = runtimePlanRunBudgetFailure(state, planRun);
+      if (budgetFailure !== undefined) {
+        return budgetFailure;
+      }
       try {
         executedPlanRun = await resumePlanRun(
           {
@@ -2052,6 +2072,8 @@ function isCreateRuntimePlanRunRequest(
     !isNonEmptyRuntimeString(value.requesterIdentityId) ||
     !isOneOf(value.authorityMode, ["broad", "trusted", "restricted"]) ||
     !isNonEmptyRuntimeString(value.governanceContextId) ||
+    !isNonEmptyRuntimeString(value.budgetId) ||
+    !isNonEmptyRuntimeString(value.costUnit) ||
     !isNonEmptyRuntimeString(value.startedAt)
   ) {
     return false;
@@ -2380,13 +2402,91 @@ function createRuntimePlanOrchestratorDependencies(
       state.approvalRequests.push(approvalRequest);
       return approvalRequest.id;
     },
-    executeCapability: async ({ node }) =>
+    executeCapability: async ({ node, session }) =>
       executeRuntimeProvider(
         state,
         requiredStringRuntimeInput(node.inputs, "providerId"),
         requiredStringRuntimeInput(node.inputs, "capabilityId"),
-        requiredRecordRuntimeInput(node.inputs, "inputs")
-      )
+        requiredRecordRuntimeInput(node.inputs, "inputs"),
+        {
+          expectedCostUnit: requiredStringRuntimeInput(node.inputs, "costUnit"),
+          executionId: session.id
+        }
+      ),
+    reserveExecutionCost: async (input) => {
+      const balance = getBudgetBalance(state.internalEconomy, input.budgetId);
+      if (balance.unit !== input.costUnit) {
+        throw new EconomyError(
+          "conflict",
+          `Plan cost unit ${input.costUnit} does not match budget unit ${balance.unit}.`
+        );
+      }
+      for (const providerId of input.providerIds) {
+        const provider = state.providers.find(
+          (candidate) => candidate.providerId === providerId
+        );
+        if (provider === undefined) {
+          throw new EconomyError(
+            "not_found",
+            `Provider ${providerId} is not registered for cost accounting.`
+          );
+        }
+        if (provider.costUnit !== input.costUnit) {
+          throw new EconomyError(
+            "conflict",
+            `Provider ${providerId} reports ${provider.costUnit}, expected ${input.costUnit}.`
+          );
+        }
+      }
+      const result = reserveCost(state.internalEconomy, {
+        id: `reservation:plan-run:${input.runId}`,
+        budgetId: input.budgetId,
+        amount: input.estimatedCost,
+        purpose: `Reserve governed execution cost for ${input.runId}.`,
+        referenceId: input.runId,
+        createdAt: input.reservedAt
+      });
+      const isNewEntry =
+        result.state.ledger.length > state.internalEconomy.ledger.length;
+      state.internalEconomy = result.state;
+      if (isNewEntry) {
+        recordRuntimeEconomyEvidence(state, result.entry, input.actorId);
+      }
+      return {
+        reservationId: result.reservation.id,
+        evidenceRefs: [result.entry.id]
+      };
+    },
+    settleExecutionCost: async (input) => {
+      const result = settleReservation(state.internalEconomy, {
+        reservationId: input.reservationId,
+        settlementId: `settlement:plan-run:${input.runId}`,
+        actualAmount: input.actualCost,
+        settledAt: input.settledAt
+      });
+      const isNewEntry =
+        result.state.ledger.length > state.internalEconomy.ledger.length;
+      state.internalEconomy = result.state;
+      if (isNewEntry) {
+        recordRuntimeEconomyEvidence(state, result.entry, input.actorId);
+      }
+      return { evidenceRefs: [result.entry.id] };
+    },
+    releaseExecutionCost: async (input) => {
+      const result = releaseReservation(state.internalEconomy, {
+        reservationId: input.reservationId,
+        releaseId: `release:plan-run:${input.runId}`,
+        releasedAt: input.releasedAt,
+        reason: input.reason
+      });
+      const isNewEntry =
+        result.state.ledger.length > state.internalEconomy.ledger.length;
+      state.internalEconomy = result.state;
+      if (isNewEntry) {
+        recordRuntimeEconomyEvidence(state, result.entry, input.actorId);
+      }
+      return { evidenceRefs: [result.entry.id] };
+    }
   };
 }
 
@@ -2406,7 +2506,8 @@ function recordRuntimePlanRunEvidence(
       ...(step.simulation?.evidenceRefs ?? []),
       ...(step.approvalRequestId === undefined ? [] : [step.approvalRequestId])
     ]),
-    ...(planRun.execution?.steps.flatMap((step) => step.evidenceRefs) ?? [])
+    ...(planRun.execution?.steps.flatMap((step) => step.evidenceRefs) ?? []),
+    ...planRun.accounting.evidenceRefs
   ];
   state.auditLogs.push({
     id: `audit:plan-run:${planRun.id}:${phase}`,
@@ -2419,7 +2520,12 @@ function recordRuntimePlanRunEvidence(
     metadata: {
       planId: planRun.planId,
       goalId: planRun.goalId,
-      status: planRun.status
+      status: planRun.status,
+      budgetId: planRun.budgetId,
+      accountingStatus: planRun.accounting.status,
+      estimatedCost: String(planRun.accounting.estimatedCost),
+      actualCost: String(planRun.accounting.actualCost ?? 0),
+      costUnit: planRun.costUnit
     }
   });
   recordMemoryEvent(state.memoryStore, {
@@ -2435,6 +2541,45 @@ function recordRuntimePlanRunEvidence(
       phase
     }
   });
+}
+
+function runtimePlanRunBudgetFailure(
+  state: RuntimeState,
+  planRun: PlanRun
+): Response | undefined {
+  if (planRun.accounting.status !== "not_reserved") {
+    return undefined;
+  }
+
+  try {
+    const balance = getBudgetBalance(state.internalEconomy, planRun.budgetId);
+    if (balance.unit !== planRun.costUnit) {
+      return json(
+        {
+          error: "cost_unit_mismatch",
+          budgetId: planRun.budgetId,
+          expectedUnit: balance.unit,
+          actualUnit: planRun.costUnit
+        },
+        { status: 409 }
+      );
+    }
+    if (planRun.accounting.estimatedCost > balance.available) {
+      return json(
+        {
+          error: "insufficient_funds",
+          budgetId: planRun.budgetId,
+          required: planRun.accounting.estimatedCost,
+          available: balance.available,
+          unit: balance.unit
+        },
+        { status: 409 }
+      );
+    }
+    return undefined;
+  } catch (error) {
+    return economyErrorResponse(error);
+  }
 }
 
 async function simulateRuntimeProvider(
@@ -2874,9 +3019,12 @@ function recordRuntimeSimulationComparisonEvidence(
 function recordRuntimeEconomyEvidence(
   state: RuntimeState,
   entry: EconomyLedgerEntry,
-  request: Request
+  actor: Request | string
 ): void {
-  const actorId = request.headers.get("x-atlas-identity-id") ?? "identity:runtime";
+  const actorId =
+    typeof actor === "string"
+      ? actor
+      : (actor.headers.get("x-atlas-identity-id") ?? "identity:runtime");
   const subjectIds = [
     entry.budgetId,
     ...(entry.reservationId === undefined ? [] : [entry.reservationId])
@@ -2987,7 +3135,8 @@ function cognitiveLoopPlanRunEvidenceRefs(planRun: PlanRun): string[] {
       ...(step.simulation?.evidenceRefs ?? []),
       ...(step.approvalRequestId === undefined ? [] : [step.approvalRequestId])
     ]),
-    ...(planRun.execution?.steps.flatMap((step) => step.evidenceRefs) ?? [])
+    ...(planRun.execution?.steps.flatMap((step) => step.evidenceRefs) ?? []),
+    ...planRun.accounting.evidenceRefs
   ].filter((ref, index, refs) => refs.indexOf(ref) === index);
 }
 
@@ -3255,6 +3404,7 @@ async function runUnknownBusinessMvpFlow(): Promise<UnknownBusinessMvpFlowResult
       confidence: candidate.confidence,
       riskScore: candidate.riskScore,
       estimatedCost: candidate.estimatedCost,
+      costUnit: "atlas_credit",
       estimatedLatencyMs: candidate.estimatedLatencyMs,
       ...(candidate.permissionFit === undefined
         ? {}
@@ -3344,7 +3494,8 @@ async function createRuntimeExecution(
           state,
           requiredStringRuntimeInput(node.inputs, "providerId"),
           requiredStringRuntimeInput(node.inputs, "capabilityId"),
-          requiredRecordRuntimeInput(node.inputs, "inputs")
+          requiredRecordRuntimeInput(node.inputs, "inputs"),
+          { executionId: input.id }
         )
     }
   });
@@ -3362,15 +3513,23 @@ async function executeRuntimeProvider(
   state: RuntimeState,
   providerId: string,
   capabilityId: string,
-  inputs: Record<string, unknown>
+  inputs: Record<string, unknown>,
+  options: { expectedCostUnit?: string; executionId: string }
 ): Promise<ExecuteWorkflowNodeResult> {
-  if (
-    !state.providers.some(
-      (provider) =>
-        provider.providerId === providerId && provider.capabilityId === capabilityId
-    )
-  ) {
+  const provider = state.providers.find(
+    (candidate) =>
+      candidate.providerId === providerId && candidate.capabilityId === capabilityId
+  );
+  if (provider === undefined) {
     throw new Error(`Provider ${providerId} is not registered for ${capabilityId}`);
+  }
+  if (
+    options.expectedCostUnit !== undefined &&
+    provider.costUnit !== options.expectedCostUnit
+  ) {
+    throw new Error(
+      `Provider ${providerId} reports ${provider.costUnit}, expected ${options.expectedCostUnit}.`
+    );
   }
 
   const restRequest = runtimeProviderRestRequest(providerId, inputs);
@@ -3384,7 +3543,12 @@ async function executeRuntimeProvider(
     evidenceRefs: [
       `fixture:rest:${restRequest.method} ${restRequest.path}`,
       `runtime:provider:${providerId}`
-    ]
+    ],
+    resourceUsage: {
+      cost: provider.estimatedCost,
+      unit: provider.costUnit,
+      evidenceRef: `meter:fixture:${providerId}:${options.executionId}`
+    }
   };
 }
 

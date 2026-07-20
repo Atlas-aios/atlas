@@ -155,8 +155,15 @@ export interface ExecutionStepResult {
   status: ExecutionStepStatus;
   outputs: Record<string, unknown>;
   evidenceRefs: string[];
+  resourceUsage?: ExecutionResourceUsage;
   compensation?: ExecutionCompensationPlan;
   error?: string;
+}
+
+export interface ExecutionResourceUsage {
+  cost: number;
+  unit: string;
+  evidenceRef: string;
 }
 
 export type ExecutionCompensationPlan = ProviderExecutionCompensationPlan;
@@ -218,6 +225,7 @@ export interface ExecuteWorkflowNodeResult {
   status?: Extract<ExecutionStepStatus, "completed" | "waiting">;
   outputs: Record<string, unknown>;
   evidenceRefs: string[];
+  resourceUsage?: ExecutionResourceUsage;
   compensation?: ExecutionCompensationPlan;
 }
 
@@ -441,11 +449,13 @@ export async function runSequentialWorkflow(
       const stepStatus = result.status ?? "completed";
 
       if (stepStatus === "waiting") {
+        const resourceUsage = validatedResourceUsage(result.resourceUsage);
         steps.push({
           nodeId: node.id,
           status: "waiting",
           outputs: result.outputs,
-          evidenceRefs: result.evidenceRefs
+          evidenceRefs: result.evidenceRefs,
+          ...(resourceUsage === undefined ? {} : { resourceUsage })
         });
         await emitExecutionEvent(
           input,
@@ -474,11 +484,13 @@ export async function runSequentialWorkflow(
         };
       }
 
+      const resourceUsage = validatedResourceUsage(result.resourceUsage);
       steps.push({
         nodeId: node.id,
         status: "completed",
         outputs: result.outputs,
         evidenceRefs: result.evidenceRefs,
+        ...(resourceUsage === undefined ? {} : { resourceUsage }),
         ...(result.compensation === undefined
           ? {}
           : { compensation: result.compensation })
@@ -557,6 +569,25 @@ export async function runSequentialWorkflow(
     steps,
     events
   };
+}
+
+function validatedResourceUsage(
+  usage: ExecutionResourceUsage | undefined
+): ExecutionResourceUsage | undefined {
+  if (usage === undefined) {
+    return undefined;
+  }
+  if (!Number.isFinite(usage.cost) || usage.cost < 0) {
+    throw new Error("Execution resource usage cost must be finite and non-negative.");
+  }
+  if (usage.unit.trim().length === 0) {
+    throw new Error("Execution resource usage unit is required.");
+  }
+  if (usage.evidenceRef.trim().length === 0) {
+    throw new Error("Execution resource usage evidence is required.");
+  }
+
+  return { ...usage };
 }
 
 async function executeNodeWithRetry(

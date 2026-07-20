@@ -163,8 +163,19 @@ boundary.
 Simulation comparison may reference a budget. Runtime snapshots its available amount
 and tightens the comparison cost ceiling to the lower of caller policy or available
 funds. This is planning evidence only: selecting a plan does not reserve funds, approve
-execution, or settle provider cost. Automatic reservation and settlement around the
-governed execution path remain explicit follow-up work.
+execution, or settle provider cost.
+
+Governed plan execution declares a budget and cost unit. After capability resolution,
+simulation, Decision Engine evaluation, approval, and Execution Gate checks are
+satisfied, Plan Orchestrator reserves the sum of selected-provider estimates before
+AtlasFlow starts. Completed provider steps carry typed resource-usage evidence; Runtime
+settles their aggregate actual cost and releases unused reserved capacity. Approval
+cannot bypass an insufficient-funds conflict.
+
+Missing, mismatched, or over-reservation usage evidence marks the run as requiring
+accounting reconciliation and leaves the reservation active instead of inventing a
+cost. External provider invoices, exchange rates, and billing reconciliation remain
+production work.
 
 ### Memory
 

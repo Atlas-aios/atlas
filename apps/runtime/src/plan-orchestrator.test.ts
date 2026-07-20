@@ -31,6 +31,8 @@ describe("governed Atlas plan orchestration", () => {
         requesterIdentityId: "identity:user:moksh",
         authorityMode: "broad",
         governanceContextId: "governance:local",
+        budgetId: "budget:project:atlas",
+        costUnit: "atlas_credit",
         startedAt: "2026-07-20T09:00:00.000Z",
         steps: {
           "plan:low-risk:step:1": {
@@ -48,7 +50,16 @@ describe("governed Atlas plan orchestration", () => {
       {
         resolveCapability: async ({ capabilityId }) => ({
           selectedProviderId: `provider:${capabilityId}`,
-          candidates: [],
+          candidates: [
+            {
+              providerId: `provider:${capabilityId}`,
+              capabilityId,
+              confidence: 0.9,
+              riskScore: 0.1,
+              estimatedCost: 0.05,
+              estimatedLatencyMs: 100
+            }
+          ],
           approvalRequired: false,
           simulationRequired: false,
           rationale: "Selected the local provider."
@@ -63,9 +74,22 @@ describe("governed Atlas plan orchestration", () => {
           executed.push(node.id);
           return {
             outputs: { nodeId: node.id },
-            evidenceRefs: [`execution:${node.id}`]
+            evidenceRefs: [`execution:${node.id}`],
+            resourceUsage: {
+              cost: 0.04,
+              unit: "atlas_credit",
+              evidenceRef: `meter:${node.id}`
+            }
           };
-        }
+        },
+        reserveExecutionCost: async () => ({
+          reservationId: "reservation:plan-run:low-risk",
+          evidenceRefs: ["ledger:reservation:plan-run:low-risk"]
+        }),
+        settleExecutionCost: async () => ({
+          evidenceRefs: ["ledger:settlement:plan-run:low-risk"]
+        }),
+        releaseExecutionCost: async () => ({ evidenceRefs: [] })
       }
     );
 
@@ -81,7 +105,8 @@ describe("governed Atlas plan orchestration", () => {
           inputs: {
             providerId: "provider:capability:inspect",
             capabilityId: "capability:inspect",
-            inputs: { source: "local" }
+            inputs: { source: "local" },
+            costUnit: "atlas_credit"
           }
         },
         {
@@ -90,7 +115,8 @@ describe("governed Atlas plan orchestration", () => {
           inputs: {
             providerId: "provider:capability:create-local",
             capabilityId: "capability:create-local",
-            inputs: { name: "draft" }
+            inputs: { name: "draft" },
+            costUnit: "atlas_credit"
           }
         }
       ],
@@ -131,6 +157,8 @@ describe("governed Atlas plan orchestration", () => {
         requesterIdentityId: "identity:user:moksh",
         authorityMode: "broad",
         governanceContextId: "governance:unknown-system",
+        budgetId: "budget:project:atlas",
+        costUnit: "atlas_credit",
         startedAt: "2026-07-20T09:10:00.000Z",
         steps: {
           "plan:simulation:step:1": {
@@ -149,7 +177,16 @@ describe("governed Atlas plan orchestration", () => {
       {
         resolveCapability: async () => ({
           selectedProviderId: "provider:generated:create-resource",
-          candidates: [],
+          candidates: [
+            {
+              providerId: "provider:generated:create-resource",
+              capabilityId: "capability:create-resource",
+              confidence: 0.8,
+              riskScore: 0.2,
+              estimatedCost: 0.25,
+              estimatedLatencyMs: 500
+            }
+          ],
           approvalRequired: true,
           approvalReason: "Generated provider requires approval.",
           simulationRequired: true,
@@ -171,6 +208,15 @@ describe("governed Atlas plan orchestration", () => {
         executeCapability: async () => {
           executionAttempted = true;
           return { outputs: {}, evidenceRefs: [] };
+        },
+        reserveExecutionCost: async () => {
+          throw new Error("Waiting work must not reserve cost.");
+        },
+        settleExecutionCost: async () => {
+          throw new Error("Waiting work must not settle cost.");
+        },
+        releaseExecutionCost: async () => {
+          throw new Error("Waiting work must not release cost.");
         }
       }
     );
@@ -200,10 +246,20 @@ describe("governed Atlas plan orchestration", () => {
   it("reconsiders and executes the simulated AtlasFlow after approval", async () => {
     let simulationCount = 0;
     const executed: string[] = [];
+    const accountingEvents: string[] = [];
     const dependencies = {
       resolveCapability: async () => ({
         selectedProviderId: "provider:generated:create-resource",
-        candidates: [],
+        candidates: [
+          {
+            providerId: "provider:generated:create-resource",
+            capabilityId: "capability:create-resource",
+            confidence: 0.8,
+            riskScore: 0.2,
+            estimatedCost: 0.25,
+            estimatedLatencyMs: 500
+          }
+        ],
         approvalRequired: true,
         approvalReason: "Generated provider requires approval.",
         simulationRequired: true,
@@ -221,11 +277,50 @@ describe("governed Atlas plan orchestration", () => {
       requestApproval: ({ runId, step }: { runId: string; step: { stepId: string } }) =>
         `approval:${runId}:${step.stepId}`,
       executeCapability: async ({ node }: { node: { id: string } }) => {
+        accountingEvents.push("execute");
         executed.push(node.id);
         return {
           outputs: { completed: true },
-          evidenceRefs: [`execution:${node.id}`]
+          evidenceRefs: [`execution:${node.id}`],
+          resourceUsage: {
+            cost: 0.2,
+            unit: "atlas_credit",
+            evidenceRef: `meter:${node.id}`
+          }
         };
+      },
+      reserveExecutionCost: async (reservation: {
+        estimatedCost: number;
+        budgetId: string;
+        costUnit: string;
+      }) => {
+        accountingEvents.push(`reserve:${reservation.estimatedCost}`);
+        expect(reservation).toMatchObject({
+          budgetId: "budget:project:atlas",
+          costUnit: "atlas_credit",
+          estimatedCost: 0.25
+        });
+        return {
+          reservationId: "reservation:plan-run:plan-run:resume",
+          evidenceRefs: ["ledger:reservation:plan-run:resume"]
+        };
+      },
+      settleExecutionCost: async (settlement: {
+        reservationId: string;
+        actualCost: number;
+        costUnit: string;
+      }) => {
+        accountingEvents.push(`settle:${settlement.actualCost}`);
+        expect(settlement).toMatchObject({
+          reservationId: "reservation:plan-run:plan-run:resume",
+          actualCost: 0.2,
+          costUnit: "atlas_credit"
+        });
+        return { evidenceRefs: ["ledger:settlement:plan-run:resume"] };
+      },
+      releaseExecutionCost: async () => {
+        accountingEvents.push("release");
+        return { evidenceRefs: [] };
       }
     };
     const input = {
@@ -247,6 +342,8 @@ describe("governed Atlas plan orchestration", () => {
       requesterIdentityId: "identity:user:moksh",
       authorityMode: "broad" as const,
       governanceContextId: "governance:unknown-system",
+      budgetId: "budget:project:atlas",
+      costUnit: "atlas_credit",
       startedAt: "2026-07-20T09:20:00.000Z",
       steps: {
         "plan:resume:step:1": {
@@ -257,6 +354,13 @@ describe("governed Atlas plan orchestration", () => {
       }
     };
     const waitingRun = await startPlanRun(input, dependencies);
+    expect(waitingRun.accounting).toMatchObject({
+      budgetId: "budget:project:atlas",
+      costUnit: "atlas_credit",
+      estimatedCost: 0.25,
+      status: "not_reserved"
+    });
+    expect(accountingEvents).toEqual([]);
 
     const completedRun = await resumePlanRun(
       {
@@ -275,8 +379,22 @@ describe("governed Atlas plan orchestration", () => {
     });
     expect(completedRun.steps[0]?.gate.status).toBe("allowed_with_constraints");
     expect(completedRun.execution?.status).toBe("completed");
+    expect(completedRun.accounting).toEqual({
+      budgetId: "budget:project:atlas",
+      costUnit: "atlas_credit",
+      estimatedCost: 0.25,
+      reservationId: "reservation:plan-run:plan-run:resume",
+      actualCost: 0.2,
+      status: "settled",
+      evidenceRefs: [
+        "ledger:reservation:plan-run:resume",
+        "meter:plan:resume:step:1",
+        "ledger:settlement:plan-run:resume"
+      ]
+    });
     expect(simulationCount).toBe(1);
     expect(executed).toEqual(["plan:resume:step:1"]);
+    expect(accountingEvents).toEqual(["reserve:0.25", "execute", "settle:0.2"]);
   });
 
   it("blocks a rejected step before simulation, approval, or execution", async () => {
@@ -301,6 +419,8 @@ describe("governed Atlas plan orchestration", () => {
         requesterIdentityId: "identity:user:moksh",
         authorityMode: "broad",
         governanceContextId: "governance:security",
+        budgetId: "budget:project:atlas",
+        costUnit: "atlas_credit",
         startedAt: "2026-07-20T09:30:00.000Z",
         steps: {
           "plan:rejected:step:1": {
@@ -321,7 +441,16 @@ describe("governed Atlas plan orchestration", () => {
       {
         resolveCapability: async () => ({
           selectedProviderId: "provider:unsafe",
-          candidates: [],
+          candidates: [
+            {
+              providerId: "provider:unsafe",
+              capabilityId: "capability:bypass-access",
+              confidence: 0.1,
+              riskScore: 1,
+              estimatedCost: 0.5,
+              estimatedLatencyMs: 100
+            }
+          ],
           approvalRequired: true,
           simulationRequired: true,
           rationale: "Only candidate."
@@ -341,6 +470,18 @@ describe("governed Atlas plan orchestration", () => {
         executeCapability: async () => {
           sideEffects += 1;
           return { outputs: {}, evidenceRefs: [] };
+        },
+        reserveExecutionCost: async () => {
+          sideEffects += 1;
+          return { reservationId: "reservation:must-not-exist", evidenceRefs: [] };
+        },
+        settleExecutionCost: async () => {
+          sideEffects += 1;
+          return { evidenceRefs: [] };
+        },
+        releaseExecutionCost: async () => {
+          sideEffects += 1;
+          return { evidenceRefs: [] };
         }
       }
     );

@@ -299,6 +299,53 @@ describe("workflow execution", () => {
     ]);
   });
 
+  it("preserves validated provider resource usage on completed steps", async () => {
+    const result = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: "execution:metered-provider",
+        workflowId: "workflow:metered-provider",
+        startedAt: "2026-07-20T16:00:00.000Z"
+      }),
+      workflow: {
+        id: "workflow:metered-provider",
+        version: "0.1",
+        nodes: [
+          {
+            id: "node:metered",
+            type: "capability",
+            inputs: {}
+          }
+        ],
+        edges: []
+      },
+      handlers: {
+        capability: async () => ({
+          outputs: { resourceId: "resource:metered" },
+          evidenceRefs: ["trace:provider:metered"],
+          resourceUsage: {
+            cost: 0.04,
+            unit: "atlas_credit",
+            evidenceRef: "meter:provider:request:1"
+          }
+        })
+      }
+    });
+
+    expect(result.steps).toEqual([
+      {
+        nodeId: "node:metered",
+        status: "completed",
+        outputs: { resourceId: "resource:metered" },
+        evidenceRefs: ["trace:provider:metered"],
+        resourceUsage: {
+          cost: 0.04,
+          unit: "atlas_credit",
+          evidenceRef: "meter:provider:request:1"
+        }
+      }
+    ]);
+  });
+
   it("retries failed workflow nodes before marking execution failed", async () => {
     const scheduledDelays: number[] = [];
     let attempts = 0;

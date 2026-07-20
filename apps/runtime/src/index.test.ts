@@ -40,7 +40,6 @@ describe("Atlas runtime API", () => {
         method: "POST"
       })
     );
-
     const response = await runtime.handle(
       new Request("http://atlas.local/simulations", {
         method: "POST",
@@ -921,6 +920,20 @@ describe("Atlas runtime API", () => {
         method: "POST"
       })
     );
+    const budgetResponse = await runtime.handle(
+      new Request("http://atlas.local/economy/budgets", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "budget:plan-run:orchestrated",
+          scopeType: "goal",
+          scopeId: "goal:orchestrated",
+          unit: "atlas_credit",
+          limit: 1,
+          createdAt: "2026-07-20T09:59:00.000Z"
+        })
+      })
+    );
+    expect(budgetResponse.status).toBe(201);
     await runtime.handle(
       new Request("http://atlas.local/goals", {
         method: "POST",
@@ -984,6 +997,8 @@ describe("Atlas runtime API", () => {
           requesterIdentityId: "identity:user:moksh",
           authorityMode: "broad",
           governanceContextId: "governance:unknown-system",
+          budgetId: "budget:plan-run:orchestrated",
+          costUnit: "atlas_credit",
           startedAt: "2026-07-20T10:01:00.000Z",
           steps: {
             [stepId]: {
@@ -1006,10 +1021,12 @@ describe("Atlas runtime API", () => {
     const waitingBody = (await runResponse.json()) as {
       planRun: {
         status: string;
+        accounting: { status: string };
         steps: Array<{ approvalRequestId?: string }>;
       };
     };
     expect(waitingBody.planRun.status).toBe("waiting_for_approval");
+    expect(waitingBody.planRun.accounting.status).toBe("not_reserved");
     const approvalRequestId = waitingBody.planRun.steps[0]?.approvalRequestId ?? "";
 
     const approvalResponse = await runtime.handle(
@@ -1091,6 +1108,19 @@ describe("Atlas runtime API", () => {
       planRun: {
         id: "plan-run:orchestrated",
         status: "completed",
+        accounting: {
+          budgetId: "budget:plan-run:orchestrated",
+          costUnit: "atlas_credit",
+          estimatedCost: 0.05,
+          actualCost: 0.05,
+          status: "settled",
+          reservationId: "reservation:plan-run:plan-run:orchestrated",
+          evidenceRefs: expect.arrayContaining([
+            "ledger:reservation:reservation:plan-run:plan-run:orchestrated",
+            `meter:fixture:provider:openapi:create-folio:plan-run:orchestrated:execution`,
+            "ledger:settlement:settlement:plan-run:plan-run:orchestrated"
+          ])
+        },
         workflow: {
           id: "atlasflow:plan-run:orchestrated",
           nodes: [{ id: stepId, type: "capability" }]
@@ -1132,6 +1162,23 @@ describe("Atlas runtime API", () => {
           })
         ])
       }
+    });
+
+    const economyResponse = await runtime.handle(
+      new Request("http://atlas.local/economy/budgets", { method: "GET" })
+    );
+    await expect(economyResponse.json()).resolves.toMatchObject({
+      budgets: expect.arrayContaining([
+        expect.objectContaining({
+          budget: expect.objectContaining({ id: "budget:plan-run:orchestrated" }),
+          balance: expect.objectContaining({
+            limit: 1,
+            settled: 0.05,
+            reserved: 0,
+            available: 0.95
+          })
+        })
+      ])
     });
 
     const replayResponse = await runtime.handle(
@@ -1200,7 +1247,10 @@ describe("Atlas runtime API", () => {
           evidenceRefs: expect.arrayContaining([
             "plan-run:orchestrated:execution",
             `simulation:plan-run:orchestrated:${stepId}`,
-            approvalRequestId
+            approvalRequestId,
+            "ledger:reservation:reservation:plan-run:plan-run:orchestrated",
+            `meter:fixture:provider:openapi:create-folio:plan-run:orchestrated:execution`,
+            "ledger:settlement:settlement:plan-run:plan-run:orchestrated"
           ])
         })
       ]
@@ -1224,6 +1274,8 @@ describe("Atlas runtime API", () => {
           requesterIdentityId: "identity:user:moksh",
           authorityMode: "broad",
           governanceContextId: "governance:unknown-system",
+          budgetId: "budget:plan-run:orchestrated",
+          costUnit: "atlas_credit",
           startedAt: "2026-07-20T10:01:00.000Z",
           steps: {
             [stepId]: {
@@ -1245,6 +1297,143 @@ describe("Atlas runtime API", () => {
     await expect(conflictResponse.json()).resolves.toMatchObject({
       error: "plan_run_conflict",
       planRunId: "plan-run:orchestrated"
+    });
+  });
+
+  it("does not execute an approved plan when its budget cannot fund the reservation", async () => {
+    const runtime = createAtlasRuntime({
+      brain: {
+        allowRemoteModels: false,
+        allowFreeHostedEndpoints: false,
+        providers: {
+          "qwen-local-default": {
+            invoke: async () => ({
+              content: JSON.stringify({
+                rationale: "Use the learned provider only within budget.",
+                risks: [],
+                steps: [
+                  {
+                    capabilityId: "capability:create-folio",
+                    purpose: "Create one governed folio.",
+                    requiresApproval: true
+                  }
+                ]
+              })
+            })
+          }
+        }
+      }
+    });
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/economy/budgets", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "budget:plan-run:insufficient",
+          scopeType: "goal",
+          scopeId: "goal:insufficient-budget",
+          unit: "atlas_credit",
+          limit: 0.01,
+          createdAt: "2026-07-20T11:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:insufficient-budget",
+          title: "Respect the execution budget",
+          description: "Do not start work that cannot be reserved.",
+          ownerId: "identity:user:moksh",
+          priority: 80,
+          successCriteria: ["No overspending occurs."],
+          createdAt: "2026-07-20T11:00:00.000Z"
+        })
+      })
+    );
+    const planResponse = await runtime.handle(
+      new Request("http://atlas.local/brain/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          goalId: "goal:insufficient-budget",
+          taskClass: "planning",
+          difficulty: "medium",
+          privacyClass: "private"
+        })
+      })
+    );
+    const { plan } = (await planResponse.json()) as {
+      plan: { id: string; steps: Array<{ id: string }> };
+    };
+    const stepId = plan.steps[0]!.id;
+    const runResponse = await runtime.handle(
+      new Request(`http://atlas.local/brain/plans/${encodeURIComponent(plan.id)}/run`, {
+        method: "POST",
+        body: JSON.stringify({
+          id: "plan-run:insufficient",
+          requesterIdentityId: "identity:user:moksh",
+          authorityMode: "broad",
+          governanceContextId: "governance:unknown-system",
+          budgetId: "budget:plan-run:insufficient",
+          costUnit: "atlas_credit",
+          startedAt: "2026-07-20T11:01:00.000Z",
+          steps: {
+            [stepId]: {
+              inputs: { name: "Must not be created" },
+              reversibility: "partially_reversible",
+              externalImpacts: [],
+              predictedWorldStateEffects: []
+            }
+          }
+        })
+      })
+    );
+    const waitingRun = (await runResponse.json()) as {
+      planRun: { steps: Array<{ approvalRequestId?: string }> };
+    };
+    const approvalRequestId = waitingRun.planRun.steps[0]!.approvalRequestId!;
+    await runtime.handle(
+      new Request(
+        `http://atlas.local/approvals/${encodeURIComponent(approvalRequestId)}/approve`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            decidedBy: "identity:user:moksh",
+            decidedAt: "2026-07-20T11:02:00.000Z",
+            reason: "Approve only if budget permits."
+          })
+        }
+      )
+    );
+
+    const resumeResponse = await runtime.handle(
+      new Request("http://atlas.local/brain/plan-runs/plan-run%3Ainsufficient/resume", {
+        method: "POST",
+        body: JSON.stringify({ resumedAt: "2026-07-20T11:03:00.000Z" })
+      })
+    );
+
+    expect(resumeResponse.status).toBe(409);
+    await expect(resumeResponse.json()).resolves.toMatchObject({
+      error: "insufficient_funds",
+      budgetId: "budget:plan-run:insufficient",
+      required: 0.05,
+      available: 0.01,
+      unit: "atlas_credit"
+    });
+    const ledgerResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/economy/ledger?budgetId=budget%3Aplan-run%3Ainsufficient",
+        { method: "GET" }
+      )
+    );
+    await expect(ledgerResponse.json()).resolves.toMatchObject({
+      ledger: [{ kind: "budget_created" }]
     });
   });
 
@@ -1869,6 +2058,7 @@ describe("Atlas runtime API", () => {
           confidence: 0.62,
           riskScore: 0.6,
           estimatedCost: 0.05,
+          costUnit: "atlas_credit",
           estimatedLatencyMs: 900,
           permissionFit: 0.7,
           policyRiskScore: 0.2,
@@ -1880,6 +2070,7 @@ describe("Atlas runtime API", () => {
           confidence: 0.62,
           riskScore: 0.6,
           estimatedCost: 0.05,
+          costUnit: "atlas_credit",
           estimatedLatencyMs: 900,
           permissionFit: 0.7,
           policyRiskScore: 0.2,
@@ -1891,6 +2082,7 @@ describe("Atlas runtime API", () => {
           confidence: 0.62,
           riskScore: 0.6,
           estimatedCost: 0.05,
+          costUnit: "atlas_credit",
           estimatedLatencyMs: 900,
           permissionFit: 0.7,
           policyRiskScore: 0.2,
@@ -3740,7 +3932,13 @@ describe("Atlas runtime API", () => {
           evidenceRefs: [
             "fixture:rest:POST /folios",
             "runtime:provider:provider:openapi:create-folio"
-          ]
+          ],
+          resourceUsage: {
+            cost: 0.05,
+            unit: "atlas_credit",
+            evidenceRef:
+              "meter:fixture:provider:openapi:create-folio:execution:runtime:create-folio"
+          }
         }
       ],
       events: [
@@ -3873,7 +4071,13 @@ describe("Atlas runtime API", () => {
             evidenceRefs: [
               "fixture:rest:POST /folios",
               "runtime:provider:provider:openapi:create-folio"
-            ]
+            ],
+            resourceUsage: {
+              cost: 0.05,
+              unit: "atlas_credit",
+              evidenceRef:
+                "meter:fixture:provider:openapi:create-folio:execution:runtime:create-folio"
+            }
           }
         ],
         events: [

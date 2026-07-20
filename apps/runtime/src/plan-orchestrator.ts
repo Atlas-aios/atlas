@@ -22,6 +22,7 @@ import {
   type ExecuteWorkflowNodeInput,
   type ExecuteWorkflowNodeResult,
   type ExecutionGateOutcome,
+  type ExecutionResourceUsage,
   type ExecutionRunResult
 } from "@atlas-aios/execution-engine";
 import type { WorldStateSimulationEffect } from "@atlas-aios/simulation-engine";
@@ -57,6 +58,8 @@ export interface StartPlanRunInput {
   requesterIdentityId: string;
   authorityMode: DecisionAuthorityMode;
   governanceContextId: string;
+  budgetId: string;
+  costUnit: string;
   startedAt: string;
   steps: Record<string, PlanRunStepPolicy>;
 }
@@ -90,9 +93,30 @@ export interface PlanRun {
   requesterIdentityId: string;
   authorityMode: DecisionAuthorityMode;
   governanceContextId: string;
+  budgetId: string;
+  costUnit: string;
   steps: PlanRunStepState[];
+  accounting: PlanRunAccounting;
   workflow?: AtlasFlow;
   execution?: ExecutionRunResult;
+  failureReason?: string;
+}
+
+export type PlanRunAccountingStatus =
+  | "not_reserved"
+  | "reserved"
+  | "settled"
+  | "released"
+  | "reconciliation_required";
+
+export interface PlanRunAccounting {
+  budgetId: string;
+  costUnit: string;
+  estimatedCost: number;
+  status: PlanRunAccountingStatus;
+  evidenceRefs: string[];
+  reservationId?: string;
+  actualCost?: number;
   failureReason?: string;
 }
 
@@ -136,6 +160,31 @@ export interface PlanOrchestratorDependencies {
   executeCapability(
     input: ExecuteWorkflowNodeInput
   ): Promise<ExecuteWorkflowNodeResult> | ExecuteWorkflowNodeResult;
+  reserveExecutionCost(input: {
+    runId: string;
+    actorId: string;
+    budgetId: string;
+    costUnit: string;
+    estimatedCost: number;
+    providerIds: string[];
+    reservedAt: string;
+  }): Promise<{ reservationId: string; evidenceRefs: string[] }>;
+  settleExecutionCost(input: {
+    runId: string;
+    actorId: string;
+    reservationId: string;
+    costUnit: string;
+    actualCost: number;
+    settledAt: string;
+    usageEvidenceRefs: string[];
+  }): Promise<{ evidenceRefs: string[] }>;
+  releaseExecutionCost(input: {
+    runId: string;
+    actorId: string;
+    reservationId: string;
+    releasedAt: string;
+    reason: string;
+  }): Promise<{ evidenceRefs: string[] }>;
 }
 
 export async function startPlanRun(
@@ -288,6 +337,8 @@ export async function resumePlanRun(
     requesterIdentityId: input.run.requesterIdentityId,
     authorityMode: input.run.authorityMode,
     governanceContextId: input.run.governanceContextId,
+    budgetId: input.run.budgetId,
+    costUnit: input.run.costUnit,
     startedAt: input.run.startedAt,
     steps: Object.fromEntries(
       input.run.steps.map((step) => [step.stepId, cloneStepPolicy(step.policy)])
@@ -407,7 +458,10 @@ function createStoppedPlanRun(
     requesterIdentityId: input.requesterIdentityId,
     authorityMode: input.authorityMode,
     governanceContextId: input.governanceContextId,
+    budgetId: input.budgetId,
+    costUnit: input.costUnit,
     steps,
+    accounting: createUnreservedAccounting(input, steps),
     ...extra
   };
 }
@@ -445,45 +499,147 @@ async function executePlanRun(
   dependencies: PlanOrchestratorDependencies,
   executionStartedAt: string = input.startedAt
 ): Promise<PlanRun> {
-  const workflow = compilePlanRunAtlasFlow(input.id, steps);
-  const execution = await runSequentialWorkflow({
-    session: createExecutionSession({
-      id: `${input.id}:execution`,
-      workflowId: workflow.id,
-      startedAt: executionStartedAt
-    }),
-    workflow: {
-      id: workflow.id,
-      version: workflow.version,
-      nodes: workflow.nodes,
-      edges: workflow.edges.map((edge) => ({
-        fromNodeId: edge.fromNodeId,
-        toNodeId: edge.toNodeId,
-        ...(edge.condition === undefined ? {} : { condition: edge.condition })
-      }))
-    },
-    handlers: {
-      capability: dependencies.executeCapability
-    }
-  });
+  const estimatedCost = estimatedPlanCost(steps);
+  const unreservedAccounting = createUnreservedAccounting(input, steps);
+  let reservation: { reservationId: string; evidenceRefs: string[] };
+  try {
+    reservation = await dependencies.reserveExecutionCost({
+      runId: input.id,
+      actorId: input.requesterIdentityId,
+      budgetId: input.budgetId,
+      costUnit: input.costUnit,
+      estimatedCost,
+      providerIds: steps.map((step) => step.providerId),
+      reservedAt: executionStartedAt
+    });
+  } catch (error) {
+    return createExecutionPlanRun(input, steps, "failed", unreservedAccounting, {
+      failureReason: accountingErrorMessage("Cost reservation failed", error)
+    });
+  }
 
-  return {
-    id: input.id,
-    requestFingerprint: createPlanRunRequestFingerprint(input),
-    planId: input.plan.id,
-    goalId: input.plan.goalId,
-    status: execution.status === "completed" ? "completed" : "failed",
-    startedAt: input.startedAt,
-    requesterIdentityId: input.requesterIdentityId,
-    authorityMode: input.authorityMode,
-    governanceContextId: input.governanceContextId,
-    steps,
-    workflow,
-    execution,
-    ...(execution.status === "completed"
-      ? {}
-      : { failureReason: "AtlasFlow execution did not complete." })
+  const reservedAccounting: PlanRunAccounting = {
+    ...unreservedAccounting,
+    reservationId: reservation.reservationId,
+    status: "reserved",
+    evidenceRefs: [...reservation.evidenceRefs]
   };
+  const workflow = compilePlanRunAtlasFlow(input.id, steps, input.costUnit);
+  let execution: ExecutionRunResult;
+  try {
+    execution = await runSequentialWorkflow({
+      session: createExecutionSession({
+        id: `${input.id}:execution`,
+        workflowId: workflow.id,
+        startedAt: executionStartedAt
+      }),
+      workflow: {
+        id: workflow.id,
+        version: workflow.version,
+        nodes: workflow.nodes,
+        edges: workflow.edges.map((edge) => ({
+          fromNodeId: edge.fromNodeId,
+          toNodeId: edge.toNodeId,
+          ...(edge.condition === undefined ? {} : { condition: edge.condition })
+        }))
+      },
+      handlers: {
+        capability: dependencies.executeCapability
+      }
+    });
+  } catch (error) {
+    try {
+      const released = await dependencies.releaseExecutionCost({
+        runId: input.id,
+        actorId: input.requesterIdentityId,
+        reservationId: reservation.reservationId,
+        releasedAt: executionStartedAt,
+        reason: "AtlasFlow failed before returning execution evidence."
+      });
+      return createExecutionPlanRun(
+        input,
+        steps,
+        "failed",
+        {
+          ...reservedAccounting,
+          status: "released",
+          evidenceRefs: [...reservedAccounting.evidenceRefs, ...released.evidenceRefs]
+        },
+        { failureReason: accountingErrorMessage("AtlasFlow execution failed", error) }
+      );
+    } catch (releaseError) {
+      return createExecutionPlanRun(
+        input,
+        steps,
+        "failed",
+        reconciliationAccounting(
+          reservedAccounting,
+          accountingErrorMessage("Reservation release failed", releaseError)
+        ),
+        { failureReason: accountingErrorMessage("AtlasFlow execution failed", error) }
+      );
+    }
+  }
+
+  let usage: { actualCost: number; evidenceRefs: string[] };
+  try {
+    usage = aggregateExecutionUsage(execution, input.costUnit, estimatedCost);
+  } catch (error) {
+    const reason = accountingErrorMessage("Execution usage is invalid", error);
+    return createExecutionPlanRun(
+      input,
+      steps,
+      "failed",
+      reconciliationAccounting(reservedAccounting, reason),
+      { workflow, execution, failureReason: reason }
+    );
+  }
+
+  try {
+    const settled = await dependencies.settleExecutionCost({
+      runId: input.id,
+      actorId: input.requesterIdentityId,
+      reservationId: reservation.reservationId,
+      costUnit: input.costUnit,
+      actualCost: usage.actualCost,
+      settledAt: executionStartedAt,
+      usageEvidenceRefs: usage.evidenceRefs
+    });
+    const accounting: PlanRunAccounting = {
+      ...reservedAccounting,
+      actualCost: usage.actualCost,
+      status: "settled",
+      evidenceRefs: [
+        ...reservedAccounting.evidenceRefs,
+        ...usage.evidenceRefs,
+        ...settled.evidenceRefs
+      ]
+    };
+    return createExecutionPlanRun(
+      input,
+      steps,
+      execution.status === "completed" ? "completed" : "failed",
+      accounting,
+      {
+        workflow,
+        execution,
+        ...(execution.status === "completed"
+          ? {}
+          : { failureReason: "AtlasFlow execution did not complete." })
+      }
+    );
+  } catch (error) {
+    const reason = accountingErrorMessage("Cost settlement failed", error);
+    return createExecutionPlanRun(
+      input,
+      steps,
+      "failed",
+      reconciliationAccounting(reservedAccounting, reason, usage.actualCost, [
+        ...usage.evidenceRefs
+      ]),
+      { workflow, execution, failureReason: reason }
+    );
+  }
 }
 
 function stableStringify(value: unknown): string {
@@ -502,14 +658,19 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function compilePlanRunAtlasFlow(runId: string, steps: PlanRunStepState[]): AtlasFlow {
+function compilePlanRunAtlasFlow(
+  runId: string,
+  steps: PlanRunStepState[],
+  costUnit: string
+): AtlasFlow {
   const nodes: AtlasFlowNode[] = steps.map((step) => ({
     id: step.stepId,
     type: "capability",
     inputs: {
       providerId: step.providerId,
       capabilityId: step.capabilityId,
-      inputs: { ...step.inputs }
+      inputs: { ...step.inputs },
+      costUnit
     }
   }));
   const edges: AtlasFlowEdge[] = steps.slice(1).map((step, index) => ({
@@ -525,4 +686,115 @@ function compilePlanRunAtlasFlow(runId: string, steps: PlanRunStepState[]): Atla
     nodes,
     edges
   });
+}
+
+function createUnreservedAccounting(
+  input: StartPlanRunInput,
+  steps: PlanRunStepState[]
+): PlanRunAccounting {
+  return {
+    budgetId: input.budgetId,
+    costUnit: input.costUnit,
+    estimatedCost: estimatedPlanCost(steps),
+    status: "not_reserved",
+    evidenceRefs: []
+  };
+}
+
+function estimatedPlanCost(steps: PlanRunStepState[]): number {
+  return roundCost(
+    steps.reduce((total, step) => {
+      const selected = step.resolution.candidates.find(
+        (candidate) => candidate.providerId === step.providerId
+      );
+      if (selected === undefined) {
+        throw new Error(
+          `Selected provider ${step.providerId} is missing cost evidence for ${step.stepId}.`
+        );
+      }
+      if (!Number.isFinite(selected.estimatedCost) || selected.estimatedCost < 0) {
+        throw new Error(
+          `Selected provider ${step.providerId} has invalid estimated cost.`
+        );
+      }
+      return total + selected.estimatedCost;
+    }, 0)
+  );
+}
+
+function aggregateExecutionUsage(
+  execution: ExecutionRunResult,
+  costUnit: string,
+  estimatedCost: number
+): { actualCost: number; evidenceRefs: string[] } {
+  const usages: ExecutionResourceUsage[] = execution.steps.map((step) => {
+    if (step.resourceUsage === undefined) {
+      throw new Error(`Execution step ${step.nodeId} is missing resource usage.`);
+    }
+    if (step.resourceUsage.unit !== costUnit) {
+      throw new Error(
+        `Execution step ${step.nodeId} reported ${step.resourceUsage.unit}, expected ${costUnit}.`
+      );
+    }
+    return step.resourceUsage;
+  });
+  const actualCost = roundCost(usages.reduce((total, usage) => total + usage.cost, 0));
+  if (actualCost > estimatedCost) {
+    throw new Error(
+      `Actual cost ${actualCost} exceeds reserved estimate ${estimatedCost}.`
+    );
+  }
+
+  return {
+    actualCost,
+    evidenceRefs: usages.map((usage) => usage.evidenceRef)
+  };
+}
+
+function createExecutionPlanRun(
+  input: StartPlanRunInput,
+  steps: PlanRunStepState[],
+  status: Extract<PlanRunStatus, "completed" | "failed">,
+  accounting: PlanRunAccounting,
+  extra: Partial<Pick<PlanRun, "workflow" | "execution" | "failureReason">> = {}
+): PlanRun {
+  return {
+    id: input.id,
+    requestFingerprint: createPlanRunRequestFingerprint(input),
+    planId: input.plan.id,
+    goalId: input.plan.goalId,
+    status,
+    startedAt: input.startedAt,
+    requesterIdentityId: input.requesterIdentityId,
+    authorityMode: input.authorityMode,
+    governanceContextId: input.governanceContextId,
+    budgetId: input.budgetId,
+    costUnit: input.costUnit,
+    steps,
+    accounting,
+    ...extra
+  };
+}
+
+function reconciliationAccounting(
+  accounting: PlanRunAccounting,
+  failureReason: string,
+  actualCost?: number,
+  evidenceRefs: string[] = []
+): PlanRunAccounting {
+  return {
+    ...accounting,
+    status: "reconciliation_required",
+    failureReason,
+    evidenceRefs: [...accounting.evidenceRefs, ...evidenceRefs],
+    ...(actualCost === undefined ? {} : { actualCost })
+  };
+}
+
+function accountingErrorMessage(prefix: string, error: unknown): string {
+  return `${prefix}: ${error instanceof Error ? error.message : "Unknown accounting error."}`;
+}
+
+function roundCost(value: number): number {
+  return Number(value.toFixed(12));
 }

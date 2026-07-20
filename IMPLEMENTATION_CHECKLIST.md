@@ -446,7 +446,10 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement Internal Economy cost model.
 - [x] Persist budget reservations, settlements, releases, and ledger evidence.
 - [x] Constrain simulation comparison by available budget.
-- [ ] Reserve and settle selected-plan cost automatically during execution.
+- [x] Reserve and settle selected-plan cost automatically during execution.
+- [x] Persist provider usage evidence on execution steps and plan runs.
+- [x] Block approved execution when available budget cannot fund the reservation.
+- [ ] Reconcile provider invoices and external billing records.
 - [ ] Implement Time Engine deadlines.
 - [ ] Implement Time Engine recurrence.
 - [ ] Implement waiting-time detection.
