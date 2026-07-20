@@ -209,3 +209,16 @@ Research finding
 - [Local Database](docs/implementation/local-database.md)
 - [Model Routing](docs/architecture/model-routing.md)
 - [Pillar Implementation And Model Strategy Research](docs/research/pillar-implementation-and-model-strategy.md)
+
+## Licensing
+
+Copyright (c) 2026 Moksh Mehndiratta.
+
+Atlas AIOS is dual-licensed:
+
+- Open-source use under the [GNU Affero General Public License v3.0 only](LICENSE).
+- Alternative proprietary use under a separate written [commercial license](COMMERCIAL-LICENSE.md).
+
+The AGPL option can be used commercially when its conditions are followed. A commercial agreement is required when an organization wants rights outside the AGPL grant, such as operating a modified proprietary network service without providing the corresponding source under the AGPL.
+
+See [COPYRIGHT.md](COPYRIGHT.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Third-party models, datasets, services, and trademarks remain subject to their own terms.
