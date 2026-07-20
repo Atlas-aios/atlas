@@ -19,12 +19,14 @@ export type CognitiveLoopPhaseStatus = "completed" | "skipped";
 export type CognitiveLoopNextActionType =
   | "request_approval"
   | "learn_capabilities"
+  | "simulate_capability"
   | "dispatch_capability"
   | "rest";
 
 export type CognitiveLoopNextActionStatus =
   | "waiting_for_approval"
   | "needs_learning"
+  | "needs_simulation"
   | "ready_to_dispatch"
   | "idle";
 
@@ -35,6 +37,7 @@ export interface CognitiveLoopObservations {
   memoryEventIds: string[];
   experienceArtifactIds: string[];
   capabilityIds: string[];
+  simulationIds: string[];
   identityIds: string[];
   selfModelSnapshotId?: string;
   worldStateSnapshotId?: string;
@@ -118,12 +121,26 @@ function chooseNextAction(
   }
 
   if (observations.activeGoalIds.length > 0) {
+    if (observations.simulationIds.length === 0) {
+      return {
+        type: "simulate_capability",
+        status: "needs_simulation",
+        reason:
+          "A goal and capability are available, but no successful simulation evidence is present.",
+        targetRefs: [observations.activeGoalIds[0]!, observations.capabilityIds[0]!]
+      };
+    }
+
     return {
       type: "dispatch_capability",
       status: "ready_to_dispatch",
       reason:
-        "A goal and capability are available with no active blockers in this bounded cycle.",
-      targetRefs: [observations.activeGoalIds[0]!, observations.capabilityIds[0]!]
+        "A goal, capability, and successful simulation are available with no active blockers.",
+      targetRefs: [
+        observations.activeGoalIds[0]!,
+        observations.capabilityIds[0]!,
+        observations.simulationIds[0]!
+      ]
     };
   }
 
@@ -224,15 +241,21 @@ function createPhaseRecords(
     },
     {
       phase: "simulate",
-      status: nextAction.type === "dispatch_capability" ? "completed" : "skipped",
+      status:
+        nextAction.type === "dispatch_capability" &&
+        observations.simulationIds.length > 0
+          ? "completed"
+          : "skipped",
       summary:
         nextAction.type === "request_approval"
           ? "Simulation is skipped because approval is blocking execution."
           : nextAction.type === "dispatch_capability"
-            ? "Simulation confirms dispatch can be proposed without automatic execution."
-            : "Simulation is skipped because there is no executable action.",
+            ? "Successful simulation evidence supports the dispatch proposal."
+            : nextAction.type === "simulate_capability"
+              ? "Simulation evidence is required before dispatch can be proposed."
+              : "Simulation is skipped because there is no executable action.",
       evidenceRefs:
-        nextAction.type === "dispatch_capability" ? nextAction.targetRefs : []
+        nextAction.type === "dispatch_capability" ? [...observations.simulationIds] : []
     },
     {
       phase: "execute",
@@ -267,6 +290,8 @@ function attentionSummary(nextAction: CognitiveLoopNextAction): string {
       return "Attention is focused on blocker resolution.";
     case "learn_capabilities":
       return "Attention is focused on capability learning.";
+    case "simulate_capability":
+      return "Attention is focused on counterfactual validation.";
     case "dispatch_capability":
       return "Attention is focused on ready execution planning.";
     case "rest":
@@ -283,6 +308,8 @@ function attentionEvidence(
       return [...observations.blockerIds];
     case "learn_capabilities":
       return [...observations.activeGoalIds];
+    case "simulate_capability":
+      return [...nextAction.targetRefs];
     case "dispatch_capability":
       return [...nextAction.targetRefs];
     case "rest":
@@ -300,6 +327,7 @@ function cloneObservations(
     memoryEventIds: [...observations.memoryEventIds],
     experienceArtifactIds: [...observations.experienceArtifactIds],
     capabilityIds: [...observations.capabilityIds],
+    simulationIds: [...observations.simulationIds],
     identityIds: [...observations.identityIds],
     ...(observations.selfModelSnapshotId === undefined
       ? {}

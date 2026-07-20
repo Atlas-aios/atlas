@@ -110,6 +110,7 @@ describe("governed Atlas plan orchestration", () => {
   it("simulates risky provider work and waits for approval without executing", async () => {
     let executionAttempted = false;
     let approvalGovernanceContextId = "";
+    let simulatedEffects: unknown[] = [];
     const run = await startPlanRun(
       {
         id: "plan-run:simulation",
@@ -135,7 +136,13 @@ describe("governed Atlas plan orchestration", () => {
           "plan:simulation:step:1": {
             inputs: { name: "Atlas test" },
             reversibility: "partially_reversible",
-            externalImpacts: []
+            externalImpacts: [],
+            predictedWorldStateEffects: [
+              {
+                type: "add_active_execution",
+                executionId: "execution:projected"
+              }
+            ]
           }
         }
       },
@@ -149,11 +156,14 @@ describe("governed Atlas plan orchestration", () => {
           simulationRequirement: "Dry-run the generated request.",
           rationale: "Selected the best learned provider."
         }),
-        simulateStep: async ({ stepId }) => ({
-          id: `simulation:${stepId}`,
-          status: "simulated",
-          evidenceRefs: [`simulation:${stepId}:request-preview`]
-        }),
+        simulateStep: async ({ stepId, predictedWorldStateEffects }) => {
+          simulatedEffects = predictedWorldStateEffects;
+          return {
+            id: `simulation:${stepId}`,
+            status: "simulated",
+            evidenceRefs: [`simulation:${stepId}:request-preview`]
+          };
+        },
         requestApproval: ({ runId, step, governanceContextId }) => {
           approvalGovernanceContextId = governanceContextId;
           return `approval:${runId}:${step.stepId}`;
@@ -168,6 +178,12 @@ describe("governed Atlas plan orchestration", () => {
     expect(run.status).toBe("waiting_for_approval");
     expect(run.execution).toBeUndefined();
     expect(executionAttempted).toBe(false);
+    expect(simulatedEffects).toEqual([
+      {
+        type: "add_active_execution",
+        executionId: "execution:projected"
+      }
+    ]);
     expect(approvalGovernanceContextId).toBe("governance:unknown-system");
     expect(run.steps[0]).toMatchObject({
       decision: { type: "delegate_to_human" },

@@ -19,6 +19,7 @@
     { "path": "./packages/observability" },
     { "path": "./packages/providers-sdk" },
     { "path": "./packages/self-model" },
+    { "path": "./packages/simulation-engine" },
     { "path": "./packages/swm" },
     { "path": "./packages/workflow-dsl" },
     { "path": "./packages/world-state" },

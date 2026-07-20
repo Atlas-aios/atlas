@@ -24,6 +24,7 @@ import {
   type ExecutionGateOutcome,
   type ExecutionRunResult
 } from "@atlas-aios/execution-engine";
+import type { WorldStateSimulationEffect } from "@atlas-aios/simulation-engine";
 import {
   createAtlasFlow,
   type AtlasFlow,
@@ -44,6 +45,7 @@ export interface PlanRunStepPolicy {
   inputs: Record<string, unknown>;
   reversibility: DecisionReversibility;
   externalImpacts: DecisionExternalImpact[];
+  predictedWorldStateEffects?: WorldStateSimulationEffect[];
   alternatives?: DecisionAlternative[];
   risks?: DecisionRisk[];
   humanRequired?: boolean;
@@ -121,6 +123,7 @@ export interface PlanOrchestratorDependencies {
     capabilityId: string;
     providerId: string;
     inputs: Record<string, unknown>;
+    predictedWorldStateEffects: WorldStateSimulationEffect[];
     startedAt: string;
   }): Promise<PlanStepSimulation>;
   requestApproval(input: {
@@ -194,6 +197,7 @@ export async function startPlanRun(
       capabilityId: stepState.capabilityId,
       providerId: stepState.providerId,
       inputs: stepState.inputs,
+      predictedWorldStateEffects: stepState.policy.predictedWorldStateEffects ?? [],
       startedAt: input.startedAt
     });
     stepState.simulation = simulation;
@@ -376,6 +380,14 @@ function createStepDecisionRequest(
   };
 }
 
+function cloneWorldStateEffect(
+  effect: WorldStateSimulationEffect
+): WorldStateSimulationEffect {
+  return effect.type === "add_blocker"
+    ? { ...effect, blocker: { ...effect.blocker } }
+    : { ...effect };
+}
+
 function createStoppedPlanRun(
   input: StartPlanRunInput,
   steps: PlanRunStepState[],
@@ -409,6 +421,12 @@ function cloneStepPolicy(policy: PlanRunStepPolicy): PlanRunStepPolicy {
     inputs: { ...policy.inputs },
     reversibility: policy.reversibility,
     externalImpacts: [...policy.externalImpacts],
+    ...(policy.predictedWorldStateEffects === undefined
+      ? {}
+      : {
+          predictedWorldStateEffects:
+            policy.predictedWorldStateEffects.map(cloneWorldStateEffect)
+        }),
     ...(policy.alternatives === undefined
       ? {}
       : { alternatives: policy.alternatives.map((item) => ({ ...item })) }),

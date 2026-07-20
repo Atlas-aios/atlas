@@ -7,6 +7,224 @@ import { describe, expect, it } from "vitest";
 import { createAtlasRuntime, createFileRuntimePersistence } from "./index.js";
 
 describe("Atlas runtime API", () => {
+  it("simulates provider requests against an isolated World State projection", async () => {
+    const runtime = createAtlasRuntime();
+
+    await runtime.handle(
+      new Request("http://atlas.local/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "goal:simulation-isolation",
+          title: "Validate isolated simulation",
+          description: "Project execution without changing live operational state.",
+          ownerId: "identity:user:moksh",
+          priority: 90,
+          successCriteria: ["The projection is stored as evidence."],
+          createdAt: "2026-07-20T10:00:00.000Z"
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/goals/goal:simulation-isolation/status", {
+        method: "POST",
+        body: JSON.stringify({
+          eventId: "goal:simulation-isolation:event:active",
+          toStatus: "active",
+          occurredAt: "2026-07-20T10:01:00.000Z",
+          reason: "Begin simulation."
+        })
+      })
+    );
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/simulations", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "simulation:world-state:one",
+          goalId: "goal:simulation-isolation",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: { name: "Projected folio" },
+          predictedWorldStateEffects: [
+            {
+              type: "add_active_execution",
+              executionId: "execution:projected"
+            }
+          ],
+          thresholds: {
+            maximumBlockers: 0,
+            maximumCriticalBlockers: 0
+          },
+          createdAt: "2026-07-20T10:02:00.000Z"
+        })
+      })
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      simulation: {
+        id: "simulation:world-state:one",
+        status: "simulated",
+        interfacePreviewStatus: "simulated",
+        worldStateSimulation: {
+          id: "simulation:world-state:one:world-state",
+          status: "passed",
+          sourceSnapshotId: "world-state:runtime:2026-07-20T10:02:00.000Z",
+          projectedSnapshot: {
+            activeGoalIds: ["goal:simulation-isolation"],
+            activeExecutionIds: ["execution:projected"]
+          },
+          metrics: {
+            delta: {
+              activeGoals: 0,
+              activeExecutions: 1,
+              blockers: 0,
+              criticalBlockers: 0
+            }
+          }
+        }
+      }
+    });
+
+    const liveResponse = await runtime.handle(
+      new Request(
+        "http://atlas.local/world-state?capturedAt=2026-07-20T10%3A03%3A00.000Z",
+        { method: "GET" }
+      )
+    );
+    await expect(liveResponse.json()).resolves.toMatchObject({
+      worldState: {
+        activeGoalIds: ["goal:simulation-isolation"],
+        activeExecutionIds: []
+      }
+    });
+
+    const listResponse = await runtime.handle(
+      new Request("http://atlas.local/simulations", { method: "GET" })
+    );
+    await expect(listResponse.json()).resolves.toMatchObject({
+      simulations: [
+        {
+          id: "simulation:world-state:one",
+          worldStateSimulation: {
+            projectedSnapshot: {
+              activeExecutionIds: ["execution:projected"]
+            }
+          }
+        }
+      ]
+    });
+
+    const cycleResponse = await runtime.handle(
+      new Request("http://atlas.local/cognitive-loop/cycles", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "cognitive-loop:cycle:simulation-evidence",
+          goalId: "goal:simulation-isolation",
+          startedAt: "2026-07-20T10:04:00.000Z"
+        })
+      })
+    );
+    await expect(cycleResponse.json()).resolves.toMatchObject({
+      cycle: {
+        observations: {
+          simulationIds: ["simulation:world-state:one"]
+        },
+        nextAction: {
+          type: "dispatch_capability",
+          status: "ready_to_dispatch",
+          targetRefs: expect.arrayContaining(["simulation:world-state:one"])
+        },
+        phases: expect.arrayContaining([
+          {
+            phase: "simulate",
+            status: "completed",
+            summary: "Successful simulation evidence supports the dispatch proposal.",
+            evidenceRefs: ["simulation:world-state:one"]
+          }
+        ])
+      }
+    });
+  });
+
+  it("blocks a provider simulation when projected World State exceeds thresholds", async () => {
+    const runtime = createAtlasRuntime();
+    await runtime.handle(
+      new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+        method: "POST"
+      })
+    );
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/simulations", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "simulation:world-state:blocked",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: { name: "Unsafe projection" },
+          predictedWorldStateEffects: [
+            {
+              type: "add_blocker",
+              blocker: {
+                id: "blocker:projected:critical",
+                summary: "Projected critical incident",
+                severity: "critical"
+              }
+            }
+          ],
+          thresholds: { maximumCriticalBlockers: 0 },
+          createdAt: "2026-07-20T10:10:00.000Z"
+        })
+      })
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      simulation: {
+        status: "blocked",
+        interfacePreviewStatus: "simulated",
+        worldStateSimulation: {
+          status: "blocked",
+          findings: [
+            {
+              code: "maximum_critical_blockers_exceeded"
+            }
+          ]
+        }
+      }
+    });
+  });
+
+  it("rejects simulation requests without explicit World State effects", async () => {
+    const runtime = createAtlasRuntime();
+
+    const response = await runtime.handle(
+      new Request("http://atlas.local/simulations", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "simulation:invalid:no-effects",
+          capabilityId: "capability:create-folio",
+          providerId: "provider:openapi:create-folio",
+          inputs: {},
+          createdAt: "2026-07-20T10:11:00.000Z"
+        })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_simulation_request",
+      reason:
+        "Simulation requires identity fields, inputs, timestamp, and explicit predicted World State effects."
+    });
+  });
+
   it("reports local runtime health", async () => {
     const runtime = createAtlasRuntime();
 
@@ -356,7 +574,13 @@ describe("Atlas runtime API", () => {
             [stepId]: {
               inputs: { name: "Atlas launch" },
               reversibility: "partially_reversible",
-              externalImpacts: []
+              externalImpacts: [],
+              predictedWorldStateEffects: [
+                {
+                  type: "add_active_execution",
+                  executionId: "execution:plan-run:orchestrated"
+                }
+              ]
             }
           }
         })
@@ -453,7 +677,13 @@ describe("Atlas runtime API", () => {
             [stepId]: {
               inputs: { name: "Changed input" },
               reversibility: "partially_reversible",
-              externalImpacts: []
+              externalImpacts: [],
+              predictedWorldStateEffects: [
+                {
+                  type: "add_active_execution",
+                  executionId: "execution:plan-run:orchestrated"
+                }
+              ]
             }
           }
         })
@@ -2618,6 +2848,7 @@ describe("Atlas runtime API", () => {
           inputs: {
             name: "Simulation folio"
           },
+          predictedWorldStateEffects: [],
           createdAt: "2026-07-17T08:10:00.000Z"
         })
       })

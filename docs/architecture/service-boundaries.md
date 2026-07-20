@@ -129,6 +129,18 @@ The SWM owns the semantic understanding of entities and relationships. It stores
 
 World State owns the current operational reality: active work, blockers, deadlines, incidents, waiting states, and workload.
 
+### Simulation Engine
+
+The Simulation Engine owns deterministic counterfactual branches over World State. It
+applies explicit predicted effects to a defensive clone, calculates before/after
+metrics, evaluates configured blocker thresholds, and returns `passed`, `blocked`, or
+`failed` evidence without changing live operational state.
+
+Runtime composes this projection with Interface Driver request preview. A request
+preview alone is not complete simulation evidence: both the interface preview and
+World State projection must succeed. Predicted effects are supplied by the governed
+plan policy and are never inferred from provider or application names.
+
 ### Memory
 
 Memory records what happened. It is append-first, provenance-first, and used as evidence for learning and experience.
@@ -162,3 +174,8 @@ Learning & Governance validates evolution. It owns policy decisions, human appro
 ### Cognitive Loop
 
 The Cognitive Loop orchestrates observe, update, remember, distill, plan, simulate, execute, evaluate, learn, and rest cycles. It coordinates pillars without replacing their ownership.
+
+The bounded loop now distinguishes a missing simulation from a completed one. It
+returns `simulate_capability` when a goal and capability are ready but no successful
+simulation artifact exists, and only returns `dispatch_capability` when that evidence
+is present. The bounded loop still does not execute automatically.

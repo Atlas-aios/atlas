@@ -70,6 +70,9 @@ importers:
       "@atlas-aios/self-model":
         specifier: workspace:*
         version: link:../../packages/self-model
+      "@atlas-aios/simulation-engine":
+        specifier: workspace:*
+        version: link:../../packages/simulation-engine
       "@atlas-aios/swm":
         specifier: workspace:*
         version: link:../../packages/swm
@@ -168,6 +171,12 @@ importers:
   packages/self-model: {}
 
   packages/shared: {}
+
+  packages/simulation-engine:
+    dependencies:
+      "@atlas-aios/world-state":
+        specifier: workspace:*
+        version: link:../world-state
 
   packages/swm: {}
 

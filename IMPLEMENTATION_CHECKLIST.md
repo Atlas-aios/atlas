@@ -304,6 +304,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement alerts.
 - [ ] Implement current workload tracking.
 - [ ] Implement World State update events.
+- [x] Implement isolated World State simulation branches.
+- [x] Implement deterministic predicted effects and before/after metrics.
+- [x] Prevent simulated state from mutating live World State.
 - [ ] Add tests for stale state and updates.
 
 ---
@@ -415,7 +418,7 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [x] Implement review goals phase.
 - [x] Implement allocate attention phase.
 - [x] Implement plan phase.
-- [ ] Implement simulate phase.
+- [x] Implement evidence-backed simulate phase.
 - [ ] Implement execute phase.
 - [x] Implement evaluate phase.
 - [x] Implement learn phase.
@@ -433,8 +436,8 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement Attention Engine scoring.
 - [ ] Implement processing frequency decisions.
 - [ ] Implement escalation decisions.
-- [ ] Implement Simulation Engine World State clone.
-- [ ] Implement simulation metrics.
+- [x] Implement Simulation Engine World State clone.
+- [x] Implement simulation metrics.
 - [ ] Implement plan comparison.
 - [ ] Implement Internal Economy cost model.
 - [ ] Implement Time Engine deadlines.

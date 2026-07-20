@@ -134,9 +134,12 @@ Simulation evidence is not permission. A simulated run remains
 Changed inputs under an existing run id are rejected using a stable request
 fingerprint.
 
-The current simulation is the real request-preview dry-run implemented by supported
-Interface Drivers. It does not clone World State and does not complete the production
-Simulation Engine roadmap item.
+The current simulation combines the real request-preview dry-run implemented by
+supported Interface Drivers with an isolated deterministic World State branch. The
+branch applies explicit predicted effects, records before/after metrics, evaluates
+blocker thresholds, and cannot mutate live state. This is suitable for deterministic
+governance evidence; probabilistic environment emulation and multi-plan comparison
+remain future work.
 
 Current NVIDIA references:
 

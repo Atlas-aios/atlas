@@ -20,6 +20,7 @@ describe("runBoundedCognitiveLoopCycle", () => {
           "experience:playbook:unknown-business:openapi-browser-benchmark"
         ],
         capabilityIds: ["capability:create-folio"],
+        simulationIds: [],
         identityIds: ["identity:user:moksh"],
         selfModelSnapshotId: "self-model:runtime:2026-07-16T12:45:00.000Z",
         worldStateSnapshotId: "world-state:runtime:2026-07-16T12:45:00.000Z"
@@ -45,6 +46,7 @@ describe("runBoundedCognitiveLoopCycle", () => {
           "experience:playbook:unknown-business:openapi-browser-benchmark"
         ],
         capabilityIds: ["capability:create-folio"],
+        simulationIds: [],
         identityIds: ["identity:user:moksh"],
         selfModelSnapshotId: "self-model:runtime:2026-07-16T12:45:00.000Z",
         worldStateSnapshotId: "world-state:runtime:2026-07-16T12:45:00.000Z"
@@ -167,6 +169,7 @@ describe("runBoundedCognitiveLoopCycle", () => {
         memoryEventIds: [],
         experienceArtifactIds: [],
         capabilityIds: [],
+        simulationIds: [],
         identityIds: [],
         worldStateSnapshotId: "world-state:runtime:2026-07-16T12:00:00.000Z"
       }
@@ -184,7 +187,7 @@ describe("runBoundedCognitiveLoopCycle", () => {
     });
   });
 
-  it("recommends dispatch when goals and capabilities exist without blockers", () => {
+  it("requests simulation when executable work has no simulation evidence", () => {
     const cycle = runBoundedCognitiveLoopCycle({
       id: "cognitive-loop:cycle:dispatch",
       goalId: "goal:runtime-create-resource",
@@ -196,6 +199,42 @@ describe("runBoundedCognitiveLoopCycle", () => {
         memoryEventIds: [],
         experienceArtifactIds: [],
         capabilityIds: ["capability:create-folio"],
+        simulationIds: [],
+        identityIds: [],
+        selfModelSnapshotId: "self-model:runtime:2026-07-16T12:10:00.000Z",
+        worldStateSnapshotId: "world-state:runtime:2026-07-16T12:10:00.000Z"
+      }
+    });
+
+    expect(cycle.nextAction).toEqual({
+      type: "simulate_capability",
+      status: "needs_simulation",
+      reason:
+        "A goal and capability are available, but no successful simulation evidence is present.",
+      targetRefs: ["goal:runtime-create-resource", "capability:create-folio"]
+    });
+    expect(cycle.phases.find((phase) => phase.phase === "simulate")).toEqual({
+      phase: "simulate",
+      status: "skipped",
+      summary: "Simulation evidence is required before dispatch can be proposed.",
+      evidenceRefs: []
+    });
+    expect(cycle.executedAction).toBe(false);
+  });
+
+  it("recommends dispatch only when successful simulation evidence exists", () => {
+    const cycle = runBoundedCognitiveLoopCycle({
+      id: "cognitive-loop:cycle:dispatch",
+      goalId: "goal:runtime-create-resource",
+      startedAt: "2026-07-16T12:10:00.000Z",
+      observations: {
+        activeGoalIds: ["goal:runtime-create-resource"],
+        activeExecutionIds: [],
+        blockerIds: [],
+        memoryEventIds: [],
+        experienceArtifactIds: [],
+        capabilityIds: ["capability:create-folio"],
+        simulationIds: ["simulation:create-folio:passed"],
         identityIds: [],
         selfModelSnapshotId: "self-model:runtime:2026-07-16T12:10:00.000Z",
         worldStateSnapshotId: "world-state:runtime:2026-07-16T12:10:00.000Z"
@@ -206,8 +245,18 @@ describe("runBoundedCognitiveLoopCycle", () => {
       type: "dispatch_capability",
       status: "ready_to_dispatch",
       reason:
-        "A goal and capability are available with no active blockers in this bounded cycle.",
-      targetRefs: ["goal:runtime-create-resource", "capability:create-folio"]
+        "A goal, capability, and successful simulation are available with no active blockers.",
+      targetRefs: [
+        "goal:runtime-create-resource",
+        "capability:create-folio",
+        "simulation:create-folio:passed"
+      ]
+    });
+    expect(cycle.phases.find((phase) => phase.phase === "simulate")).toEqual({
+      phase: "simulate",
+      status: "completed",
+      summary: "Successful simulation evidence supports the dispatch proposal.",
+      evidenceRefs: ["simulation:create-folio:passed"]
     });
     expect(cycle.executedAction).toBe(false);
   });

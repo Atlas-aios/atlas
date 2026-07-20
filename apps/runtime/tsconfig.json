@@ -21,6 +21,7 @@
     { "path": "../../packages/learning" },
     { "path": "../../packages/memory" },
     { "path": "../../packages/self-model" },
+    { "path": "../../packages/simulation-engine" },
     { "path": "../../packages/swm" },
     { "path": "../../packages/workflow-dsl" },
     { "path": "../../packages/world-state" }

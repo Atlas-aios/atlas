@@ -101,6 +101,12 @@ import {
   type SelfModelStore
 } from "@atlas-aios/self-model";
 import {
+  simulateWorldState,
+  type WorldStateSimulationEffect,
+  type WorldStateSimulationResult,
+  type WorldStateSimulationThresholds
+} from "@atlas-aios/simulation-engine";
+import {
   createInMemorySemanticWorldModelStore,
   createSemanticEntity,
   createSemanticRelationship,
@@ -396,6 +402,8 @@ export interface CreateRuntimeSimulationRequest {
   capabilityId: string;
   providerId: string;
   inputs: Record<string, unknown>;
+  predictedWorldStateEffects: WorldStateSimulationEffect[];
+  thresholds?: WorldStateSimulationThresholds;
   createdAt: string;
 }
 
@@ -406,8 +414,10 @@ export interface RuntimeSimulationRecord {
   capabilityId: string;
   providerId: string;
   inputs: Record<string, unknown>;
+  interfacePreviewStatus?: RestDriverResult["status"];
   requestPreview?: RestDriverResult["requestPreview"];
   events: RestDriverResult["events"];
+  worldStateSimulation?: WorldStateSimulationResult;
   createdAt: string;
 }
 
@@ -851,7 +861,17 @@ async function handleRuntimeRequest(
   }
 
   if (request.method === "POST" && url.pathname === "/simulations") {
-    const input = (await request.json()) as CreateRuntimeSimulationRequest;
+    const input = (await request.json()) as unknown;
+    if (!isCreateRuntimeSimulationRequest(input)) {
+      return json(
+        {
+          error: "invalid_simulation_request",
+          reason:
+            "Simulation requires identity fields, inputs, timestamp, and explicit predicted World State effects."
+        },
+        { status: 400 }
+      );
+    }
     const simulation = await simulateRuntimeProvider(state, input);
     state.simulations = [
       ...state.simulations.filter((item) => item.id !== simulation.id),
@@ -1576,9 +1596,76 @@ function isCreateRuntimePlanRunRequest(
           "privilege_escalation",
           "real_desktop_control"
         ])
-      )
+      ) &&
+      Array.isArray(policy.predictedWorldStateEffects) &&
+      policy.predictedWorldStateEffects.every(isWorldStateSimulationEffect)
     );
   });
+}
+
+function isCreateRuntimeSimulationRequest(
+  value: unknown
+): value is CreateRuntimeSimulationRequest {
+  if (!isRuntimeRecord(value)) {
+    return false;
+  }
+
+  return (
+    isNonEmptyRuntimeString(value.id) &&
+    (value.goalId === undefined || isNonEmptyRuntimeString(value.goalId)) &&
+    isNonEmptyRuntimeString(value.capabilityId) &&
+    isNonEmptyRuntimeString(value.providerId) &&
+    isRuntimeRecord(value.inputs) &&
+    isNonEmptyRuntimeString(value.createdAt) &&
+    Array.isArray(value.predictedWorldStateEffects) &&
+    value.predictedWorldStateEffects.every(isWorldStateSimulationEffect) &&
+    (value.thresholds === undefined ||
+      isWorldStateSimulationThresholds(value.thresholds))
+  );
+}
+
+function isWorldStateSimulationEffect(
+  value: unknown
+): value is WorldStateSimulationEffect {
+  if (!isRuntimeRecord(value) || !isNonEmptyRuntimeString(value.type)) {
+    return false;
+  }
+
+  switch (value.type) {
+    case "add_active_goal":
+    case "remove_active_goal":
+      return isNonEmptyRuntimeString(value.goalId);
+    case "add_active_execution":
+    case "remove_active_execution":
+      return isNonEmptyRuntimeString(value.executionId);
+    case "remove_blocker":
+      return isNonEmptyRuntimeString(value.blockerId);
+    case "add_blocker":
+      return (
+        isRuntimeRecord(value.blocker) &&
+        isNonEmptyRuntimeString(value.blocker.id) &&
+        isNonEmptyRuntimeString(value.blocker.summary) &&
+        isOneOf(value.blocker.severity, ["low", "medium", "high", "critical"]) &&
+        (value.blocker.ownerId === undefined ||
+          isNonEmptyRuntimeString(value.blocker.ownerId))
+      );
+    default:
+      return false;
+  }
+}
+
+function isWorldStateSimulationThresholds(
+  value: unknown
+): value is WorldStateSimulationThresholds {
+  if (!isRuntimeRecord(value)) {
+    return false;
+  }
+
+  return [value.maximumBlockers, value.maximumCriticalBlockers].every(
+    (threshold) =>
+      threshold === undefined ||
+      (typeof threshold === "number" && Number.isInteger(threshold) && threshold >= 0)
+  );
 }
 
 function isRuntimeRecord(value: unknown): value is Record<string, unknown> {
@@ -1675,6 +1762,7 @@ function createRuntimePlanOrchestratorDependencies(
         capabilityId: input.capabilityId,
         providerId: input.providerId,
         inputs: input.inputs,
+        predictedWorldStateEffects: input.predictedWorldStateEffects,
         createdAt: input.startedAt
       });
       state.simulations = [
@@ -1784,6 +1872,7 @@ async function simulateRuntimeProvider(
       capabilityId: input.capabilityId,
       providerId: input.providerId,
       inputs: input.inputs,
+      interfacePreviewStatus: "blocked",
       events: [],
       createdAt: input.createdAt
     };
@@ -1807,22 +1896,51 @@ async function simulateRuntimeProvider(
     simulation: true
   });
 
+  if (result.status !== "simulated") {
+    return {
+      id: input.id,
+      ...(input.goalId === undefined ? {} : { goalId: input.goalId }),
+      status: result.status === "blocked" ? "blocked" : "failed",
+      capabilityId: input.capabilityId,
+      providerId: input.providerId,
+      inputs: { ...input.inputs },
+      interfacePreviewStatus: result.status,
+      ...(result.requestPreview === undefined
+        ? {}
+        : { requestPreview: result.requestPreview }),
+      events: result.events,
+      createdAt: input.createdAt
+    };
+  }
+
+  const sourceSnapshot = recordWorldStateSnapshot(
+    state.worldStateStore,
+    createRuntimeWorldStateSnapshot(state, input.createdAt)
+  );
+  const worldStateSimulation = simulateWorldState({
+    id: `${input.id}:world-state`,
+    simulatedAt: input.createdAt,
+    source: sourceSnapshot,
+    effects: input.predictedWorldStateEffects,
+    ...(input.thresholds === undefined ? {} : { thresholds: input.thresholds })
+  });
+
   return {
     id: input.id,
     ...(input.goalId === undefined ? {} : { goalId: input.goalId }),
     status:
-      result.status === "simulated"
+      worldStateSimulation.status === "passed"
         ? "simulated"
-        : result.status === "blocked"
-          ? "blocked"
-          : "failed",
+        : worldStateSimulation.status,
     capabilityId: input.capabilityId,
     providerId: input.providerId,
-    inputs: input.inputs,
+    inputs: { ...input.inputs },
+    interfacePreviewStatus: result.status,
     ...(result.requestPreview === undefined
       ? {}
       : { requestPreview: result.requestPreview }),
     events: result.events,
+    worldStateSimulation,
     createdAt: input.createdAt
   };
 }
@@ -2136,6 +2254,13 @@ function runRuntimeCognitiveLoopCycle(
         .list({ applicability: [] })
         .map((artifact) => artifact.id),
       capabilityIds: state.capabilities.map((capability) => capability.id),
+      simulationIds: state.simulations
+        .filter(
+          (simulation) =>
+            simulation.status === "simulated" &&
+            (input.goalId === undefined || simulation.goalId === input.goalId)
+        )
+        .map((simulation) => simulation.id),
       identityIds: state.identityStore.listSubjects().map((identity) => identity.id),
       selfModelSnapshotId: selfModel.id,
       worldStateSnapshotId: worldState.id
@@ -2165,14 +2290,16 @@ function createCognitiveLoopMemoryEvent(
       ...optionalRuntimeRefs([
         cycle.observations.worldStateSnapshotId,
         cycle.observations.selfModelSnapshotId
-      ])
+      ]),
+      ...cycle.observations.simulationIds
     ],
     evidenceRefs: [
       ...cycle.nextAction.targetRefs,
       ...optionalRuntimeRefs([
         cycle.observations.worldStateSnapshotId,
         cycle.observations.selfModelSnapshotId
-      ])
+      ]),
+      ...cycle.observations.simulationIds
     ],
     metadata: {
       nextActionType: cycle.nextAction.type,

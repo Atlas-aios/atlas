@@ -30,6 +30,7 @@
     "@atlas-aios/learning": "workspace:*",
     "@atlas-aios/memory": "workspace:*",
     "@atlas-aios/self-model": "workspace:*",
+    "@atlas-aios/simulation-engine": "workspace:*",
     "@atlas-aios/swm": "workspace:*",
     "@atlas-aios/workflow-dsl": "workspace:*",
     "@atlas-aios/world-state": "workspace:*"

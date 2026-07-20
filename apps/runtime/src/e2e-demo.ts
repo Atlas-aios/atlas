@@ -103,6 +103,12 @@ export async function runAtlasRuntimeE2EDemo(): Promise<AtlasRuntimeE2EDemoResul
       inputs: {
         name: "E2E folio"
       },
+      predictedWorldStateEffects: [
+        {
+          type: "add_active_execution",
+          executionId: "execution:e2e:create-folio"
+        }
+      ],
       createdAt: "2026-07-17T09:03:00.000Z"
     });
 
