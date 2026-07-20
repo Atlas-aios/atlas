@@ -138,8 +138,14 @@ The current simulation combines the real request-preview dry-run implemented by
 supported Interface Drivers with an isolated deterministic World State branch. The
 branch applies explicit predicted effects, records before/after metrics, evaluates
 blocker thresholds, and cannot mutate live state. This is suitable for deterministic
-governance evidence; probabilistic environment emulation and multi-plan comparison
-remain future work.
+governance evidence. Probabilistic environment emulation remains future work;
+multi-plan comparison is handled by the deterministic policy layer below.
+
+Multi-plan comparison itself is deterministic and does not require a model call.
+Runtime resolves persisted simulation ids and applies caller-supplied confidence,
+cost, latency, blocker, and critical-risk policy. An LLM may propose candidates or
+explain the result, but it cannot alter component scores, candidate eligibility, or
+the selected plan recorded by the comparator.
 
 Current NVIDIA references:
 

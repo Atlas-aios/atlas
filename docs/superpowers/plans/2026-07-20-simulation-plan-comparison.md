@@ -17,10 +17,10 @@
 - Modify: `packages/simulation-engine/src/index.test.ts`
 - Modify: `packages/simulation-engine/src/index.ts`
 
-- [ ] Write failing tests for weighted ranking, blocked-candidate exclusion, deterministic ties, invalid policy, duplicate candidates, and source-snapshot mismatch.
-- [ ] Run `corepack pnpm test packages/simulation-engine/src/index.test.ts` and confirm the comparison API is missing.
-- [ ] Implement candidate validation, explicit-limit component scoring, ranking, selection, rejection reasons, and defensive copies.
-- [ ] Re-run the focused Simulation Engine suite and require all tests to pass.
+- [x] Write failing tests for weighted ranking, blocked-candidate exclusion, deterministic ties, invalid policy, duplicate candidates, and source-snapshot mismatch.
+- [x] Run `corepack pnpm test packages/simulation-engine/src/index.test.ts` and confirm the comparison API is missing.
+- [x] Implement candidate validation, explicit-limit component scoring, ranking, selection, rejection reasons, and defensive copies.
+- [x] Re-run the focused Simulation Engine suite and require all tests to pass.
 
 ### Task 2: Runtime Comparison API
 
@@ -29,10 +29,10 @@
 - Modify: `apps/runtime/src/index.test.ts`
 - Modify: `apps/runtime/src/index.ts`
 
-- [ ] Write failing API tests that create two real simulations, compare them, persist the result, reject duplicate ids, and record Memory/Audit evidence.
-- [ ] Run `corepack pnpm test apps/runtime/src/index.test.ts` and confirm the comparison route is missing.
-- [ ] Add request validation, simulation lookup, immutable comparison storage, backward-compatible snapshot restore, list API, Memory, and Audit records.
-- [ ] Re-run Runtime tests and require the full file to pass.
+- [x] Write failing API tests that create two real simulations, compare them, persist the result, reject duplicate ids, and record Memory/Audit evidence.
+- [x] Run `corepack pnpm test apps/runtime/src/index.test.ts` and confirm the comparison route is missing.
+- [x] Add request validation, simulation lookup, immutable comparison storage, backward-compatible snapshot restore, list API, Memory, and Audit records.
+- [x] Re-run Runtime tests and require the full file to pass.
 
 ### Task 3: Documentation And Verification
 
@@ -42,8 +42,8 @@
 - Modify: `docs/architecture/service-boundaries.md`
 - Modify: `docs/architecture/model-routing.md`
 
-- [ ] Mark only deterministic simulation plan comparison complete.
-- [ ] Document scoring transparency and the execution-authority boundary.
-- [ ] Run `corepack pnpm format`.
-- [ ] Run `corepack pnpm check` and require formatting, lint, typecheck, all tests, and build to pass.
-- [ ] Commit and push the verified slice to `main`.
+- [x] Mark only deterministic simulation plan comparison complete.
+- [x] Document scoring transparency and the execution-authority boundary.
+- [x] Run `corepack pnpm format`.
+- [x] Run `corepack pnpm check` and require formatting, lint, typecheck, all tests, and build to pass.
+- [x] Commit and push the verified slice to `main`.

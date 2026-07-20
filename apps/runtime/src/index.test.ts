@@ -225,6 +225,171 @@ describe("Atlas runtime API", () => {
     });
   });
 
+  it("compares persisted simulations with explicit cost, latency, confidence, and risk policy", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "atlas-comparison-"));
+    const persistencePath = join(workspace, "runtime-state.json");
+
+    try {
+      const runtime = createAtlasRuntime({
+        persistence: createFileRuntimePersistence(persistencePath)
+      });
+      await runtime.handle(
+        new Request("http://atlas.local/mvp/unknown-business/learn-and-execute", {
+          method: "POST"
+        })
+      );
+
+      for (const [id, name] of [
+        ["simulation:comparison:fast", "Fast plan"],
+        ["simulation:comparison:cheap", "Cheap plan"]
+      ]) {
+        const simulationResponse = await runtime.handle(
+          new Request("http://atlas.local/simulations", {
+            method: "POST",
+            body: JSON.stringify({
+              id,
+              goalId: "goal:comparison",
+              capabilityId: "capability:create-folio",
+              providerId: "provider:openapi:create-folio",
+              inputs: { name },
+              predictedWorldStateEffects: [],
+              createdAt: "2026-07-20T14:00:00.000Z"
+            })
+          })
+        );
+        expect(simulationResponse.status).toBe(201);
+      }
+
+      const comparisonRequest = {
+        id: "comparison:runtime:one",
+        comparedAt: "2026-07-20T14:01:00.000Z",
+        candidates: [
+          {
+            planId: "plan:fast-expensive",
+            simulationId: "simulation:comparison:fast",
+            estimatedCost: 8,
+            estimatedLatencyMs: 200,
+            confidence: 0.9
+          },
+          {
+            planId: "plan:slow-cheap",
+            simulationId: "simulation:comparison:cheap",
+            estimatedCost: 2,
+            estimatedLatencyMs: 800,
+            confidence: 0.8
+          }
+        ],
+        policy: {
+          maximumCost: 10,
+          maximumLatencyMs: 1000,
+          minimumConfidence: 0.5,
+          maximumBlockerIncrease: 0,
+          maximumCriticalBlockerIncrease: 0,
+          weights: {
+            confidence: 1,
+            cost: 4,
+            latency: 1,
+            blockers: 1,
+            criticalBlockers: 4
+          }
+        }
+      };
+      const comparisonResponse = await runtime.handle(
+        new Request("http://atlas.local/simulations/compare", {
+          method: "POST",
+          body: JSON.stringify(comparisonRequest)
+        })
+      );
+
+      expect(comparisonResponse.status).toBe(201);
+      await expect(comparisonResponse.json()).resolves.toMatchObject({
+        comparison: {
+          id: "comparison:runtime:one",
+          status: "selected",
+          selectedPlanId: "plan:slow-cheap",
+          rankings: [
+            {
+              rank: 1,
+              planId: "plan:slow-cheap",
+              simulationId: "simulation:comparison:cheap",
+              eligible: true
+            },
+            {
+              rank: 2,
+              planId: "plan:fast-expensive",
+              simulationId: "simulation:comparison:fast",
+              eligible: true
+            }
+          ]
+        }
+      });
+
+      const duplicateResponse = await runtime.handle(
+        new Request("http://atlas.local/simulations/compare", {
+          method: "POST",
+          body: JSON.stringify(comparisonRequest)
+        })
+      );
+      expect(duplicateResponse.status).toBe(409);
+      await expect(duplicateResponse.json()).resolves.toMatchObject({
+        error: "simulation_comparison_conflict",
+        comparisonId: "comparison:runtime:one"
+      });
+
+      const auditResponse = await runtime.handle(
+        new Request("http://atlas.local/audit-logs", { method: "GET" })
+      );
+      await expect(auditResponse.json()).resolves.toMatchObject({
+        auditLogs: expect.arrayContaining([
+          expect.objectContaining({
+            id: "audit:simulation-comparison:comparison:runtime:one",
+            type: "simulation.comparison.selected",
+            subjectId: "comparison:runtime:one"
+          })
+        ])
+      });
+
+      const memoryResponse = await runtime.handle(
+        new Request(
+          "http://atlas.local/memory/events?subjectId=comparison%3Aruntime%3Aone",
+          { method: "GET" }
+        )
+      );
+      await expect(memoryResponse.json()).resolves.toMatchObject({
+        memoryEvents: [
+          expect.objectContaining({
+            id: "memory:event:simulation-comparison:comparison:runtime:one",
+            kind: "decision",
+            evidenceRefs: expect.arrayContaining([
+              "simulation:comparison:fast",
+              "simulation:comparison:cheap"
+            ])
+          })
+        ]
+      });
+
+      const restoredRuntime = createAtlasRuntime({
+        persistence: createFileRuntimePersistence(persistencePath)
+      });
+      const listResponse = await restoredRuntime.handle(
+        new Request("http://atlas.local/simulations/comparisons", {
+          method: "GET"
+        })
+      );
+      expect(listResponse.status).toBe(200);
+      await expect(listResponse.json()).resolves.toMatchObject({
+        comparisons: [
+          {
+            id: "comparison:runtime:one",
+            selectedPlanId: "plan:slow-cheap"
+          }
+        ]
+      });
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   it("reports local runtime health", async () => {
     const runtime = createAtlasRuntime();
 

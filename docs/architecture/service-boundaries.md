@@ -141,6 +141,13 @@ preview alone is not complete simulation evidence: both the interface preview an
 World State projection must succeed. Predicted effects are supplied by the governed
 plan policy and are never inferred from provider or application names.
 
+The Simulation Engine also compares multiple branches from the same source snapshot.
+The caller supplies explicit limits and weights for confidence, cost, latency,
+blocker growth, and critical-blocker growth. Blocked, failed, incomplete, or
+out-of-policy candidates remain visible with rejection reasons but cannot be selected.
+Selection is deterministic evidence for planning and does not grant execution
+authority.
+
 ### Memory
 
 Memory records what happened. It is append-first, provenance-first, and used as evidence for learning and experience.

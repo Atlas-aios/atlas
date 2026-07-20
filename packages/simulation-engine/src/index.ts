@@ -57,6 +57,89 @@ export interface WorldStateSimulationResult {
   failureReason?: string;
 }
 
+export interface SimulationPlanCandidate {
+  planId: string;
+  simulation: WorldStateSimulationResult;
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  confidence: number;
+}
+
+export interface SimulationPlanComparisonWeights {
+  confidence: number;
+  cost: number;
+  latency: number;
+  blockers: number;
+  criticalBlockers: number;
+}
+
+export interface SimulationPlanComparisonPolicy {
+  maximumCost: number;
+  maximumLatencyMs: number;
+  minimumConfidence: number;
+  maximumBlockerIncrease: number;
+  maximumCriticalBlockerIncrease: number;
+  weights: SimulationPlanComparisonWeights;
+}
+
+export type SimulationPlanRejectionReason =
+  | "simulation_blocked"
+  | "simulation_failed"
+  | "projected_snapshot_missing"
+  | "cost_limit_exceeded"
+  | "latency_limit_exceeded"
+  | "confidence_below_minimum"
+  | "blocker_increase_exceeded"
+  | "critical_blocker_increase_exceeded";
+
+export interface SimulationPlanComponentScores {
+  confidence: number;
+  cost: number;
+  latency: number;
+  blockers: number;
+  criticalBlockers: number;
+}
+
+export interface SimulationPlanRanking {
+  rank: number;
+  planId: string;
+  simulationId: string;
+  eligible: boolean;
+  score: number;
+  componentScores: SimulationPlanComponentScores;
+  rejectionReasons: SimulationPlanRejectionReason[];
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  confidence: number;
+  evidenceRefs: string[];
+}
+
+export interface CompareSimulationPlansInput {
+  id: string;
+  comparedAt: string;
+  candidates: SimulationPlanCandidate[];
+  policy: SimulationPlanComparisonPolicy;
+}
+
+export interface SimulationPlanComparisonResult {
+  id: string;
+  comparedAt: string;
+  status: "selected" | "no_eligible_plan";
+  sourceSnapshotId: string;
+  policy: SimulationPlanComparisonPolicy;
+  rankings: SimulationPlanRanking[];
+  selectedPlanId?: string;
+}
+
+export class SimulationPlanComparisonError extends Error {
+  readonly code = "invalid_simulation_plan_comparison";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "SimulationPlanComparisonError";
+  }
+}
+
 export function simulateWorldState(
   input: SimulateWorldStateInput
 ): WorldStateSimulationResult {
@@ -111,6 +194,262 @@ export function simulateWorldState(
     evidenceRefs: [source.id, projectedSnapshot.id],
     projectedSnapshot: cloneSnapshot(projectedSnapshot)
   };
+}
+
+export function compareSimulationPlans(
+  input: CompareSimulationPlansInput
+): SimulationPlanComparisonResult {
+  validateComparisonInput(input);
+  const policy = cloneComparisonPolicy(input.policy);
+  const rankings = input.candidates
+    .map((candidate) => rankCandidate(candidate, policy))
+    .sort(compareRankings)
+    .map((ranking, index) => ({ ...ranking, rank: index + 1 }));
+  const selectedPlanId = rankings.find((ranking) => ranking.eligible)?.planId;
+
+  return {
+    id: input.id,
+    comparedAt: input.comparedAt,
+    status: selectedPlanId === undefined ? "no_eligible_plan" : "selected",
+    sourceSnapshotId: input.candidates[0]!.simulation.sourceSnapshotId,
+    policy,
+    rankings: rankings.map(cloneRanking),
+    ...(selectedPlanId === undefined ? {} : { selectedPlanId })
+  };
+}
+
+function validateComparisonInput(input: CompareSimulationPlansInput): void {
+  if (input.candidates.length < 2) {
+    throw new SimulationPlanComparisonError(
+      "Simulation plan comparison requires at least two candidates."
+    );
+  }
+
+  validateComparisonPolicy(input.policy);
+  const planIds = new Set<string>();
+  const simulationIds = new Set<string>();
+  const sourceSnapshotId = input.candidates[0]!.simulation.sourceSnapshotId;
+
+  for (const candidate of input.candidates) {
+    if (planIds.has(candidate.planId)) {
+      throw new SimulationPlanComparisonError(
+        `Duplicate plan candidate: ${candidate.planId}.`
+      );
+    }
+    if (simulationIds.has(candidate.simulation.id)) {
+      throw new SimulationPlanComparisonError(
+        `Duplicate simulation candidate: ${candidate.simulation.id}.`
+      );
+    }
+    if (candidate.simulation.sourceSnapshotId !== sourceSnapshotId) {
+      throw new SimulationPlanComparisonError(
+        "All candidates must use the same source World State snapshot."
+      );
+    }
+    if (!isNonNegativeFinite(candidate.estimatedCost)) {
+      throw new SimulationPlanComparisonError(
+        `Candidate ${candidate.planId} has invalid estimated cost.`
+      );
+    }
+    if (!isNonNegativeFinite(candidate.estimatedLatencyMs)) {
+      throw new SimulationPlanComparisonError(
+        `Candidate ${candidate.planId} has invalid estimated latency.`
+      );
+    }
+    if (!isUnitInterval(candidate.confidence)) {
+      throw new SimulationPlanComparisonError(
+        `Candidate ${candidate.planId} has invalid confidence.`
+      );
+    }
+
+    planIds.add(candidate.planId);
+    simulationIds.add(candidate.simulation.id);
+  }
+}
+
+function validateComparisonPolicy(policy: SimulationPlanComparisonPolicy): void {
+  if (!Number.isFinite(policy.maximumCost) || policy.maximumCost <= 0) {
+    throw new SimulationPlanComparisonError(
+      "Comparison maximum cost must be greater than zero."
+    );
+  }
+  if (!Number.isFinite(policy.maximumLatencyMs) || policy.maximumLatencyMs <= 0) {
+    throw new SimulationPlanComparisonError(
+      "Comparison maximum latency must be greater than zero."
+    );
+  }
+  if (!isUnitInterval(policy.minimumConfidence)) {
+    throw new SimulationPlanComparisonError(
+      "Comparison minimum confidence must be between zero and one."
+    );
+  }
+  if (!isNonNegativeFinite(policy.maximumBlockerIncrease)) {
+    throw new SimulationPlanComparisonError(
+      "Maximum blocker increase must be non-negative."
+    );
+  }
+  if (!isNonNegativeFinite(policy.maximumCriticalBlockerIncrease)) {
+    throw new SimulationPlanComparisonError(
+      "Maximum critical blocker increase must be non-negative."
+    );
+  }
+
+  const weights = Object.values(policy.weights);
+  if (weights.some((weight) => !isNonNegativeFinite(weight))) {
+    throw new SimulationPlanComparisonError(
+      "Comparison weights must be finite and non-negative."
+    );
+  }
+  if (weights.every((weight) => weight === 0)) {
+    throw new SimulationPlanComparisonError(
+      "Comparison policy requires at least one positive weight."
+    );
+  }
+}
+
+function rankCandidate(
+  candidate: SimulationPlanCandidate,
+  policy: SimulationPlanComparisonPolicy
+): Omit<SimulationPlanRanking, "rank"> {
+  const componentScores: SimulationPlanComponentScores = {
+    confidence: candidate.confidence,
+    cost: remainingBudgetScore(candidate.estimatedCost, policy.maximumCost),
+    latency: remainingBudgetScore(
+      candidate.estimatedLatencyMs,
+      policy.maximumLatencyMs
+    ),
+    blockers: increaseScore(
+      candidate.simulation.metrics.delta.blockers,
+      policy.maximumBlockerIncrease
+    ),
+    criticalBlockers: increaseScore(
+      candidate.simulation.metrics.delta.criticalBlockers,
+      policy.maximumCriticalBlockerIncrease
+    )
+  };
+  const rejectionReasons = candidateRejectionReasons(candidate, policy);
+
+  return {
+    planId: candidate.planId,
+    simulationId: candidate.simulation.id,
+    eligible: rejectionReasons.length === 0,
+    score: weightedScore(componentScores, policy.weights),
+    componentScores,
+    rejectionReasons,
+    estimatedCost: candidate.estimatedCost,
+    estimatedLatencyMs: candidate.estimatedLatencyMs,
+    confidence: candidate.confidence,
+    evidenceRefs: [candidate.simulation.id, ...candidate.simulation.evidenceRefs]
+  };
+}
+
+function candidateRejectionReasons(
+  candidate: SimulationPlanCandidate,
+  policy: SimulationPlanComparisonPolicy
+): SimulationPlanRejectionReason[] {
+  const reasons: SimulationPlanRejectionReason[] = [];
+  if (candidate.simulation.status === "blocked") {
+    reasons.push("simulation_blocked");
+  }
+  if (candidate.simulation.status === "failed") {
+    reasons.push("simulation_failed");
+  }
+  if (candidate.simulation.projectedSnapshot === undefined) {
+    reasons.push("projected_snapshot_missing");
+  }
+  if (candidate.estimatedCost > policy.maximumCost) {
+    reasons.push("cost_limit_exceeded");
+  }
+  if (candidate.estimatedLatencyMs > policy.maximumLatencyMs) {
+    reasons.push("latency_limit_exceeded");
+  }
+  if (candidate.confidence < policy.minimumConfidence) {
+    reasons.push("confidence_below_minimum");
+  }
+  if (candidate.simulation.metrics.delta.blockers > policy.maximumBlockerIncrease) {
+    reasons.push("blocker_increase_exceeded");
+  }
+  if (
+    candidate.simulation.metrics.delta.criticalBlockers >
+    policy.maximumCriticalBlockerIncrease
+  ) {
+    reasons.push("critical_blocker_increase_exceeded");
+  }
+  return reasons;
+}
+
+function weightedScore(
+  scores: SimulationPlanComponentScores,
+  weights: SimulationPlanComparisonWeights
+): number {
+  const weightTotal = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  return roundScore(
+    (scores.confidence * weights.confidence +
+      scores.cost * weights.cost +
+      scores.latency * weights.latency +
+      scores.blockers * weights.blockers +
+      scores.criticalBlockers * weights.criticalBlockers) /
+      weightTotal
+  );
+}
+
+function remainingBudgetScore(value: number, maximum: number): number {
+  return roundScore(Math.max(0, Math.min(1, 1 - value / maximum)));
+}
+
+function increaseScore(increase: number, maximumIncrease: number): number {
+  if (increase <= 0) {
+    return 1;
+  }
+  return maximumIncrease === 0
+    ? 0
+    : roundScore(Math.max(0, Math.min(1, 1 - increase / maximumIncrease)));
+}
+
+function roundScore(value: number): number {
+  return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000;
+}
+
+function compareRankings(
+  left: Omit<SimulationPlanRanking, "rank">,
+  right: Omit<SimulationPlanRanking, "rank">
+): number {
+  if (left.eligible !== right.eligible) {
+    return left.eligible ? -1 : 1;
+  }
+  return (
+    right.score - left.score ||
+    right.confidence - left.confidence ||
+    left.estimatedCost - right.estimatedCost ||
+    left.estimatedLatencyMs - right.estimatedLatencyMs ||
+    left.planId.localeCompare(right.planId)
+  );
+}
+
+function cloneComparisonPolicy(
+  policy: SimulationPlanComparisonPolicy
+): SimulationPlanComparisonPolicy {
+  return {
+    ...policy,
+    weights: { ...policy.weights }
+  };
+}
+
+function cloneRanking(ranking: SimulationPlanRanking): SimulationPlanRanking {
+  return {
+    ...ranking,
+    componentScores: { ...ranking.componentScores },
+    rejectionReasons: [...ranking.rejectionReasons],
+    evidenceRefs: [...ranking.evidenceRefs]
+  };
+}
+
+function isNonNegativeFinite(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
+}
+
+function isUnitInterval(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
 }
 
 function applyEffect(

@@ -440,7 +440,9 @@ Use this file as the source checklist. Tick items only when the implementation i
 - [ ] Implement escalation decisions.
 - [x] Implement Simulation Engine World State clone.
 - [x] Implement simulation metrics.
-- [ ] Implement plan comparison.
+- [x] Implement deterministic simulation plan comparison.
+- [x] Add explicit confidence, cost, latency, blocker, and critical-risk weights.
+- [x] Persist comparison selection with Memory and Audit evidence.
 - [ ] Implement Internal Economy cost model.
 - [ ] Implement Time Engine deadlines.
 - [ ] Implement Time Engine recurrence.

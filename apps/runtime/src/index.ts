@@ -102,7 +102,11 @@ import {
   type SelfModelStore
 } from "@atlas-aios/self-model";
 import {
+  SimulationPlanComparisonError,
+  compareSimulationPlans,
   simulateWorldState,
+  type SimulationPlanComparisonPolicy,
+  type SimulationPlanComparisonResult,
   type WorldStateSimulationEffect,
   type WorldStateSimulationResult,
   type WorldStateSimulationThresholds
@@ -427,6 +431,21 @@ export interface RuntimeSimulationRecord {
   createdAt: string;
 }
 
+export interface RuntimeSimulationComparisonCandidateInput {
+  planId: string;
+  simulationId: string;
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  confidence: number;
+}
+
+export interface CreateRuntimeSimulationComparisonRequest {
+  id: string;
+  comparedAt: string;
+  candidates: RuntimeSimulationComparisonCandidateInput[];
+  policy: SimulationPlanComparisonPolicy;
+}
+
 export interface RuntimeStateSnapshot {
   goals: Goal[];
   goalEvents: Array<[string, GoalLifecycleEvent[]]>;
@@ -444,6 +463,7 @@ export interface RuntimeStateSnapshot {
   workflows: AtlasFlow[];
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
+  simulationComparisons?: SimulationPlanComparisonResult[];
   brainPlans?: AtlasPlan[];
   planRuns?: PlanRun[];
 }
@@ -465,6 +485,7 @@ interface RuntimeState {
   workflows: AtlasFlow[];
   thoughts: RuntimeThought[];
   simulations: RuntimeSimulationRecord[];
+  simulationComparisons: SimulationPlanComparisonResult[];
   brainPlans: AtlasPlan[];
   planRuns: PlanRun[];
   governancePolicyStore: GovernancePolicyStore;
@@ -526,6 +547,7 @@ export function createAtlasRuntime(
     workflows: [],
     thoughts: [],
     simulations: [],
+    simulationComparisons: [],
     brainPlans: [],
     planRuns: [],
     governancePolicyStore: createInMemoryGovernancePolicyStore(
@@ -890,6 +912,86 @@ async function handleRuntimeRequest(
   if (request.method === "GET" && url.pathname === "/simulations") {
     return json({
       simulations: state.simulations
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/simulations/compare") {
+    const input = (await request.json()) as unknown;
+    if (!isCreateRuntimeSimulationComparisonRequest(input)) {
+      return json(
+        {
+          error: "invalid_simulation_comparison_request",
+          reason:
+            "Comparison requires an id, timestamp, candidate simulation references, explicit limits, and explicit weights."
+        },
+        { status: 400 }
+      );
+    }
+
+    if (state.simulationComparisons.some((comparison) => comparison.id === input.id)) {
+      return json(
+        {
+          error: "simulation_comparison_conflict",
+          comparisonId: input.id
+        },
+        { status: 409 }
+      );
+    }
+
+    const resolvedCandidates = [];
+    for (const candidate of input.candidates) {
+      const simulation = state.simulations.find(
+        (item) => item.id === candidate.simulationId
+      );
+      if (simulation?.worldStateSimulation === undefined) {
+        return json(
+          {
+            error: "simulation_not_found_or_incomplete",
+            simulationId: candidate.simulationId
+          },
+          { status: 404 }
+        );
+      }
+      resolvedCandidates.push({
+        planId: candidate.planId,
+        simulation: {
+          ...simulation.worldStateSimulation,
+          id: simulation.id
+        },
+        estimatedCost: candidate.estimatedCost,
+        estimatedLatencyMs: candidate.estimatedLatencyMs,
+        confidence: candidate.confidence
+      });
+    }
+
+    try {
+      const comparison = compareSimulationPlans({
+        id: input.id,
+        comparedAt: input.comparedAt,
+        candidates: resolvedCandidates,
+        policy: input.policy
+      });
+      state.simulationComparisons.push(comparison);
+      recordRuntimeSimulationComparisonEvidence(state, comparison);
+
+      return json({ comparison }, { status: 201 });
+    } catch (error) {
+      if (error instanceof SimulationPlanComparisonError) {
+        return json(
+          {
+            error: error.code,
+            reason: error.message
+          },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
+  }
+
+  if (request.method === "GET" && url.pathname === "/simulations/comparisons") {
+    return json({
+      comparisons: state.simulationComparisons
     });
   }
 
@@ -1784,6 +1886,43 @@ function isCreateRuntimeSimulationRequest(
   );
 }
 
+function isCreateRuntimeSimulationComparisonRequest(
+  value: unknown
+): value is CreateRuntimeSimulationComparisonRequest {
+  if (
+    !isRuntimeRecord(value) ||
+    !isNonEmptyRuntimeString(value.id) ||
+    !isNonEmptyRuntimeString(value.comparedAt) ||
+    !Array.isArray(value.candidates) ||
+    !isRuntimeRecord(value.policy) ||
+    !isRuntimeRecord(value.policy.weights)
+  ) {
+    return false;
+  }
+
+  return (
+    value.candidates.every(
+      (candidate) =>
+        isRuntimeRecord(candidate) &&
+        isNonEmptyRuntimeString(candidate.planId) &&
+        isNonEmptyRuntimeString(candidate.simulationId) &&
+        isFiniteRuntimeNumber(candidate.estimatedCost) &&
+        isFiniteRuntimeNumber(candidate.estimatedLatencyMs) &&
+        isFiniteRuntimeNumber(candidate.confidence)
+    ) &&
+    isFiniteRuntimeNumber(value.policy.maximumCost) &&
+    isFiniteRuntimeNumber(value.policy.maximumLatencyMs) &&
+    isFiniteRuntimeNumber(value.policy.minimumConfidence) &&
+    isFiniteRuntimeNumber(value.policy.maximumBlockerIncrease) &&
+    isFiniteRuntimeNumber(value.policy.maximumCriticalBlockerIncrease) &&
+    isFiniteRuntimeNumber(value.policy.weights.confidence) &&
+    isFiniteRuntimeNumber(value.policy.weights.cost) &&
+    isFiniteRuntimeNumber(value.policy.weights.latency) &&
+    isFiniteRuntimeNumber(value.policy.weights.blockers) &&
+    isFiniteRuntimeNumber(value.policy.weights.criticalBlockers)
+  );
+}
+
 function isWorldStateSimulationEffect(
   value: unknown
 ): value is WorldStateSimulationEffect {
@@ -1830,6 +1969,10 @@ function isWorldStateSimulationThresholds(
 
 function isRuntimeRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteRuntimeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isNonEmptyRuntimeString(value: unknown): value is string {
@@ -1881,6 +2024,7 @@ function createRuntimeStateSnapshot(state: RuntimeState): RuntimeStateSnapshot {
     workflows: state.workflows,
     thoughts: state.thoughts,
     simulations: state.simulations,
+    simulationComparisons: state.simulationComparisons,
     brainPlans: state.brainPlans,
     planRuns: state.planRuns
   };
@@ -1906,6 +2050,7 @@ function restoreRuntimeStateSnapshot(
   state.workflows = snapshot.workflows ?? [];
   state.thoughts = snapshot.thoughts ?? [];
   state.simulations = snapshot.simulations ?? [];
+  state.simulationComparisons = snapshot.simulationComparisons ?? [];
   state.brainPlans = snapshot.brainPlans ?? [];
   state.planRuns = snapshot.planRuns ?? [];
 }
@@ -2387,6 +2532,52 @@ function updateRuntimeSelfModelFromExecution(
           limitation:
             "Provider execution requires successful runtime workflow completion."
         })
+  });
+}
+
+function recordRuntimeSimulationComparisonEvidence(
+  state: RuntimeState,
+  comparison: SimulationPlanComparisonResult
+): void {
+  const simulationIds = comparison.rankings.map((ranking) => ranking.simulationId);
+  const evidenceRefs = [
+    comparison.id,
+    ...comparison.rankings.flatMap((ranking) => ranking.evidenceRefs)
+  ].filter((ref, index, refs) => refs.indexOf(ref) === index);
+  const selectionSummary =
+    comparison.selectedPlanId === undefined
+      ? "No eligible plan was selected."
+      : `Selected ${comparison.selectedPlanId}.`;
+
+  state.auditLogs.push({
+    id: `audit:simulation-comparison:${comparison.id}`,
+    type: `simulation.comparison.${comparison.status}`,
+    actorId: "identity:runtime",
+    subjectId: comparison.id,
+    occurredAt: comparison.comparedAt,
+    summary: `Simulation comparison ${comparison.id} completed. ${selectionSummary}`,
+    evidenceRefs,
+    metadata: {
+      status: comparison.status,
+      selectedPlanId: comparison.selectedPlanId ?? "none",
+      sourceSnapshotId: comparison.sourceSnapshotId
+    }
+  });
+  recordMemoryEvent(state.memoryStore, {
+    id: `memory:event:simulation-comparison:${comparison.id}`,
+    kind: "decision",
+    occurredAt: comparison.comparedAt,
+    summary: `Simulation comparison ${comparison.id} completed. ${selectionSummary}`,
+    subjectIds: [
+      comparison.id,
+      ...(comparison.selectedPlanId === undefined ? [] : [comparison.selectedPlanId])
+    ],
+    sourceIds: simulationIds,
+    evidenceRefs,
+    metadata: {
+      status: comparison.status,
+      selectedPlanId: comparison.selectedPlanId ?? "none"
+    }
   });
 }
 
